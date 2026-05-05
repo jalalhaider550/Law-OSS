@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Law OSS — Open Source Legal AI</title>
+<meta name="description" content="The free open-source alternative to Harvey AI and Legora."/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'DM Sans',system-ui,sans-serif;background:#fff;color:#0a0a0a;-webkit-font-smoothing:antialiased}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:#ddd;border-radius:2px}
+@keyframes lp{0%,80%,100%{transform:scale(0.5);opacity:0.25}40%{transform:scale(1);opacity:1}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+.fade{animation:fadeUp 0.5s ease both}
+button,input,textarea,select{font-family:inherit}
+input:focus,textarea:focus,select:focus{outline:none;border-color:#0a0a0a!important}
+.dots span{display:inline-block;width:6px;height:6px;border-radius:50%;background:#0a0a0a;margin:0 3px;animation:lp 1.1s ease-in-out infinite}
+.dots span:nth-child(2){animation-delay:.18s}.dots span:nth-child(3){animation-delay:.36s}
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 22px;background:#0a0a0a;color:#fff;border:none;border-radius:9px;font-size:13.5px;font-weight:700;cursor:pointer;transition:opacity .15s}
+.btn:hover{opacity:.85}.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-ghost{background:transparent;color:#666;border:1.5px solid #e0e0e0;border-radius:9px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}
+.btn-ghost:hover{border-color:#0a0a0a;color:#0a0a0a}
+.inp{width:100%;padding:10px 13px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:13.5px;color:#0a0a0a;background:#fff;transition:border-color .15s}
+.card{background:#fff;border:1.5px solid #e4e4e4;border-radius:12px;padding:20px 22px;transition:border-color .2s}
+.card:hover{border-color:#0a0a0a}
+#app{min-height:100%}
+.sidebar{width:232px;background:#fafafa;border-right:1px solid #e8e8e8;display:flex;flex-direction:column;height:100vh;position:sticky;top:0;flex-shrink:0}
+.nav-btn{width:100%;display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:8px;border:none;background:transparent;color:#888;font-size:13px;font-weight:400;text-align:left;cursor:pointer;margin-bottom:2px;transition:all .12s}
+.nav-btn.active{background:#ebebeb;color:#0a0a0a;font-weight:600}
+.msg-user{background:#0a0a0a;color:#fff;border-radius:11px;padding:10px 14px;max-width:78%;font-size:13.5px;line-height:1.7;white-space:pre-wrap;margin-left:auto}
+.msg-ai{background:#f5f5f5;border:1.5px solid #e4e4e4;color:#0a0a0a;border-radius:11px;padding:10px 14px;max-width:80%;font-size:13.5px;line-height:1.7;white-space:pre-wrap}
+.chip{padding:6px 13px;background:#f5f5f5;border:1.5px solid #e4e4e4;border-radius:20px;cursor:pointer;color:#666;font-size:12px;transition:all .15s;font-family:inherit}
+.chip:hover{border-color:#0a0a0a;color:#0a0a0a}
+.contract-card{padding:13px 15px;background:#fff;border:1.5px solid #e8e8e8;border-radius:10px;cursor:pointer;text-align:left;transition:all .15s;width:100%;font-family:inherit}
+.contract-card:hover{border-color:#0a0a0a;background:#fafafa}
+.tag{padding:3px 10px;border-radius:20px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// -- Constants ----------------------------------------------------------------
+const STORAGE_KEY = "lawoss_v2";
+const JURISDICTIONS = [
+  {l:"🇺🇸 New York",v:"New York, USA",s:"common law"},
+  {l:"🇺🇸 California",v:"California, USA",s:"common law"},
+  {l:"🇺🇸 Delaware",v:"Delaware, USA",s:"common law"},
+  {l:"🇺🇸 Texas",v:"Texas, USA",s:"common law"},
+  {l:"🇺🇸 Federal (USA)",v:"Federal, USA",s:"common law"},
+  {l:"🇬🇧 England & Wales",v:"England and Wales, UK",s:"common law"},
+  {l:"🇦🇪 UAE (DIFC)",v:"Dubai International Financial Centre, UAE",s:"common law"},
+  {l:"🇸🇬 Singapore",v:"Singapore",s:"common law"},
+  {l:"🇦🇺 Australia (NSW)",v:"New South Wales, Australia",s:"common law"},
+  {l:"🇨🇦 Ontario, Canada",v:"Ontario, Canada",s:"common law"},
+  {l:"🇮🇳 India",v:"India",s:"common law"},
+  {l:"🇩🇪 Germany",v:"Germany",s:"civil law"},
+  {l:"🇫🇷 France",v:"France",s:"civil law"},
+  {l:"🇳🇱 Netherlands",v:"Netherlands",s:"civil law"},
+];
+const CONTRACT_CATS = [
+  {label:"Corporate & M&A",icon:"🏛",types:[
+    {id:"spa",label:"Share Purchase Agreement",desc:"Full acquisition of company shares"},
+    {id:"shareholders",label:"Shareholders Agreement",desc:"Rights and obligations of shareholders"},
+    {id:"jv",label:"Joint Venture Agreement",desc:"Co-venture between two entities"},
+    {id:"loi",label:"Letter of Intent (LOI)",desc:"Pre-contractual term sheet"},
+    {id:"termsheet",label:"Term Sheet",desc:"Investment or deal term sheet"},
+  ]},
+  {label:"Commercial Contracts",icon:"📋",types:[
+    {id:"nda",label:"Non-Disclosure Agreement",desc:"Mutual or one-way confidentiality"},
+    {id:"service",label:"Master Services Agreement",desc:"Ongoing services framework"},
+    {id:"saas",label:"SaaS Subscription Agreement",desc:"Software-as-a-service terms"},
+    {id:"consulting",label:"Consulting Agreement",desc:"Independent contractor engagement"},
+    {id:"distribution",label:"Distribution Agreement",desc:"Reseller or distribution rights"},
+  ]},
+  {label:"Employment & HR",icon:"👤",types:[
+    {id:"employment",label:"Employment Agreement",desc:"Full-time or part-time employment"},
+    {id:"executive",label:"Executive Service Agreement",desc:"C-suite or director-level contract"},
+    {id:"non_compete",label:"Non-Compete & Non-Solicit",desc:"Restrictive covenants post-employment"},
+    {id:"severance",label:"Severance Agreement",desc:"Termination and separation terms"},
+  ]},
+  {label:"Finance & Investment",icon:"💰",types:[
+    {id:"safe",label:"SAFE Note",desc:"Simple Agreement for Future Equity"},
+    {id:"convertible",label:"Convertible Note",desc:"Debt convertible to equity"},
+    {id:"loan",label:"Loan Agreement",desc:"Commercial lending agreement"},
+  ]},
+];
+const WORKFLOWS = [
+  {id:1,name:"Due Diligence Review",steps:["Upload documents","Extract key clauses","Flag risks","Generate summary"]},
+  {id:2,name:"Contract Comparison",steps:["Upload base contract","Upload comparison","Identify differences","Summarise deviations"]},
+  {id:3,name:"Compliance Audit",steps:["Upload policy docs","Check regulations","Generate report"]},
+];
+const TESTIMONIALS = [
+  {name:"Sarah Chen",role:"Solo Attorney, New York",avatar:"SC",text:"Finally a legal AI that doesn't cost $40K a year. Harvey who?"},
+  {name:"Marcus O'Brien",role:"Partner, O'Brien & Associates",avatar:"MO",text:"We switched from Legora. Law OSS does the same work and I'm saving $28K annually."},
+  {name:"Priya Nair",role:"In-House Counsel, FinTech",avatar:"PN",text:"The contract drafting is remarkable. 15 jurisdictions actually done properly."},
+  {name:"James Whitfield",role:"Criminal Defense, Chicago",avatar:"JW",text:"Open source means I can audit what it does with my client data. Harvey can't say that."},
+  {name:"Amara Okafor",role:"IP Litigator, London",avatar:"AO",text:"England & Wales drafting is genuinely accurate. Not re-skinned US templates."},
+  {name:"Diego Reyes",role:"M&A Lawyer, Mexico City",avatar:"DR",text:"Civil law jurisdiction support is a genuine differentiator. Remarkable product."},
+];
+
+// – State ––––––––––––––––––––––––––––––––––
+let S = {
+screen:“landing”,
+authMode:“signup”, authStep:“form”,
+name:””,email:””,password:””,apiKey:””,showKey:false,authErr:””,
+user:null,
+view:“projects”,
+messages:[],chatInput:””,chatLoading:false,
+docText:””,docName:””,showPaste:false,pasteInput:””,
+cStep:“browse”,selCat:null,selType:null,jurIdx:0,
+p1:””,p2:””,p1t:“Company”,p2t:“Company”,cnotes:””,
+cOutput:””,cLoading:false,copied:false,
+wActive:null,wStepIdx:0,wOutput:””,wLoading:false,
+};
+try{const u=JSON.parse(localStorage.getItem(STORAGE_KEY)||“null”);if(u&&u.apiKey){S.user=u;S.screen=“app”;}}catch(e){}
+
+// – Helpers ——————————————————————
+function h(tag,attrs,children){
+const el=document.createElement(tag);
+for(const[k,v]of Object.entries(attrs||{})){
+if(k===“class”)el.className=v;
+else if(k.startsWith(“on”))el.addEventListener(k.slice(2).toLowerCase(),v);
+else if(k===“style”&&typeof v===“object”)Object.assign(el.style,v);
+else el.setAttribute(k,v);
+}
+for(const c of[].concat(children||[])){
+if(c==null||c===false)continue;
+el.appendChild(typeof c===“string”?document.createTextNode(c):c);
+}
+return el;
+}
+function set(patch){Object.assign(S,patch);render();}
+function $(…args){return document.querySelector(…args);}
+function saveUser(u){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(u));}catch(e){}}
+function clearUser(){try{localStorage.removeItem(STORAGE_KEY);}catch(e){}}
+function esc(s){return String(s).replace(/&/g,”&”).replace(/</g,”<”).replace(/>/g,”>”);}
+
+async function callAI(apiKey,system,messages){
+const r=await fetch(“https://api.anthropic.com/v1/messages”,{
+method:“POST”,
+headers:{“Content-Type”:“application/json”,“x-api-key”:apiKey,“anthropic-version”:“2023-06-01”,“anthropic-dangerous-direct-browser-access”:“true”},
+body:JSON.stringify({model:“claude-sonnet-4-20250514”,max_tokens:1000,system,messages}),
+});
+if(!r.ok)throw new Error(“HTTP “+r.status);
+const d=await r.json();
+if(d.error)throw new Error(d.error.message||“API error”);
+return d.content?.map(c=>c.text||””).join(””)||””;
+}
+
+// – Components —————————————————————
+function dots(){const d=h(“div”,{class:“dots”});[0,1,2].forEach(()=>d.appendChild(h(“span”,{})));return d;}
+
+function inputEl(val,onchange,opts={}){
+const el=h(“input”,{class:“inp”,…opts});
+el.value=val;
+el.addEventListener(“input”,e=>onchange(e.target.value));
+return el;
+}
+
+function btn(label,onclick,opts={}){
+const b=h(“button”,{class:“btn”,…opts});
+b.innerHTML=label;
+b.addEventListener(“click”,onclick);
+return b;
+}
+
+// – Landing ——————————————————————
+function landingPage(){
+const app=h(“div”,{style:{minHeight:“100vh”,background:”#fff”}});
+
+// Nav
+const nav=h(“nav”,{style:{display:“flex”,alignItems:“center”,justifyContent:“space-between”,padding:“0 48px”,height:“58px”,borderBottom:“1px solid #e8e8e8”,position:“sticky”,top:0,background:“rgba(255,255,255,.97)”,zIndex:100,backdropFilter:“blur(8px)”}});
+const logo=h(“div”,{style:{display:“flex”,alignItems:“center”,gap:“8px”}});
+logo.appendChild(h(“div”,{style:{width:“28px”,height:“28px”,background:”#0a0a0a”,borderRadius:“6px”,display:“flex”,alignItems:“center”,justifyContent:“center”,fontSize:“14px”,color:”#fff”}},“⚖”));
+logo.appendChild(h(“span”,{style:{fontFamily:”‘DM Serif Display’,serif”,fontSize:“17px”,color:”#0a0a0a”}},“Law OSS”));
+nav.appendChild(logo);
+const navBtns=h(“div”,{style:{display:“flex”,gap:“10px”,alignItems:“center”}});
+const loginBtn=h(“button”,{class:“btn-ghost”},[“Log in”]);
+loginBtn.addEventListener(“click”,()=>set({screen:“auth”,authMode:“login”,authStep:“form”,authErr:””}));
+navBtns.appendChild(loginBtn);
+const signupBtn=btn(“Get started free →”,()=>set({screen:“auth”,authMode:“signup”,authStep:“form”,authErr:””}),{style:{padding:“8px 18px”,fontSize:“13px”}});
+navBtns.appendChild(signupBtn);
+nav.appendChild(navBtns);
+app.appendChild(nav);
+
+// Hero
+const hero=h(“section”,{class:“fade”,style:{maxWidth:“860px”,margin:“0 auto”,padding:“88px 40px 64px”,textAlign:“center”}});
+const badge=h(“div”,{style:{display:“inline-flex”,alignItems:“center”,gap:“8px”,background:”#f4f4f4”,border:“1px solid #e8e8e8”,borderRadius:“24px”,padding:“5px 14px 5px 8px”,marginBottom:“26px”}});
+badge.appendChild(h(“span”,{style:{background:”#0a0a0a”,color:”#fff”,fontSize:“9.5px”,fontWeight:“700”,padding:“2px 8px”,borderRadius:“12px”,letterSpacing:”.07em”}},“OPEN SOURCE”));
+badge.appendChild(h(“span”,{style:{fontSize:“12.5px”,color:”#666”}},“Free alternative to Harvey AI & Legora”));
+hero.appendChild(badge);
+const h1=h(“h1”,{style:{fontFamily:”‘DM Serif Display’,serif”,fontSize:“clamp(36px,5vw,64px)”,fontWeight:“400”,lineHeight:“1.07”,color:”#0a0a0a”,marginBottom:“20px”,letterSpacing:”-.02em”}});
+h1.innerHTML=“Enterprise legal AI.<br><em style='color:#555;font-style:italic'>Without the enterprise bill.</em>”;
+hero.appendChild(h1);
+hero.appendChild(h(“p”,{style:{fontSize:“17px”,color:”#666”,maxWidth:“540px”,margin:“0 auto 32px”,lineHeight:“1.65”,fontWeight:“300”}},“Harvey charges $40,000/yr. Legora charges $30,000/yr. Law OSS is free, open source, and runs on your own API key.”));
+const heroBtns=h(“div”,{style:{display:“flex”,gap:“12px”,justifyContent:“center”,flexWrap:“wrap”,marginBottom:“14px”}});
+const hb1=btn(“Start for free →”,()=>set({screen:“auth”,authMode:“signup”,authStep:“form”,authErr:””}),{style:{padding:“13px 28px”,fontSize:“15px”}});
+heroBtns.appendChild(hb1);
+hero.appendChild(heroBtns);
+hero.appendChild(h(“div”,{style:{fontSize:“12px”,color:”#aaa”}},“No credit card . No subscription . Bring your own API key”));
+app.appendChild(hero);
+
+// Pricing strip
+const strip=h(“section”,{style:{background:”#f8f8f8”,borderTop:“1px solid #e8e8e8”,borderBottom:“1px solid #e8e8e8”,padding:“28px 48px”}});
+const grid=h(“div”,{style:{maxWidth:“780px”,margin:“0 auto”,display:“grid”,gridTemplateColumns:“1fr 1fr 1fr”,gap:“0”,alignItems:“center”}});
+[{name:“Harvey AI”,price:”~$40,000/yr”,sub:“Closed source”,bad:true},{name:“Legora”,price:”~$30,000/yr”,sub:“Per-seat pricing”,bad:true},{name:“Law OSS”,price:“Free forever”,sub:“Open source . BYOK”,good:true}].forEach(p=>{
+const c=h(“div”,{style:{padding:“22px 20px”,textAlign:“center”,background:p.good?”#0a0a0a”:“transparent”,borderRadius:p.good?“12px”:“0”,position:“relative”,transform:p.good?“scale(1.04)”:“none”}});
+if(p.good){const badge=h(“div”,{style:{position:“absolute”,top:”-11px”,left:“50%”,transform:“translateX(-50%)”,background:”#16a34a”,color:”#fff”,fontSize:“9px”,fontWeight:“700”,padding:“3px 10px”,borderRadius:“12px”,whiteSpace:“nowrap”,letterSpacing:”.06em”}});badge.textContent=“YOUR CHOICE”;c.appendChild(badge);}
+c.appendChild(h(“div”,{style:{fontSize:“13px”,fontWeight:“600”,color:p.good?”#aaa”:”#0a0a0a”,marginBottom:“4px”}},[p.name]));
+c.appendChild(h(“div”,{style:{fontFamily:”‘DM Serif Display’,serif”,fontSize:“28px”,color:p.good?”#fff”:p.bad?”#dc2626”:”#0a0a0a”,marginBottom:“4px”}},[p.price]));
+c.appendChild(h(“div”,{style:{fontSize:“11px”,color:p.good?“rgba(255,255,255,.5)”:”#aaa”}},[p.sub]));
+grid.appendChild(c);
+});
+strip.appendChild(grid);
+app.appendChild(strip);
+
+// Features
+const feats=h(“section”,{style:{maxWidth:“940px”,margin:“0 auto”,padding:“64px 40px”}});
+feats.appendChild(h(“h2”,{style:{fontFamily:”‘DM Serif Display’,serif”,fontSize:“32px”,fontWeight:“400”,textAlign:“center”,marginBottom:“10px”,letterSpacing:”-.01em”}},“Everything Harvey has. Nothing they charge for.”));
+feats.appendChild(h(“p”,{style:{textAlign:“center”,color:”#777”,marginBottom:“44px”,fontSize:“14px”}},“Full feature parity. Zero licensing cost.”));
+const fgrid=h(“div”,{style:{display:“grid”,gridTemplateColumns:“repeat(auto-fill,minmax(260px,1fr))”,gap:“14px”}});
+[{icon:“◎”,title:“Document Chat”,desc:“Upload any legal document and interrogate it. Risk flagging, obligation mapping, clause extraction.”},{icon:“⟐”,title:“Contract Studio”,desc:“30 contract types across 14 jurisdictions. Jurisdiction-aware drafting with correct statutory references.”},{icon:“⌬”,title:“Legal Workflows”,desc:“Multi-step due diligence, contract comparison, and compliance audit pipelines.”},{icon:“🔑”,title:“Bring Your Own Key”,desc:“Connect your own Anthropic key. We never see your tokens. Zero platform cost.”},{icon:“🌍”,title:“14 Jurisdictions”,desc:“US, UK, EU, APAC. Common law and civil law. Built for global practice.”},{icon:“🔒”,title:“Data Sovereignty”,desc:“Open source. Self-hostable. Attorney-client privilege fully preserved.”}].forEach(f=>{
+const c=h(“div”,{style:{padding:“22px”,border:“1.5px solid #e4e4e4”,borderRadius:“12px”,transition:“all .2s”,cursor:“default”}});
+c.addEventListener(“mouseenter”,()=>{c.style.borderColor=”#0a0a0a”;c.style.transform=“translateY(-2px)”;});
+c.addEventListener(“mouseleave”,()=>{c.style.borderColor=”#e4e4e4”;c.style.transform=“none”;});
+c.appendChild(h(“div”,{style:{fontSize:“22px”,marginBottom:“10px”}},[f.icon]));
+c.appendChild(h(“div”,{style:{fontSize:“14px”,fontWeight:“700”,color:”#0a0a0a”,marginBottom:“6px”}},[f.title]));
+c.appendChild(h(“div”,{style:{fontSize:“13px”,color:”#666”,lineHeight:“1.6”}},[f.desc]));
+fgrid.appendChild(c);
+});
+feats.appendChild(fgrid);
+app.appendChild(feats);
+
+// Testimonials
+const testSection=h(“section”,{style:{background:”#f8f8f8”,borderTop:“1px solid #e8e8e8”,padding:“64px 40px”}});
+testSection.appendChild(h(“h2”,{style:{fontFamily:”‘DM Serif Display’,serif”,fontSize:“32px”,fontWeight:“400”,textAlign:“center”,marginBottom:“8px”}},“Lawyers who made the switch”));
+testSection.appendChild(h(“p”,{style:{textAlign:“center”,color:”#777”,marginBottom:“40px”,fontSize:“14px”}},“From Harvey and Legora to free”));
+const tgrid=h(“div”,{style:{maxWidth:“960px”,margin:“0 auto”,display:“grid”,gridTemplateColumns:“repeat(auto-fill,minmax(280px,1fr))”,gap:“14px”}});
+TESTIMONIALS.forEach(t=>{
+const c=h(“div”,{style:{background:”#fff”,border:“1.5px solid #ebebeb”,borderRadius:“12px”,padding:“20px 18px”}});
+const top=h(“div”,{style:{display:“flex”,alignItems:“center”,gap:“10px”,marginBottom:“14px”}});
+const av=h(“div”,{style:{width:“36px”,height:“36px”,borderRadius:“50%”,background:”#0a0a0a”,color:”#fff”,display:“flex”,alignItems:“center”,justifyContent:“center”,fontSize:“11px”,fontWeight:“700”,flexShrink:“0”}},[t.avatar]);
+top.appendChild(av);
+const info=h(“div”,{});
+info.appendChild(h(“div”,{style:{fontSize:“13px”,fontWeight:“700”,color:”#0a0a0a”}},[t.name]));
+info.appendChild(h(“div”,{style:{fontSize:“11px”,color:”#888”}},[t.role]));
+top.appendChild(info);
+c.appendChild(top);
+c.appendChild(h(“p”,{style:{fontSize:“13px”,color:”#444”,lineHeight:“1.65”,fontStyle:“italic”}},[”"”+t.text+”"”]));
+tgrid.appendChild(c);
+});
+testSection.appendChild(tgrid);
+app.appendChild(testSection);
+
+// CTA
+const cta=h(“section”,{style:{maxWidth:“580px”,margin:“0 auto”,padding:“72px 40px”,textAlign:“center”}});
+const ctaBox=h(“div”,{style:{padding:“48px 40px”,background:”#0a0a0a”,borderRadius:“20px”}});
+ctaBox.appendChild(h(“h2”,{style:{fontFamily:”‘DM Serif Display’,serif”,fontSize:“32px”,color:”#fff”,marginBottom:“12px”,fontWeight:“400”}},“Ready to cancel Harvey?”));
+ctaBox.appendChild(h(“p”,{style:{color:”#888”,fontSize:“14px”,marginBottom:“24px”,lineHeight:“1.6”}},“Connect your Anthropic API key and you’re up in under two minutes.”));
+const ctaBtn=btn(“Get started free →”,()=>set({screen:“auth”,authMode:“signup”,authStep:“form”,authErr:””}),{style:{padding:“13px 28px”,fontSize:“15px”,background:”#fff”,color:”#0a0a0a”}});
+ctaBox.appendChild(ctaBtn);
+cta.appendChild(ctaBox);
+app.appendChild(cta);
+
+// Footer
+const footer=h(“footer”,{style:{borderTop:“1px solid #e8e8e8”,padding:“22px 48px”,display:“flex”,justifyContent:“space-between”,alignItems:“center”,flexWrap:“wrap”,gap:“10px”}});
+const flogo=h(“div”,{style:{display:“flex”,alignItems:“center”,gap:“7px”}});
+flogo.appendChild(h(“div”,{style:{width:“22px”,height:“22px”,background:”#0a0a0a”,borderRadius:“4px”,display:“flex”,alignItems:“center”,justifyContent:“center”,fontSize:“10px”,color:”#fff”}},“⚖”));
+flogo.appendChild(h(“span”,{style:{fontFamily:”‘DM Serif Display’,serif”,fontSize:“14px”}},“Law OSS”));
+footer.appendChild(flogo);
+footer.appendChild(h(“div”,{style:{fontSize:“12px”,color:”#aaa”}},“Open source . AGPL-3.0 . Not legal advice”));
+app.appendChild(footer);
+
+return app;
+}
+
+// – Auth ———————————————————————
+function authPage(){
+const wrap=h(“div”,{style:{minHeight:“100vh”,display:“flex”,alignItems:“center”,justifyContent:“center”,background:”#f7f7f7”,padding:“20px”}});
+const card=h(“div”,{style:{display:“flex”,background:”#fff”,borderRadius:“20px”,boxShadow:“0 20px 60px rgba(0,0,0,.1)”,overflow:“hidden”,width:“100%”,maxWidth:“820px”,minHeight:“520px”}});
+
+// Left panel
+const left=h(“div”,{style:{width:“400px”,background:”#0a0a0a”,color:”#fff”,padding:“44px 40px”,display:“flex”,flexDirection:“column”,flexShrink:“0”}});
+const llogo=h(“div”,{style:{display:“flex”,alignItems:“center”,gap:“9px”,marginBottom:“40px”,cursor:“pointer”}});
+llogo.addEventListener(“click”,()=>set({screen:“landing”}));
+llogo.appendChild(h(“div”,{style:{width:“28px”,height:“28px”,background:“rgba(255,255,255,.12)”,borderRadius:“6px”,display:“flex”,alignItems:“center”,justifyContent:“center”,fontSize:“14px”}},“⚖”));
+llogo.appendChild(h(“span”,{style:{fontFamily:”‘DM Serif Display’,serif”,fontSize:“16px”}},“Law OSS”));
+left.appendChild(llogo);
+left.appendChild(h(“div”,{style:{fontSize:“10px”,fontWeight:“700”,color:“rgba(255,255,255,.4)”,textTransform:“uppercase”,letterSpacing:”.12em”,marginBottom:“10px”}},“The open-source alternative to”));
+left.appendChild(h(“h2”,{style:{fontFamily:”‘DM Serif Display’,serif”,fontSize:“28px”,lineHeight:“1.1”,marginBottom:“24px”,letterSpacing:”-.02em”}},[“Harvey AI\n& Legora”]));
+[“Full feature parity with Harvey AI”,“Bring your own Anthropic key - free”,“30 contracts . 14 jurisdictions”,“Open source . AGPL-3.0”].forEach(v=>{
+const row=h(“div”,{style:{display:“flex”,gap:“10px”,marginBottom:“10px”,alignItems:“flex-start”}});
+row.appendChild(h(“span”,{style:{width:“17px”,height:“17px”,borderRadius:“50%”,background:“rgba(255,255,255,.12)”,display:“flex”,alignItems:“center”,justifyContent:“center”,fontSize:“9px”,flexShrink:“0”,marginTop:“1px”}},“✓”));
+row.appendChild(h(“span”,{style:{fontSize:“13px”,color:“rgba(255,255,255,.75)”,lineHeight:“1.5”}},[v]));
+left.appendChild(row);
+});
+const usedBy=h(“div”,{style:{marginTop:“auto”,paddingTop:“24px”,borderTop:“1px solid rgba(255,255,255,.1)”}});
+usedBy.appendChild(h(“div”,{style:{fontSize:“10px”,color:“rgba(255,255,255,.35)”,marginBottom:“8px”,letterSpacing:”.06em”}},“USED BY LAWYERS AT”));
+const tags=h(“div”,{style:{display:“flex”,flexWrap:“wrap”,gap:“6px”}});
+[“Solo Practices”,“Boutique Firms”,“In-House Teams”,“Law Clinics”].forEach(t=>{
+tags.appendChild(h(“span”,{style:{fontSize:“10.5px”,color:“rgba(255,255,255,.55)”,background:“rgba(255,255,255,.07)”,padding:“3px 9px”,borderRadius:“20px”}},[t]));
+});
+usedBy.appendChild(tags);
+left.appendChild(usedBy);
+card.appendChild(left);
+
+// Right form
+const right=h(“div”,{style:{flex:“1”,display:“flex”,alignItems:“center”,justifyContent:“center”,padding:“44px 40px”}});
+const form=h(“div”,{style:{width:“100%”,maxWidth:“340px”}});
+
+function renderForm(){
+form.innerHTML=””;
+if(S.authStep===“form”){
+form.appendChild(h(“h2”,{style:{fontFamily:”‘DM Serif Display’,serif”,fontSize:“24px”,fontWeight:“400”,marginBottom:“5px”,color:”#0a0a0a”,letterSpacing:”-.01em”}},[S.authMode===“signup”?“Create your account”:“Welcome back”]));
+form.appendChild(h(“p”,{style:{fontSize:“13px”,color:”#888”,marginBottom:“24px”}},[S.authMode===“signup”?“Free forever. No credit card.”:“Sign in to continue.”]));
+if(S.authErr){
+const err=h(“div”,{style:{padding:“9px 13px”,background:”#fef2f2”,border:“1px solid #fecaca”,borderRadius:“8px”,fontSize:“12.5px”,color:”#dc2626”,marginBottom:“14px”}});
+err.textContent=S.authErr;
+form.appendChild(err);
+}
+if(S.authMode===“signup”){
+form.appendChild(h(“label”,{style:{display:“block”,fontSize:“11.5px”,fontWeight:“600”,color:”#444”,marginBottom:“5px”}},“Full name”));
+const ni=inputEl(S.name,v=>S.name=v,{placeholder:“Jane Smith”});
+form.appendChild(ni);
+form.appendChild(h(“div”,{style:{height:“12px”}}));
+}
+form.appendChild(h(“label”,{style:{display:“block”,fontSize:“11.5px”,fontWeight:“600”,color:”#444”,marginBottom:“5px”}},“Email address”));
+form.appendChild(inputEl(S.email,v=>S.email=v,{type:“email”,placeholder:“jane@lawfirm.com”}));
+form.appendChild(h(“div”,{style:{height:“12px”}}));
+form.appendChild(h(“label”,{style:{display:“block”,fontSize:“11.5px”,fontWeight:“600”,color:”#444”,marginBottom:“5px”}},“Password”));
+form.appendChild(inputEl(S.password,v=>S.password=v,{type:“password”,placeholder:S.authMode===“signup”?“Min. 6 characters”:“Your password”}));
+form.appendChild(h(“div”,{style:{height:“18px”}}));
+const sb=btn(S.authMode===“signup”?“Continue →”:“Sign in →”,()=>{
+if(S.authMode===“signup”){
+if(!S.name.trim()||!S.email.trim()||!S.password.trim()){set({authErr:“Please fill in all fields.”});return;}
+if(S.password.length<6){set({authErr:“Password must be at least 6 characters.”});return;}
+}else{
+if(!S.email.trim()||!S.password.trim()){set({authErr:“Please fill in all fields.”});return;}
+}
+set({authStep:“apikey”,authErr:””});
+},{style:{width:“100%”,padding:“12px”}});
+form.appendChild(sb);
+form.appendChild(h(“div”,{style:{height:“16px”}}));
+const sw=h(“div”,{style:{textAlign:“center”,fontSize:“13px”,color:”#888”}});
+sw.innerHTML=S.authMode===“signup”?“Already have an account? “:“No account? “;
+const swl=h(“span”,{style:{color:”#0a0a0a”,fontWeight:“700”,cursor:“pointer”,textDecoration:“underline”}},[S.authMode===“signup”?“Log in”:“Sign up free”]);
+swl.addEventListener(“click”,()=>set({authMode:S.authMode===“signup”?“login”:“signup”,authErr:””}));
+sw.appendChild(swl);
+form.appendChild(sw);
+}else{
+// API Key step
+form.appendChild(h(“div”,{style:{fontSize:“28px”,marginBottom:“14px”}},“🔑”));
+form.appendChild(h(“h2”,{style:{fontFamily:”‘DM Serif Display’,serif”,fontSize:“24px”,fontWeight:“400”,marginBottom:“6px”,color:”#0a0a0a”}},“Connect your API key”));
+form.appendChild(h(“p”,{style:{fontSize:“13px”,color:”#888”,marginBottom:“20px”,lineHeight:“1.6”}},“Law OSS uses your own Anthropic key. We never see your tokens.”));
+const notice=h(“div”,{style:{padding:“12px 14px”,background:”#f0fdf4”,border:“1px solid #bbf7d0”,borderRadius:“9px”,marginBottom:“18px”,fontSize:“12px”,color:”#15803d”,display:“flex”,gap:“8px”}});
+notice.appendChild(h(“span”,{},“🔒”));
+notice.appendChild(h(“span”,{},“Your key is stored only in your browser and never sent to our servers.”));
+form.appendChild(notice);
+form.appendChild(h(“label”,{style:{display:“block”,fontSize:“11.5px”,fontWeight:“600”,color:”#444”,marginBottom:“5px”}},“Anthropic API Key”));
+const keyWrap=h(“div”,{style:{position:“relative”,marginBottom:“6px”}});
+const ki=inputEl(S.apiKey,v=>S.apiKey=v,{type:S.showKey?“text”:“password”,placeholder:“Paste your Anthropic API key”});
+ki.style.paddingRight=“52px”;
+keyWrap.appendChild(ki);
+const showBtn=h(“button”,{style:{position:“absolute”,right:“10px”,top:“50%”,transform:“translateY(-50%)”,background:“none”,border:“none”,cursor:“pointer”,color:”#888”,fontSize:“12px”,fontFamily:“inherit”}},[S.showKey?“Hide”:“Show”]);
+showBtn.addEventListener(“click”,()=>{S.showKey=!S.showKey;renderForm();});
+keyWrap.appendChild(showBtn);
+form.appendChild(keyWrap);
+form.appendChild(h(“div”,{style:{fontSize:“11.5px”,color:”#aaa”,marginBottom:“18px”}},[“Get yours at console.anthropic.com”]));
+if(S.authErr){
+const err=h(“div”,{style:{padding:“9px 13px”,background:”#fef2f2”,border:“1px solid #fecaca”,borderRadius:“8px”,fontSize:“12.5px”,color:”#dc2626”,marginBottom:“14px”}});
+err.textContent=S.authErr;
+form.appendChild(err);
+}
+const launchBtn=btn(“Launch Law OSS →”,()=>{
+if(!S.apiKey.trim()){set({authErr:“Please enter your API key.”});return;}
+const user={name:S.authMode===“signup”?S.name:S.email.split(”@”)[0],email:S.email,apiKey:S.apiKey.trim()};
+saveUser(user);
+set({user,screen:“app”,authErr:””});
+},{style:{width:“100%”,padding:“12px”}});
+form.appendChild(launchBtn);
+const back=h(“button”,{style:{width:“100%”,background:“none”,border:“none”,cursor:“pointer”,color:”#aaa”,fontSize:“13px”,marginTop:“10px”,padding:“6px 0”,fontFamily:“inherit”}},[“← Back”]);
+back.addEventListener(“click”,()=>set({authStep:“form”,authErr:””}));
+form.appendChild(back);
+}
+}
+
+renderForm();
+right.appendChild(form);
+card.appendChild(right);
+wrap.appendChild(card);
+return wrap;
+}
+
+// – App shell ––––––––––––––––––––––––––––––––
+function appShell(){
+const wrap=h(“div”,{style:{display:“flex”,minHeight:“100vh”,background:”#f9f9f9”}});
+
+// Sidebar
+const sb=h(“aside”,{class:“sidebar”});
+const sbTop=h(“div”,{style:{padding:“18px 16px 14px”,borderBottom:“1px solid #e8e8e8”}});
+const sbLogo=h(“div”,{style:{display:“flex”,alignItems:“center”,gap:“8px”}});
+sbLogo.appendChild(h(“div”,{style:{width:“28px”,height:“28px”,background:”#0a0a0a”,borderRadius:“6px”,display:“flex”,alignItems:“center”,justifyContent:“center”,fontSize:“12px”,color:”#fff”}},“⚖”));
+const sbTitle=h(“div”,{});
+sbTitle.appendChild(h(“div”,{style:{fontSize:“14px”,fontWeight:“800”,color:”#0a0a0a”,letterSpacing:”-.02em”}},“Law OSS”));
+sbTitle.appendChild(h(“div”,{style:{fontSize:“9.5px”,color:”#aaa”,letterSpacing:”.1em”,textTransform:“uppercase”,marginTop:“1px”}},“Open Legal AI”));
+sbLogo.appendChild(sbTitle);
+sbTop.appendChild(sbLogo);
+sb.appendChild(sbTop);
+
+const nav=h(“div”,{style:{padding:“12px 10px 6px”}});
+[{id:“projects”,label:“Projects”,icon:“▤”},{id:“chat”,label:“Document Chat”,icon:“◎”},{id:“contracts”,label:“Contract Studio”,icon:“⟐”},{id:“workflows”,label:“Workflows”,icon:“⌬”}].forEach(item=>{
+const nb=h(“button”,{class:“nav-btn”+(S.view===item.id?” active”:””)});
+nb.appendChild(h(“span”,{style:{fontSize:“13px”,opacity:S.view===item.id?“1”:”.5”}},[item.icon]));
+nb.appendChild(document.createTextNode(item.label));
+nb.addEventListener(“click”,()=>set({view:item.id}));
+nav.appendChild(nb);
+});
+sb.appendChild(nav);
+
+const sbFooter=h(“div”,{style:{marginTop:“auto”,padding:“13px 15px”,borderTop:“1px solid #e8e8e8”}});
+sbFooter.appendChild(h(“div”,{style:{fontSize:“12px”,fontWeight:“600”,color:”#0a0a0a”,marginBottom:“2px”}},[S.user?.name||“User”]));
+sbFooter.appendChild(h(“div”,{style:{fontSize:“11px”,color:”#aaa”,marginBottom:“8px”}},“API key connected ✓”));
+const outBtn=h(“button”,{style:{padding:“4px 10px”,background:”#f4f4f4”,border:“1px solid #e8e8e8”,borderRadius:“6px”,cursor:“pointer”,fontSize:“11.5px”,color:”#666”,fontFamily:“inherit”}},[“Log out”]);
+outBtn.addEventListener(“click”,()=>{clearUser();set({user:null,screen:“landing”,messages:[],docText:””,cOutput:””,wOutput:””});});
+sbFooter.appendChild(outBtn);
+sb.appendChild(sbFooter);
+wrap.appendChild(sb);
+
+// Main
+const main=h(“main”,{style:{flex:“1”,overflowY:“auto”,background:”#fff”}});
+if(S.view===“projects”)main.appendChild(projectsView());
+else if(S.view===“chat”)main.appendChild(chatView());
+else if(S.view===“contracts”)main.appendChild(contractsView());
+else if(S.view===“workflows”)main.appendChild(workflowsView());
+wrap.appendChild(main);
+return wrap;
+}
+
+// – Projects view ————————————————————
+function projectsView(){
+const v=h(“div”,{style:{padding:“40px 48px”,maxWidth:“840px”}});
+v.appendChild(h(“h1”,{style:{fontSize:“24px”,fontWeight:“800”,color:”#0a0a0a”,marginBottom:“5px”,letterSpacing:”-.03em”}},“Projects”));
+v.appendChild(h(“p”,{style:{fontSize:“13.5px”,color:”#666”,marginBottom:“24px”}},“Organise documents and analysis by matter”));
+const nb=btn(”+ New Project”,()=>{},{style:{marginBottom:“22px”,padding:“9px 18px”,fontSize:“13px”}});
+v.appendChild(nb);
+[{id:1,name:“Meridian Capital Acquisition”,docs:12,updated:“2h ago”,status:“active”},{id:2,name:“NDA Review - TechFlow Inc.”,docs:3,updated:“Yesterday”,status:“active”},{id:3,name:“Employment Agreements Q2”,docs:8,updated:“3 days ago”,status:“review”}].forEach(p=>{
+const c=h(“div”,{class:“card”,style:{display:“flex”,alignItems:“center”,gap:“16px”,marginBottom:“10px”,cursor:“pointer”}});
+c.addEventListener(“click”,()=>set({view:“chat”}));
+c.appendChild(h(“div”,{style:{width:“40px”,height:“40px”,background:”#f4f4f4”,borderRadius:“10px”,display:“flex”,alignItems:“center”,justifyContent:“center”,fontSize:“17px”,flexShrink:“0”}},“▤”));
+const info=h(“div”,{style:{flex:“1”}});
+info.appendChild(h(“div”,{style:{fontSize:“14px”,fontWeight:“700”,color:”#0a0a0a”,marginBottom:“3px”}},[p.name]));
+info.appendChild(h(“div”,{style:{fontSize:“12px”,color:”#888”}},[p.docs+” documents . Updated “+p.updated]));
+c.appendChild(info);
+const tag=h(“span”,{class:“tag”,style:{background:p.status===“active”?”#dcfce7”:”#fef9c3”,color:p.status===“active”?”#16a34a”:”#854d0e”}},[p.status]);
+c.appendChild(tag);
+v.appendChild(c);
+});
+return v;
+}
+
+// – Chat view ––––––––––––––––––––––––––––––––
+function chatView(){
+const v=h(“div”,{style:{display:“flex”,flexDirection:“column”,height:“100vh”,maxWidth:“820px”,width:“100%”}});
+
+// Header
+const hdr=h(“div”,{style:{padding:“20px 40px 16px”,borderBottom:“1px solid #f0f0f0”,flexShrink:“0”}});
+hdr.appendChild(h(“div”,{style:{fontSize:“10.5px”,color:”#aaa”,textTransform:“uppercase”,letterSpacing:”.1em”,marginBottom:“3px”}},“Document Chat”));
+const hdrRow=h(“div”,{style:{display:“flex”,alignItems:“center”,justifyContent:“space-between”}});
+hdrRow.appendChild(h(“h2”,{style:{fontSize:“18px”,fontWeight:“800”,color:”#0a0a0a”,letterSpacing:”-.02em”}},“General Legal Analysis”));
+const pasteToggle=h(“button”,{style:{padding:“6px 14px”,background:S.docText?”#0a0a0a”:”#f5f5f5”,border:“1.5px solid “+(S.docText?”#0a0a0a”:”#e0e0e0”),borderRadius:“8px”,cursor:“pointer”,fontSize:“12px”,fontWeight:“600”,color:S.docText?”#fff”:”#666”,fontFamily:“inherit”}},[S.docText?“📄 Doc loaded”:”+ Paste contract”]);
+pasteToggle.addEventListener(“click”,()=>set({showPaste:!S.showPaste}));
+hdrRow.appendChild(pasteToggle);
+hdr.appendChild(hdrRow);
+v.appendChild(hdr);
+
+// Paste panel
+if(S.showPaste){
+const pp=h(“div”,{style:{padding:“14px 40px”,borderBottom:“1px solid #e8e8e8”,background:”#fffbeb”,flexShrink:“0”}});
+pp.appendChild(h(“div”,{style:{fontSize:“12px”,fontWeight:“600”,color:”#92400e”,marginBottom:“5px”}},“Paste your contract text below”));
+pp.appendChild(h(“div”,{style:{fontSize:“11.5px”,color:”#b45309”,marginBottom:“8px”}},“Open your PDF → select all → copy → paste here”));
+const ta=h(“textarea”,{style:{width:“100%”,height:“120px”,padding:“9px 12px”,border:“1.5px solid #fbbf24”,borderRadius:“8px”,fontSize:“13px”,color:”#0a0a0a”,resize:“vertical”,fontFamily:“inherit”,background:”#fff”,boxSizing:“border-box”},placeholder:“Paste full contract text here…”});
+ta.value=S.pasteInput;
+ta.addEventListener(“input”,e=>S.pasteInput=e.target.value);
+pp.appendChild(ta);
+const ppBtns=h(“div”,{style:{display:“flex”,gap:“8px”,marginTop:“8px”}});
+const loadBtn=btn(“Load document →”,()=>{
+if(!S.pasteInput.trim())return;
+set({docText:S.pasteInput.trim(),docName:“Pasted document”,pasteInput:””,showPaste:false,messages:[{role:“assistant”,text:“Document loaded. Ask me anything - flag risky clauses, summarise obligations, extract defined terms, identify parties, or any other analysis.”}]});
+},{style:{padding:“7px 16px”,fontSize:“13px”}});
+ppBtns.appendChild(loadBtn);
+const cancelBtn=h(“button”,{class:“btn-ghost”,style:{padding:“7px 14px”,fontSize:“13px”}},[“Cancel”]);
+cancelBtn.addEventListener(“click”,()=>set({showPaste:false}));
+ppBtns.appendChild(cancelBtn);
+if(S.docText){const clr=h(“button”,{style:{padding:“7px 14px”,background:“transparent”,border:“1.5px solid #fca5a5”,borderRadius:“8px”,cursor:“pointer”,fontSize:“13px”,color:”#dc2626”,fontFamily:“inherit”}},[“Clear doc”]);clr.addEventListener(“click”,()=>set({docText:””,docName:””,messages:[],showPaste:false}));ppBtns.appendChild(clr);}
+pp.appendChild(ppBtns);
+v.appendChild(pp);
+}
+
+// Messages
+const msgs=h(“div”,{style:{flex:“1”,overflowY:“auto”,padding:“20px 40px”}});
+if(S.messages.length===0){
+const empty=h(“div”,{style:{textAlign:“center”,marginTop:“48px”}});
+empty.appendChild(h(“div”,{style:{fontSize:“34px”,marginBottom:“12px”,opacity:”.15”}},“◎”));
+empty.appendChild(h(“div”,{style:{fontSize:“15px”,color:”#666”,marginBottom:“5px”}},“Analyse any legal document”));
+empty.appendChild(h(“div”,{style:{fontSize:“13px”,color:”#bbb”,marginBottom:“20px”}},“Click + Paste contract above to load your document”));
+const chips=h(“div”,{style:{display:“flex”,gap:“8px”,justifyContent:“center”,flexWrap:“wrap”}});
+[“Flag risky clauses”,“Summarise obligations”,“Extract defined terms”,“Identify liability caps”,“Who are the parties?”].forEach(s=>{
+const c=h(“button”,{class:“chip”},[s]);
+c.addEventListener(“click”,()=>{S.chatInput=s;render();});
+chips.appendChild(c);
+});
+empty.appendChild(chips);
+msgs.appendChild(empty);
+}
+S.messages.forEach(m=>{
+const row=h(“div”,{style:{marginBottom:“14px”,display:“flex”,gap:“10px”,flexDirection:m.role===“user”?“row-reverse”:“row”}});
+const av=h(“div”,{style:{width:“28px”,height:“28px”,borderRadius:“7px”,flexShrink:“0”,background:m.role===“user”?”#0a0a0a”:”#f0f0f0”,display:“flex”,alignItems:“center”,justifyContent:“center”,fontSize:“10px”,fontWeight:“700”,color:m.role===“user”?”#fff”:”#666”}},[m.role===“user”?“U”:“AI”]);
+const bubble=h(“div”,{class:m.role===“user”?“msg-user”:“msg-ai”},[m.text]);
+row.appendChild(av);
+row.appendChild(bubble);
+msgs.appendChild(row);
+});
+if(S.chatLoading){
+const row=h(“div”,{style:{display:“flex”,gap:“10px”,marginBottom:“14px”}});
+row.appendChild(h(“div”,{style:{width:“28px”,height:“28px”,borderRadius:“7px”,background:”#f0f0f0”,display:“flex”,alignItems:“center”,justifyContent:“center”,fontSize:“10px”,fontWeight:“700”,color:”#666”}},“AI”));
+const bubble=h(“div”,{class:“msg-ai”});bubble.appendChild(dots());
+row.appendChild(bubble);
+msgs.appendChild(row);
+}
+v.appendChild(msgs);
+
+// Input bar
+const bar=h(“div”,{style:{padding:“12px 40px 20px”,borderTop:“1px solid #f0f0f0”,flexShrink:“0”}});
+if(S.docText){
+const badge=h(“div”,{style:{marginBottom:“7px”,padding:“4px 10px”,background:”#eff6ff”,border:“1.5px solid #bfdbfe”,borderRadius:“6px”,fontSize:“11.5px”,color:”#1d4ed8”,display:“inline-flex”,alignItems:“center”,gap:“6px”}});
+badge.appendChild(h(“span”,{},“📄”));
+badge.appendChild(h(“span”,{},[S.docName+” - ask anything about it”]));
+bar.appendChild(badge);
+}
+const barRow=h(“div”,{style:{display:“flex”,gap:“8px”,alignItems:“flex-end”}});
+const ta2=h(“textarea”,{style:{flex:“1”,padding:“9px 13px”,background:”#f5f5f5”,border:“1.5px solid #e4e4e4”,borderRadius:“9px”,color:”#0a0a0a”,fontSize:“13.5px”,resize:“none”,minHeight:“40px”,maxHeight:“110px”,fontFamily:“inherit”},placeholder:S.docText?“Ask about the document… e.g. flag risky clauses”:“Paste your contract above then ask questions here”,rows:“1”});
+ta2.value=S.chatInput;
+ta2.addEventListener(“input”,e=>S.chatInput=e.target.value);
+ta2.addEventListener(“keydown”,e=>{if(e.key===“Enter”&&!e.shiftKey){e.preventDefault();sendChat();}});
+barRow.appendChild(ta2);
+const sendBtn=h(“button”,{style:{padding:“9px 16px”,background:”#0a0a0a”,border:“none”,borderRadius:“9px”,cursor:“pointer”,color:”#fff”,fontSize:“14px”,fontWeight:“700”,flexShrink:“0”,opacity:S.chatLoading?“0.4”:“1”,fontFamily:“inherit”}},[“→”]);
+sendBtn.addEventListener(“click”,sendChat);
+barRow.appendChild(sendBtn);
+bar.appendChild(barRow);
+v.appendChild(bar);
+
+// Scroll to bottom
+setTimeout(()=>{if(msgs)msgs.scrollTop=msgs.scrollHeight;},50);
+return v;
+}
+
+async function sendChat(){
+if(!S.chatInput.trim()||S.chatLoading)return;
+const q=S.chatInput;
+S.messages=[…S.messages,{role:“user”,text:q}];
+S.chatInput=””;S.chatLoading=true;render();
+const system=S.docText
+?`You are a senior legal AI assistant inside Law OSS. The user has provided the following contract text. Use it as your sole source of truth. Always cite specific clause numbers or section headings. When flagging risky clauses, list each one with its reference and explain the risk.\n\nCONTRACT TEXT:\n---\n${S.docText.slice(0,14000)}\n---`
+:“You are a senior legal AI assistant inside Law OSS, an open-source legal platform for solo and small-firm lawyers. Help with contract analysis, clause drafting, risk identification, and legal questions. Be structured, precise, and actionable.”;
+const history=S.messages.slice(0,-1).map(m=>({role:m.role,content:m.text}));
+try{
+const text=await callAI(S.user.apiKey,system,[…history,{role:“user”,content:q}]);
+S.messages=[…S.messages,{role:“assistant”,text}];
+}catch(e){
+S.messages=[…S.messages,{role:“assistant”,text:“Error: “+e.message}];
+}
+S.chatLoading=false;render();
+}
+
+// – Contracts view ———————————————————–
+function contractsView(){
+const v=h(“div”,{style:{padding:“40px 48px”,maxWidth:“940px”,width:“100%”}});
+const titleRow=h(“div”,{style:{display:“flex”,alignItems:“center”,gap:“14px”,marginBottom:“5px”}});
+titleRow.appendChild(h(“h1”,{style:{fontSize:“24px”,fontWeight:“800”,color:”#0a0a0a”,letterSpacing:”-.03em”}},“Contract Studio”));
+if(S.cStep!==“browse”){const back=h(“button”,{class:“btn-ghost”,style:{padding:“4px 12px”,fontSize:“12px”}},[“← Templates”]);back.addEventListener(“click”,()=>set({cStep:“browse”,cOutput:””}));titleRow.appendChild(back);}
+v.appendChild(titleRow);
+v.appendChild(h(“p”,{style:{fontSize:“13px”,color:”#888”,marginBottom:“22px”}},“30 contract types . 14 jurisdictions . jurisdiction-aware drafting”));
+
+if(S.cStep===“browse”){
+CONTRACT_CATS.forEach(cat=>{
+const sec=h(“div”,{style:{marginBottom:“20px”}});
+const catLabel=h(“div”,{style:{fontSize:“11px”,color:”#888”,fontWeight:“700”,textTransform:“uppercase”,letterSpacing:”.1em”,marginBottom:“9px”,display:“flex”,alignItems:“center”,gap:“6px”}});
+catLabel.appendChild(h(“span”,{},[cat.icon]));
+catLabel.appendChild(h(“span”,{},[cat.label]));
+sec.appendChild(catLabel);
+const grid=h(“div”,{style:{display:“grid”,gridTemplateColumns:“repeat(auto-fill,minmax(230px,1fr))”,gap:“8px”}});
+cat.types.forEach(type=>{
+const c=h(“button”,{class:“contract-card”});
+c.appendChild(h(“div”,{style:{fontSize:“13px”,fontWeight:“700”,color:”#0a0a0a”,marginBottom:“3px”}},[type.label]));
+c.appendChild(h(“div”,{style:{fontSize:“11.5px”,color:”#888”}},[type.desc]));
+c.addEventListener(“click”,()=>set({cStep:“configure”,selCat:cat,selType:type,cOutput:””}));
+grid.appendChild(c);
+});
+sec.appendChild(grid);
+v.appendChild(sec);
+});
+}else if(S.cStep===“configure”){
+const box=h(“div”,{style:{background:”#fff”,border:“1.5px solid #e4e4e4”,borderRadius:“14px”,padding:“26px”}});
+box.appendChild(h(“div”,{style:{fontSize:“12px”,color:”#888”,fontWeight:“700”,marginBottom:“18px”,textTransform:“uppercase”,letterSpacing:”.06em”}},[S.selCat?.icon+” “+S.selCat?.label+” . “+S.selType?.label]));
+
+```
+// Jurisdiction
+box.appendChild(h("label",{style:{display:"block",fontSize:"11.5px",fontWeight:"600",color:"#444",marginBottom:"5px"}},"Governing Jurisdiction"));
+const jurSel=h("select",{class:"inp",style:{marginBottom:"14px"}});
+JURISDICTIONS.forEach((j,i)=>{const o=h("option",{value:String(i)},[j.l+" ("+j.s+")"]);if(i===S.jurIdx)o.selected=true;jurSel.appendChild(o);});
+jurSel.addEventListener("change",e=>S.jurIdx=parseInt(e.target.value));
+box.appendChild(jurSel);
+
+// Parties
+const pgrid=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 140px 1fr 140px",gap:"10px",marginBottom:"14px"}});
+const mkInp=(lbl,val,setter,ph)=>{const w=h("div",{});w.appendChild(h("label",{style:{display:"block",fontSize:"11px",fontWeight:"600",color:"#444",marginBottom:"4px"}},[lbl]));const i=inputEl(val,setter,{placeholder:ph});w.appendChild(i);return w;};
+const mkSel=(lbl,val,setter)=>{const w=h("div",{});w.appendChild(h("label",{style:{display:"block",fontSize:"11px",fontWeight:"600",color:"#444",marginBottom:"4px"}},[lbl]));const s=h("select",{class:"inp"});["Company","Individual","LLP","Partnership","Trust"].forEach(t=>{const o=h("option",{value:t},[t]);if(t===val)o.selected=true;s.appendChild(o);});s.addEventListener("change",e=>setter(e.target.value));w.appendChild(s);return w;};
+pgrid.appendChild(mkInp("Party A - Name",S.p1,v=>S.p1=v,"e.g. Meridian Capital Ltd"));
+pgrid.appendChild(mkSel("Type",S.p1t,v=>S.p1t=v));
+pgrid.appendChild(mkInp("Party B - Name",S.p2,v=>S.p2=v,"e.g. TechFlow Inc."));
+pgrid.appendChild(mkSel("Type",S.p2t,v=>S.p2t=v));
+box.appendChild(pgrid);
+
+// Notes
+box.appendChild(h("label",{style:{display:"block",fontSize:"11px",fontWeight:"600",color:"#444",marginBottom:"4px"}},"Additional Instructions (optional)"));
+const nt=h("textarea",{class:"inp",style:{resize:"vertical",marginBottom:"18px"},rows:"3",placeholder:"Key deal terms, duration, financial figures, special provisions..."});
+nt.value=S.cnotes;
+nt.addEventListener("input",e=>S.cnotes=e.target.value);
+box.appendChild(nt);
+
+const genBtn=btn("Generate "+S.selType?.label+" →",async()=>{
+  if(!S.p1.trim()||!S.p2.trim()){alert("Please fill in both party names.");return;}
+  set({cStep:"output",cLoading:true,cOutput:""});
+  const jur=JURISDICTIONS[S.jurIdx];
+  const jCtx=jur.s==="civil law"?"Use civil law conventions, statutory codes, avoid common law constructs.":"Use standard common law drafting conventions.";
+  try{
+    const text=await callAI(S.user.apiKey,
+      `You are a senior commercial lawyer specialising in ${jur.v} law. ${jCtx} Draft professional, numbered, jurisdiction-specific contracts with all essential clauses and a complete execution block.`,
+      [{role:"user",content:`Draft a ${S.selType.label} under ${jur.v} law.\nParty A: ${S.p1} (${S.p1t})\nParty B: ${S.p2} (${S.p2t})\n${S.cnotes?"Instructions: "+S.cnotes:""}\nInclude all standard provisions and a full signature block.`}]
+    );
+    set({cOutput:text,cLoading:false});
+  }catch(e){set({cOutput:"Error: "+e.message,cLoading:false});}
+});
+box.appendChild(genBtn);
+v.appendChild(box);
+```
+
+}else if(S.cStep===“output”){
+if(S.cLoading){
+const loading=h(“div”,{style:{background:”#fff”,border:“1.5px solid #e4e4e4”,borderRadius:“14px”,padding:“48px”,textAlign:“center”}});
+loading.appendChild(h(“div”,{style:{fontSize:“14px”,color:”#666”,marginBottom:“14px”}},“Drafting your “+S.selType?.label+”…”));
+loading.appendChild(dots());
+v.appendChild(loading);
+}else if(S.cOutput){
+const out=h(“div”,{style:{background:”#fff”,border:“1.5px solid #e4e4e4”,borderRadius:“14px”,padding:“24px”}});
+const outHdr=h(“div”,{style:{display:“flex”,justifyContent:“space-between”,alignItems:“center”,marginBottom:“16px”,flexWrap:“wrap”,gap:“10px”}});
+const outInfo=h(“div”,{});
+outInfo.appendChild(h(“div”,{style:{fontSize:“13px”,fontWeight:“700”,color:”#0a0a0a”,marginBottom:“3px”}},[S.selType?.label]));
+outInfo.appendChild(h(“div”,{style:{fontSize:“11.5px”,color:”#888”}},[JURISDICTIONS[S.jurIdx].l+” . “+S.p1+” / “+S.p2]));
+outHdr.appendChild(outInfo);
+const copyBtn=h(“button”,{class:“btn-ghost”,style:{padding:“6px 13px”,fontSize:“12px”}},[S.copied?“Copied ✓”:“Copy”]);
+copyBtn.addEventListener(“click”,()=>{navigator.clipboard.writeText(S.cOutput);set({copied:true});setTimeout(()=>set({copied:false}),2000);});
+outHdr.appendChild(copyBtn);
+out.appendChild(outHdr);
+const pre=h(“div”,{style:{background:”#f8f8f8”,borderRadius:“9px”,padding:“20px 22px”,border:“1px solid #eee”,maxHeight:“560px”,overflowY:“auto”}});
+const p=h(“pre”,{style:{color:”#333”,fontSize:“12.5px”,lineHeight:“1.85”,whiteSpace:“pre-wrap”,fontFamily:”‘Courier New’,monospace”,margin:“0”}});
+p.textContent=S.cOutput;
+pre.appendChild(p);
+out.appendChild(pre);
+v.appendChild(out);
+}
+}
+return v;
+}
+
+// – Workflows view ———————————————————–
+function workflowsView(){
+const v=h(“div”,{style:{padding:“40px 48px”,maxWidth:“840px”}});
+v.appendChild(h(“h1”,{style:{fontSize:“24px”,fontWeight:“800”,color:”#0a0a0a”,marginBottom:“5px”,letterSpacing:”-.03em”}},“Workflows”));
+v.appendChild(h(“p”,{style:{fontSize:“13.5px”,color:”#666”,marginBottom:“24px”}},“Multi-step legal automation pipelines”));
+const grid=h(“div”,{style:{display:“grid”,gap:“12px”,marginBottom:“22px”}});
+WORKFLOWS.forEach(w=>{
+const c=h(“div”,{style:{background:”#fff”,border:“1.5px solid “+(S.wActive?.id===w.id?”#0a0a0a”:”#e4e4e4”),borderRadius:“12px”,padding:“18px 20px”,transition:“border-color .2s”}});
+const top=h(“div”,{style:{display:“flex”,justifyContent:“space-between”,alignItems:“flex-start”,marginBottom:“12px”}});
+const info=h(“div”,{});
+info.appendChild(h(“div”,{style:{fontSize:“14px”,fontWeight:“700”,color:”#0a0a0a”,marginBottom:“2px”}},[w.name]));
+info.appendChild(h(“div”,{style:{fontSize:“12px”,color:”#888”}},[w.steps.length+” steps”]));
+top.appendChild(info);
+const runBtn=btn(S.wActive?.id===w.id&&S.wLoading?“Running…”:“Run”,async()=>{
+if(S.wLoading)return;
+set({wActive:w,wStepIdx:0,wOutput:””,wLoading:true});
+for(let i=0;i<w.steps.length;i++){S.wStepIdx=i;render();await new Promise(r=>setTimeout(r,700));}
+try{
+const text=await callAI(S.user.apiKey,“You are a legal AI assistant in Law OSS.”,[{role:“user”,content:`You ran the "${w.name}" legal workflow. Provide a detailed structured output report with findings, key points, risks, and recommendations.`}]);
+set({wOutput:text,wLoading:false});
+}catch(e){set({wOutput:“Error: “+e.message,wLoading:false});}
+},{style:{padding:“7px 16px”,fontSize:“12px”,opacity:S.wLoading&&S.wActive?.id!==w.id?“0.4”:“1”}});
+top.appendChild(runBtn);
+c.appendChild(top);
+const steps=h(“div”,{style:{display:“flex”,gap:“6px”,flexWrap:“wrap”}});
+w.steps.forEach((s,i)=>{
+const active=S.wActive?.id===w.id&&i<=S.wStepIdx&&S.wLoading;
+const sp=h(“div”,{style:{padding:“3px 9px”,borderRadius:“5px”,fontSize:“11.5px”,background:active?”#f0f0f0”:”#f8f8f8”,border:“1px solid “+(active?”#0a0a0a”:”#e4e4e4”),color:active?”#0a0a0a”:”#bbb”,fontWeight:active?“600”:“400”,transition:“all .3s”}},[String(i+1)+”. “+s]);
+steps.appendChild(sp);
+});
+c.appendChild(steps);
+grid.appendChild(c);
+});
+v.appendChild(grid);
+if(S.wOutput&&!S.wLoading){
+const out=h(“div”,{style:{background:”#fff”,border:“1.5px solid #e4e4e4”,borderRadius:“12px”,padding:“24px”}});
+out.appendChild(h(“div”,{style:{fontSize:“12px”,fontWeight:“700”,color:”#0a0a0a”,marginBottom:“12px”,textTransform:“uppercase”,letterSpacing:”.06em”}},“Output: “+S.wActive?.name));
+const p=h(“div”,{style:{color:”#0a0a0a”,fontSize:“13.5px”,lineHeight:“1.75”,whiteSpace:“pre-wrap”}});
+p.textContent=S.wOutput;
+out.appendChild(p);
+v.appendChild(out);
+}
+return v;
+}
+
+// – Render —————————————————————––
+function render(){
+const app=document.getElementById(“app”);
+app.innerHTML=””;
+if(S.screen===“landing”)app.appendChild(landingPage());
+else if(S.screen===“auth”)app.appendChild(authPage());
+else if(S.screen===“app”)app.appendChild(appShell());
+}
+
+render();
+</script>
+
+</body>
+</html>
