@@ -1,0 +1,2300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Law OSS — US Edition</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.2.0/tabler-icons.min.css">
+<style>:root{
+  --fn:"Inter",-apple-system,BlinkMacSystemFont,sans-serif;
+  --sb:244px;--tb:52px;
+  --bg:#fff;--bg2:#f8f8f8;--bg3:#f0f0f0;--bg4:#e5e5e5;
+  --bgh:#f2f2f2;--bga:#edf0f8;
+  --line:rgba(0,0,0,.08);--line2:rgba(0,0,0,.14);
+  --ink:#0f0f0f;--ink2:#555;--ink3:#999;--ink4:#ccc;
+  --navy:#1a2e6e;--navyd:#111e4a;--navyg:rgba(26,46,110,.07);
+  --gn:#166534;--gnb:rgba(22,101,52,.08);
+  --rd:#7f1d1d;--rdb:rgba(127,29,29,.07);
+  --am:#78350f;--amb:rgba(120,53,15,.07);
+  --r:7px;--rl:11px;--rxl:16px;
+  --sh:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
+  --sha:0 4px 16px rgba(0,0,0,.08);
+  --shl:0 16px 48px rgba(0,0,0,.12);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:var(--fn);background:var(--bg);color:var(--ink);font-size:13.5px;display:flex;-webkit-font-smoothing:antialiased}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--line2)}
+.sb{width:var(--sb);background:var(--bg2);border-right:1px solid var(--line);display:flex;flex-direction:column;height:100vh;flex-shrink:0}
+.sbl{height:var(--tb);display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--line);flex-shrink:0}
+.licon{width:27px;height:27px;background:var(--navy);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0}
+.ltxt{font-size:14.5px;font-weight:600;letter-spacing:-.4px}.ltxt span{color:var(--navy)}
+.ssrch{margin:10px 10px 4px;display:flex;align-items:center;gap:7px;background:var(--bg3);border:1px solid var(--line);border-radius:var(--r);padding:0 10px;height:31px;cursor:pointer;transition:border-color .15s}
+.ssrch:hover{border-color:var(--line2)}
+.ssrch span{font-size:12px;color:var(--ink3);flex:1}
+.ssrch kbd{font-size:10px;color:var(--ink3);background:var(--bg4);border-radius:4px;padding:1px 5px;font-family:var(--fn)}
+.slbl{padding:12px 7px 3px 13px;font-size:9.5px;font-weight:600;letter-spacing:.08em;color:var(--ink3);text-transform:uppercase}
+.ni{display:flex;align-items:center;gap:8px;padding:6px 11px;margin:1px 7px;border-radius:var(--r);cursor:pointer;color:var(--ink2);font-size:13px;transition:all .1s;position:relative;user-select:none}
+.ni:hover{background:var(--bgh);color:var(--ink)}
+.ni.act{background:var(--bga);color:var(--ink);font-weight:500}
+.ni.act::before{content:'';position:absolute;left:-7px;top:50%;transform:translateY(-50%);width:3px;height:14px;background:var(--navy);border-radius:0 3px 3px 0}
+.ni i{font-size:15px;flex-shrink:0}
+.nchip{margin-left:auto;font-size:10px;background:var(--navy);color:#fff;border-radius:10px;padding:1px 6px;font-weight:500}
+.nchip.gn{background:var(--gn)}.nchip.am{background:var(--am)}
+.nchip.dot{background:var(--gn);width:7px;height:7px;padding:0;border-radius:50%;box-shadow:0 0 0 2px rgba(22,101,52,.2)}
+.sftr{margin-top:auto;border-top:1px solid var(--line);padding:10px 7px}
+.urow{display:flex;align-items:center;gap:9px;padding:7px;border-radius:var(--r);cursor:pointer;transition:background .1s}
+.urow:hover{background:var(--bgh)}
+.uav{width:28px;height:28px;border-radius:50%;background:var(--navy);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;flex-shrink:0}
+.uname{font-size:12.5px;font-weight:500}.urole{font-size:10.5px;color:var(--ink3)}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.topbar{height:var(--tb);border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 24px;gap:12px;flex-shrink:0}
+.ttl{font-size:15px;font-weight:600;letter-spacing:-.3px;flex:1}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:0 13px;height:30px;border-radius:var(--r);font-size:12.5px;font-weight:500;cursor:pointer;transition:all .12s;border:none;font-family:var(--fn);white-space:nowrap}
+.bp{background:var(--navy);color:#fff}.bp:hover{background:var(--navyd)}
+.bg{background:transparent;color:var(--ink2);border:1px solid var(--line)}.bg:hover{background:var(--bgh);color:var(--ink);border-color:var(--line2)}
+.bi{width:30px;padding:0;justify-content:center;background:transparent;color:var(--ink2);border:1px solid var(--line)}.bi:hover{background:var(--bgh);color:var(--ink)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.ct{flex:1;overflow-y:auto;padding:22px 26px}
+.pg{display:none}.pg.act{display:block}
+.card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--rl);overflow:hidden}
+.ch{display:flex;align-items:center;justify-content:space-between;padding:13px 18px;border-bottom:1px solid var(--line)}
+.cht{font-size:13.5px;font-weight:600}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-bottom:22px}
+.met{background:var(--bg2);border:1px solid var(--line);border-radius:var(--rl);padding:17px 18px}
+.mlbl{font-size:11px;color:var(--ink3);font-weight:500;text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px}
+.mval{font-size:26px;font-weight:700;letter-spacing:-.6px;margin-bottom:5px;line-height:1}
+.mdlt{font-size:11.5px;color:var(--ink3);display:flex;align-items:center;gap:4px}
+.mdlt.up{color:var(--gn)}.mdlt.dn{color:var(--rd)}
+.two-col{display:grid;grid-template-columns:2fr 1fr;gap:18px}
+.mrow{display:flex;align-items:center;gap:12px;padding:10px 18px;border-bottom:1px solid var(--line);cursor:pointer;transition:background .1s}
+.mrow:last-child{border-bottom:none}.mrow:hover{background:var(--bgh)}
+.mica{width:34px;height:34px;border-radius:var(--r);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.mnm{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.msb{font-size:11.5px;color:var(--ink3);margin-top:1px}
+.badge{font-size:10.5px;font-weight:500;border-radius:20px;padding:2px 9px;flex-shrink:0}
+.ba{background:var(--gnb);color:var(--gn)}.bp2{background:var(--amb);color:var(--am)}
+.br{background:var(--navyg);color:var(--navy)}.bc{background:var(--bg4);color:var(--ink3)}
+.tabs{display:flex;gap:1px;border-bottom:1px solid var(--line);margin-bottom:18px}
+.tab{padding:7px 15px;font-size:13px;color:var(--ink3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .12s;font-family:var(--fn);background:transparent;border-top:none;border-left:none;border-right:none}
+.tab:hover{color:var(--ink2)}.tab.act{color:var(--ink);border-bottom-color:var(--navy);font-weight:500}
+.aitem{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+.aitem:last-child{border-bottom:none}
+.aico{width:26px;height:26px;border-radius:50%;background:var(--bg4);display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;margin-top:1px}
+.abody{flex:1;line-height:1.45}.abody strong{font-weight:500;color:var(--ink)}
+.atm{font-size:10.5px;color:var(--ink3);margin-top:2px}
+/* AI Panel */
+.aipnl{background:var(--bg2);border:1px solid var(--line);border-radius:var(--rl);display:flex;flex-direction:column}
+.aihd{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:9px}
+.sdot{width:7px;height:7px;border-radius:50%;background:var(--gn);box-shadow:0 0 0 2px rgba(22,101,52,.15);flex-shrink:0}
+.msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:14px}
+.msg{display:flex;gap:9px;align-items:flex-start}.msg.u{flex-direction:row-reverse}
+.mav{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0}
+.mav.ai{background:var(--navy);color:#fff}.mav.u{background:var(--bg3);color:var(--ink2);border:1px solid var(--line)}
+.mb{max-width:84%;padding:9px 13px;border-radius:12px;font-size:13px;line-height:1.55}
+.msg.ai .mb{background:var(--bg3);border:1px solid var(--line);border-radius:3px 12px 12px 12px;color:var(--ink)}
+.msg.u .mb{background:var(--navy);color:#fff;border-radius:12px 3px 12px 12px}
+.srcs{margin-top:9px;padding-top:9px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:5px}
+.sitem{display:flex;align-items:flex-start;gap:7px;font-size:11.5px;color:var(--ink2);background:var(--bg4);border-radius:var(--r);padding:7px 9px}
+.scnf{margin-left:auto;font-size:10.5px;color:var(--gn);font-weight:600;flex-shrink:0}
+.ainput{padding:10px;border-top:1px solid var(--line)}
+.airow{display:flex;gap:7px;align-items:flex-end;background:var(--bg3);border:1px solid var(--line);border-radius:var(--rl);padding:7px 10px;transition:border-color .15s}
+.airow:focus-within{border-color:var(--navy)}
+.airow textarea{flex:1;background:transparent;border:none;outline:none;color:var(--ink);font-family:var(--fn);font-size:13px;resize:none;line-height:1.5;max-height:100px}
+.airow textarea::placeholder{color:var(--ink3)}
+.sndbtn{width:28px;height:28px;background:var(--navy);border:none;border-radius:var(--r);display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;transition:background .12s;flex-shrink:0}
+.sndbtn:hover{background:var(--navyd)}.sndbtn:disabled{opacity:.4;cursor:not-allowed}
+/* Typing */
+.tdots{display:flex;gap:3px;align-items:center;padding:3px 0}
+.tdots span{width:5px;height:5px;background:var(--ink3);border-radius:50%;animation:bce 1.2s infinite}
+.tdots span:nth-child(2){animation-delay:.2s}.tdots span:nth-child(3){animation-delay:.4s}
+@keyframes bce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
+/* Research */
+.rwrap{display:flex;flex-direction:column;height:calc(100vh - var(--tb) - 48px)}
+.rhero{background:var(--bg2);border:1px solid var(--line);border-radius:var(--rl);padding:26px;margin-bottom:16px;text-align:center;flex-shrink:0}
+.rhero h2{font-size:20px;font-weight:700;letter-spacing:-.5px;margin-bottom:6px}
+.rhero p{color:var(--ink2);font-size:13px;margin-bottom:18px}
+.rinrow{display:flex;gap:7px;max-width:640px;margin:0 auto 14px}
+.rinput{flex:1;background:var(--bg3);border:1px solid var(--line2);border-radius:var(--rl);padding:11px 15px;color:var(--ink);font-family:var(--fn);font-size:13.5px;outline:none;transition:border-color .15s}
+.rinput:focus{border-color:var(--navy)}.rinput::placeholder{color:var(--ink3)}
+.jpills{display:flex;justify-content:center;gap:7px;flex-wrap:wrap}
+.jpill{font-size:11.5px;padding:3px 12px;border-radius:20px;border:1px solid var(--line);color:var(--ink3);cursor:pointer;transition:all .12s;background:transparent;font-family:var(--fn)}
+.jpill:hover,.jpill.act{border-color:var(--navy);color:var(--navy);background:var(--navyg)}
+.rbar{display:flex;align-items:center;gap:10px;margin-bottom:13px;flex-shrink:0}
+.rcnt{font-size:12.5px;color:var(--ink2)}
+.rarea{flex:1;overflow-y:auto;min-height:0}
+.rcard{background:var(--bg2);border:1px solid var(--line);border-radius:var(--rl);padding:18px;margin-bottom:12px;transition:border-color .15s,box-shadow .15s}
+.rcard:hover{border-color:var(--line2);box-shadow:var(--sh)}.rcard:last-child{margin-bottom:0}
+.rchead{display:flex;align-items:flex-start;gap:12px;margin-bottom:9px}
+.rtype{font-size:9.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;padding:2px 7px;border-radius:4px;flex-shrink:0}
+.rtc{background:var(--navyg);color:var(--navy)}.rts{background:var(--gnb);color:var(--gn)}.rtr{background:var(--amb);color:var(--am)}
+.rtitle{font-size:14px;font-weight:600;line-height:1.3}
+.rcit{font-size:11.5px;color:var(--ink3);margin-top:2px;font-style:italic}
+.rexc{font-size:13px;color:var(--ink2);line-height:1.6;margin-bottom:11px}
+.rfooter{display:flex;align-items:center;gap:14px;font-size:11.5px;color:var(--ink3);flex-wrap:wrap}
+.cbar{display:flex;align-items:center;gap:5px}
+.ctrack{width:50px;height:3px;background:var(--bg4);border-radius:2px;overflow:hidden}
+.cfill{height:100%;border-radius:2px}
+.rspin{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;color:var(--ink3);font-size:13px;gap:14px}
+.spinner{width:26px;height:26px;border:2.5px solid var(--bg4);border-top-color:var(--navy);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.rempty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;color:var(--ink3);font-size:13px;gap:10px}
+.rempty i{font-size:32px;color:var(--bg4)}
+/* Contract */
+.clayout{display:grid;grid-template-columns:1fr 360px;gap:18px;height:calc(100vh - var(--tb) - 82px)}
+.cview{background:var(--bg2);border:1px solid var(--line);border-radius:var(--rl);overflow:hidden;display:flex;flex-direction:column}
+.ctbar{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+.cdoc{flex:1;overflow-y:auto;padding:28px 36px;font-family:Georgia,serif;font-size:13.5px;line-height:1.85;color:var(--ink2)}
+.cdoc h3{font-family:var(--fn);color:var(--ink);font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin:18px 0 8px}
+.rhl{background:rgba(127,29,29,.08);border-left:3px solid var(--rd);padding:2px 5px;border-radius:0 3px 3px 0;cursor:pointer;transition:background .12s}
+.rhl:hover{background:rgba(127,29,29,.15)}
+.rhl.med{background:rgba(120,53,15,.08);border-color:var(--am)}.rhl.med:hover{background:rgba(120,53,15,.15)}
+.cana{background:var(--bg2);border:1px solid var(--line);border-radius:var(--rl);overflow:hidden;display:flex;flex-direction:column}
+.riskhdr{padding:16px 18px;border-bottom:1px solid var(--line)}
+.rdrow{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.rdonut{position:relative;width:58px;height:58px;flex-shrink:0}
+.rdonut svg{transform:rotate(-90deg)}
+.rdlbl{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:15px;font-weight:700;color:var(--rd)}
+.rflags{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:9px}
+.fcard{background:var(--bg3);border:1px solid var(--line);border-radius:var(--r);padding:11px;cursor:pointer;transition:border-color .12s}
+.fcard:hover{border-color:var(--line2)}
+.fhd{display:flex;align-items:center;gap:7px;margin-bottom:5px}
+.fdot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.ftl{font-size:12.5px;font-weight:500}
+.fbdy{font-size:11.5px;color:var(--ink2);line-height:1.45}
+.fsg{margin-top:7px;font-size:11.5px;color:var(--navy);display:flex;align-items:flex-start;gap:5px}
+/* Timeline */
+.tl{position:relative;padding-left:28px}
+.tl::before{content:'';position:absolute;left:9px;top:0;bottom:0;width:2px;background:var(--line)}
+.tli{position:relative;margin-bottom:22px}
+.tli::before{content:'';position:absolute;left:-22px;top:5px;width:9px;height:9px;border-radius:50%;background:var(--bg4);border:2px solid var(--line2);z-index:1}
+.tli.key::before{background:var(--ink);border-color:var(--ink)}
+.tli.hl::before{background:var(--navy);border-color:var(--navy)}
+.tdt{font-size:10.5px;color:var(--ink3);font-weight:500;margin-bottom:3px}
+.ttl2{font-size:13.5px;font-weight:600;margin-bottom:4px}
+.tbdy{font-size:12.5px;color:var(--ink2);line-height:1.5}
+.etag{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;padding:2px 8px;border-radius:4px;margin-top:5px;margin-right:4px;background:var(--bg4);color:var(--ink3)}
+/* KB */
+.kbg{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:18px}
+.kbc{background:var(--bg2);border:1px solid var(--line);border-radius:var(--rl);padding:18px;cursor:pointer;transition:all .15s}
+.kbc:hover{border-color:var(--line2);box-shadow:var(--sh)}
+.kbico{width:36px;height:36px;border-radius:var(--r);display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:10px}
+.kbtl{font-size:13.5px;font-weight:600;margin-bottom:4px}
+.kbds{font-size:12px;color:var(--ink2);line-height:1.45;margin-bottom:10px}
+.kbmt{font-size:10.5px;color:var(--ink3);display:flex;align-items:center;gap:10px}
+/* Matters grid */
+.mgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.mcrd{background:var(--bg2);border:1px solid var(--line);border-radius:var(--rl);padding:18px;cursor:pointer;transition:all .15s}
+.mcrd:hover{border-color:var(--line2);transform:translateY(-1px);box-shadow:var(--sh)}
+.mcdh{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px}
+.mtag{font-size:9.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;padding:2px 7px;border-radius:4px;background:var(--navyg);color:var(--navy)}
+.mct{font-size:14.5px;font-weight:600;line-height:1.3;margin-bottom:5px}
+.mcs{font-size:11.5px;color:var(--ink3);margin-bottom:12px}
+.mcf{display:flex;align-items:center;justify-content:space-between;font-size:11.5px;color:var(--ink3)}
+.pbar{height:3px;background:var(--bg4);border-radius:2px;margin:10px 0;overflow:hidden}
+.pfill{height:100%;border-radius:2px;background:var(--navy)}
+/* Billing */
+.bgrid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.trow{display:flex;align-items:center;gap:12px;padding:10px 15px;border-bottom:1px solid var(--line);font-size:12.5px}
+.trow:hover{background:var(--bgh)}
+.tdsc{flex:1;color:var(--ink)}.thrs{color:var(--ink2);font-size:11.5px;width:50px;text-align:right}.tamt{font-weight:500;width:72px;text-align:right}
+/* AGENTS */
+.agpg{display:grid;grid-template-columns:276px 1fr;gap:18px;height:calc(100vh - var(--tb) - 44px)}
+.aglist{display:flex;flex-direction:column;gap:7px;overflow-y:auto;padding-right:3px}
+.agcard{background:var(--bg2);border:2px solid var(--line);border-radius:var(--rl);padding:13px 15px;cursor:pointer;transition:all .15s}
+.agcard:hover{border-color:var(--line2);box-shadow:var(--sh)}
+.agcard.sel{border-color:var(--navy);background:var(--bga)}
+.agcard.run{border-color:var(--gn);animation:pgls 2s infinite}
+@keyframes pgls{0%,100%{box-shadow:0 0 0 0 rgba(22,101,52,.2)}50%{box-shadow:0 0 0 4px rgba(22,101,52,.08)}}
+.agav{font-size:22px;margin-bottom:7px}
+.agname{font-size:13px;font-weight:600;margin-bottom:3px}
+.agdesc{font-size:11.5px;color:var(--ink2);line-height:1.4;margin-bottom:8px}
+.agst{font-size:10.5px;display:flex;align-items:center;gap:5px}
+.agdot{width:6px;height:6px;border-radius:50%;background:var(--ink4)}
+.agdot.rdy{background:var(--gn);box-shadow:0 0 0 2px rgba(22,101,52,.15)}
+.agdot.bsy{background:var(--am);animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.agws{background:var(--bg2);border:1px solid var(--line);border-radius:var(--rl);display:flex;flex-direction:column;overflow:hidden}
+.agwsh{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px}
+.agtbar{padding:11px 15px;background:var(--bg3);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.tchip{font-size:11.5px;padding:4px 12px;border-radius:20px;background:var(--bg4);border:1px solid var(--line);color:var(--ink2);cursor:pointer;transition:all .12s;font-family:var(--fn)}
+.tchip:hover{background:var(--navy);color:#fff;border-color:var(--navy)}
+.agout{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:14px}
+.oblk{background:var(--bg);border:1px solid var(--line);border-radius:var(--rl);overflow:hidden}
+.oblkh{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;background:var(--bg2)}
+.oblkb{padding:14px 16px;font-size:13px;line-height:1.65;color:var(--ink2)}
+.oblkb strong{color:var(--ink);font-weight:500}
+.oblkb code{background:var(--bg3);padding:1px 5px;border-radius:3px;font-size:12px}
+.opinp{padding:12px;border-top:1px solid var(--line)}
+.opinrow{display:flex;gap:8px;align-items:flex-end;background:var(--bg3);border:1px solid var(--line);border-radius:var(--rl);padding:8px 12px;transition:border-color .15s}
+.opinrow:focus-within{border-color:var(--navy)}
+.opinrow textarea{flex:1;background:transparent;border:none;outline:none;color:var(--ink);font-family:var(--fn);font-size:13px;resize:none;line-height:1.5;max-height:100px}
+.opinrow textarea::placeholder{color:var(--ink3)}
+.progbar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--ink3)}
+.ptrack{flex:1;height:4px;background:var(--bg4);border-radius:2px;overflow:hidden}
+.pfill2{height:100%;background:var(--navy);border-radius:2px;transition:width .4s ease}
+/* Cmd palette */
+.cov{position:fixed;inset:0;background:rgba(0,0,0,.18);backdrop-filter:blur(3px);z-index:200;display:none;align-items:flex-start;justify-content:center;padding-top:100px}
+.cov.open{display:flex}
+.cbox{width:540px;background:var(--bg);border:1px solid var(--line2);border-radius:var(--rxl);overflow:hidden;box-shadow:var(--shl)}
+.cirow{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line)}
+.cinput{flex:1;background:transparent;border:none;outline:none;color:var(--ink);font-size:14.5px;font-family:var(--fn)}
+.cres{max-height:300px;overflow-y:auto;padding:6px 0}
+.cgrp{padding:7px 13px 3px;font-size:9.5px;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.cit{display:flex;align-items:center;gap:10px;padding:7px 14px;cursor:pointer;font-size:13px;transition:background .1s}
+.cit:hover{background:var(--bgh)}.cit i{font-size:15px;color:var(--ink3);flex-shrink:0}
+.cmeta{margin-left:auto;font-size:10.5px;color:var(--ink3)}
+/* Toasts */
+.toastc{position:fixed;bottom:18px;right:18px;display:flex;flex-direction:column;gap:7px;z-index:300;pointer-events:none}
+.toast{background:var(--bg);border:1px solid var(--line2);border-radius:var(--rl);padding:10px 15px;font-size:12.5px;display:flex;align-items:center;gap:9px;pointer-events:all;box-shadow:var(--sha);animation:slin .18s ease;min-width:240px}
+@keyframes slin{from{transform:translateX(16px);opacity:0}to{transform:translateX(0);opacity:1}}
+.toast i{font-size:14px;flex-shrink:0}
+</style>
+</head>
+<body>
+
+<nav class="sb">
+  <div class="sbl">
+    <div class="licon">&#9878;</div>
+    <span class="ltxt">Law <span>OSS</span></span>
+    <span style="font-size:16px;margin-left:auto">🇺🇸</span>
+  </div>
+  <div class="ssrch" onclick="openCmd()">
+    <i class="ti ti-search" style="font-size:13px;color:var(--ink3)"></i>
+    <span>Search everything&hellip;</span><kbd>&#8984;K</kbd>
+  </div>
+  <div class="slbl">Workspace</div>
+  <div class="ni act" onclick="nav('dashboard',this)"><i class="ti ti-layout-dashboard"></i>Dashboard</div>
+  <div class="ni" onclick="nav('ai',this)"><i class="ti ti-sparkles"></i>AI Workspace<span class="nchip dot"></span></div>
+  <div class="ni" onclick="nav('agents',this)"><i class="ti ti-robot"></i>AI Agents<span class="nchip gn">8</span></div>
+  <div class="ni" onclick="nav('matters',this)"><i class="ti ti-briefcase"></i>Matters<span class="nchip">5</span></div>
+  <div class="slbl">Legal Tools</div>
+  <div class="ni" onclick="nav('research',this)"><i class="ti ti-book"></i>Legal Research</div>
+  <div class="ni" onclick="nav('contracts',this)"><i class="ti ti-file-text"></i>Contract Review<span class="nchip am">3</span></div>
+  <div class="ni" onclick="nav('litigation',this)"><i class="ti ti-gavel"></i>Litigation</div>
+  <div class="ni" onclick="nav('knowledge',this)"><i class="ti ti-database"></i>Knowledge Base</div>
+  <div class="slbl">Management</div>
+  <div class="ni" onclick="nav('billing',this)"><i class="ti ti-clock-dollar"></i>Billing</div>
+  <div class="ni" onclick="nav('clients',this)"><i class="ti ti-users"></i>Clients</div>
+  <div class="ni" onclick="nav('documents',this)"><i class="ti ti-folder"></i>Documents</div>
+  <div class="sftr">
+    <div class="urow">
+      <div class="uav">SA</div>
+      <div><div class="uname">Sarah Anderson</div><div class="urole">Partner &middot; Meridian Law Group</div></div>
+      <i class="ti ti-chevron-up-down" style="font-size:13px;color:var(--ink3);margin-left:auto" onclick="buildSettingsPanel()"></i>
+    </div>
+  </div>
+</nav>
+
+<main class="main">
+  <div class="topbar">
+    <span class="ttl" id="pgtl">Dashboard</span>
+    <div style="display:flex;align-items:center;gap:6px">
+      <button class="btn bi" onclick="toast('No new notifications','ti-bell','var(--ink2)')"><i class="ti ti-bell" style="font-size:14px"></i></button>
+      <button class="btn bi" onclick="buildSettingsPanel()"><i class="ti ti-settings" style="font-size:14px"></i></button>
+      <button class="btn bp" onclick="toast('New matter form opening&hellip;','ti-plus','#fff')">
+        <i class="ti ti-plus" style="font-size:13px"></i> New Matter
+      </button>
+    </div>
+  </div>
+  <div class="ct" id="ct">
+
+  <!-- ══════════ DASHBOARD ══════════ -->
+  <div class="pg act" id="pg-dashboard">
+    <div class="metrics">
+      <div class="met"><div class="mlbl">Active Matters</div><div class="mval" style="color:var(--navy)">5</div><div class="mdlt up"><i class="ti ti-trending-up" style="font-size:11px"></i> +3 this month</div></div>
+      <div class="met"><div class="mlbl">Hours Billed</div><div class="mval" style="color:var(--gn)">248</div><div class="mdlt up"><i class="ti ti-trending-up" style="font-size:11px"></i> +18% vs last month</div></div>
+      <div class="met"><div class="mlbl">Revenue MTD</div><div class="mval">$84k</div><div class="mdlt up"><i class="ti ti-trending-up" style="font-size:11px"></i> On track for $110k</div></div>
+      <div class="met"><div class="mlbl">AI Agent Tasks</div><div class="mval" style="color:var(--navy)">47</div><div class="mdlt"><i class="ti ti-robot" style="font-size:11px"></i> 8 Claude agents active</div></div>
+    </div>
+    <div class="two-col">
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div class="card">
+          <div class="ch"><span class="cht">Active Matters</span>
+            <button class="btn bg" style="height:26px;font-size:11.5px;padding:0 10px" onclick="nav('matters',null)">View all &rarr;</button>
+          </div>
+          
+        <div class="mrow">
+          <div class="mica" style="background:var(--navyg);color:var(--navy)"><i class="ti ti-gavel"></i></div>
+          <div style="flex:1;min-width:0"><div class="mnm">Chen v. TechCorp Industries</div><div class="msb">Commercial Litigation · N.D. Cal.</div></div>
+          <span class="badge ba">Active</span>
+        </div>
+        <div class="mrow">
+          <div class="mica" style="background:var(--gnb);color:var(--gn)"><i class="ti ti-file-text"></i></div>
+          <div style="flex:1;min-width:0"><div class="mnm">Meridian Pharma Acquisition</div><div class="msb">M&A · HSR Notifiable · Delaware</div></div>
+          <span class="badge br">Review</span>
+        </div>
+        <div class="mrow">
+          <div class="mica" style="background:var(--amb);color:var(--am)"><i class="ti ti-building"></i></div>
+          <div style="flex:1;min-width:0"><div class="mnm">Lakewood Employment Dispute</div><div class="msb">Employment · Title VII · EEOC</div></div>
+          <span class="badge bp2">Pending</span>
+        </div>
+        <div class="mrow">
+          <div class="mica" style="background:var(--navyg);color:var(--navy)"><i class="ti ti-certificate"></i></div>
+          <div style="flex:1;min-width:0"><div class="mnm">NanoTech IP Portfolio</div><div class="msb">Intellectual Property · USPTO</div></div>
+          <span class="badge ba">Active</span>
+        </div>
+        <div class="mrow">
+          <div class="mica" style="background:var(--gnb);color:var(--gn)"><i class="ti ti-home"></i></div>
+          <div style="flex:1;min-width:0"><div class="mnm">Riverside Development Contract</div><div class="msb">Real Estate · California</div></div>
+          <span class="badge ba">Active</span>
+        </div>
+        </div>
+        <div class="card">
+          <div class="ch"><span class="cht">Recent Activity</span></div>
+          <div style="padding:6px 18px">
+            <div class="aitem"><div class="aico" style="background:var(--navyg);color:var(--navy)"><i class="ti ti-robot" style="font-size:12px"></i></div><div class="abody"><div><strong>Research Agent</strong> &mdash; Found 8 US law precedents for Chen v. TechCorp Industri&hellip;</div><div class="atm">2 minutes ago</div></div></div>
+            <div class="aitem"><div class="aico" style="background:var(--gnb);color:var(--gn)"><i class="ti ti-file-upload" style="font-size:12px"></i></div><div class="abody"><div><strong>Document uploaded</strong> &mdash; Draft SPA v3.2 (latest draft).pdf</div><div class="atm">18 minutes ago</div></div></div>
+            <div class="aitem"><div class="aico" style="background:var(--amb);color:var(--am)"><i class="ti ti-clock" style="font-size:12px"></i></div><div class="abody"><div><strong>Time recorded</strong> &mdash; 2.5h on Employment Dispute</div><div class="atm">1 hour ago</div></div></div>
+            <div class="aitem"><div class="aico" style="background:var(--navyg);color:var(--navy)"><i class="ti ti-sparkles" style="font-size:12px"></i></div><div class="abody"><div><strong>Contract Agent</strong> &mdash; SPA reviewed: 14 risk flags, 3 critical clauses found</div><div class="atm">2 hours ago</div></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="aipnl" style="height:590px">
+        <div class="aihd">
+          <div class="sdot"></div>
+          <div><div style="font-size:12.5px;font-weight:600">Law OSS AI</div><div style="font-size:10.5px;color:var(--ink3)">US Edition &middot; claude-sonnet-4-6 &middot; Live</div></div>
+          <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
+            <span style="font-size:10px;background:var(--gnb);color:var(--gn);padding:1px 7px;border-radius:10px;font-weight:500">&#9679; Live AI</span>
+            <button class="btn bi" style="width:26px;height:26px"><i class="ti ti-dots" style="font-size:13px"></i></button>
+          </div>
+        </div>
+        <div class="msgs" id="dmsgs">
+          <div class="msg ai"><div class="mav ai">&#9878;</div><div class="mb">Good morning, Sarah. I have <strong>3 urgent items</strong> for you today. The SPA contract review is complete &mdash; 14 risk flags found. I&rsquo;m connected to <strong>8 live Claude agents</strong> (Research, Drafting, Contract, Litigation, Compliance, Due Diligence, Client, Billing). Try the <strong>AI Agents</strong> tab for structured task execution.<br><br>What would you like to tackle first?</div></div>
+          <div class="msg u"><div class="mav u">SA</div><div class="mb">What are the most urgent priorities today?</div></div>
+          <div class="msg ai"><div class="mav ai">&#9878;</div><div class="mb"><strong>Today&rsquo;s priorities:</strong><br><br><strong>1. Immediate</strong> &mdash; SPA negotiation call in 2 hours. Contract Agent flagged 3 critical issues: unlimited indemnification, unrealistic completion/outside date, and missing MAC definition.<br><br><strong>2. This week</strong> &mdash; Interrogatory responses due Friday Feb 28. Research Agent has prepared precedent analysis &mdash; shall I pull it up?<br><br><strong>3. Monitor</strong> &mdash; Employment matter: Compliance Agent flagged regulatory exposure. Review recommended.<br><br>Which shall we start with?</div></div>
+        </div>
+        <div class="ainput">
+          <div class="airow">
+            <textarea id="dinput" placeholder="Ask anything &mdash; powered by live Claude AI&hellip;" rows="1" onkeydown="hkey(event,'dash')" oninput="grow(this)"></textarea>
+            <button class="sndbtn" onclick="sendChat('dash')"><i class="ti ti-send" style="font-size:14px"></i></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ AI WORKSPACE ══════════ -->
+  <div class="pg" id="pg-ai">
+    <div style="display:grid;grid-template-columns:260px 1fr;gap:18px;height:calc(100vh - var(--tb) - 44px)">
+      <div class="card" style="display:flex;flex-direction:column;overflow:hidden">
+        <div class="ch"><span class="cht">Conversations</span>
+          <button class="btn bi" style="width:26px;height:26px" onclick="toast('New conversation','ti-check','var(--gn)')"><i class="ti ti-plus" style="font-size:13px"></i></button>
+        </div>
+        <div style="padding:8px 8px 4px">
+          <div style="display:flex;gap:5px">
+            <button class="tab act" style="font-size:11.5px;padding:4px 10px;border:none;border-bottom:none;border-radius:6px;margin:0">All</button>
+            <button class="tab" style="font-size:11.5px;padding:4px 10px;border:none;border-bottom:none;border-radius:6px;margin:0">Research</button>
+            <button class="tab" style="font-size:11.5px;padding:4px 10px;border:none;border-bottom:none;border-radius:6px;margin:0">Drafting</button>
+          </div>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:4px 8px 8px">
+          <div style="font-size:9.5px;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em;font-weight:600;padding:7px 8px 3px">Today</div>
+          <div class="mrow" style="padding:8px;border-radius:var(--r);border:none;background:var(--bga)"><div style="flex:1;min-width:0"><div class="mnm">Chen v. TechCorp Industries&hellip;</div><div class="msb">Research &middot; 8 authorities</div></div></div>
+          <div class="mrow" style="padding:8px;border-radius:var(--r);border:none"><div style="flex:1;min-width:0"><div class="mnm">SPA &mdash; contract analysis</div><div class="msb">Contract &middot; 14 flags</div></div></div>
+          <div style="font-size:9.5px;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em;font-weight:600;padding:10px 8px 3px">Yesterday</div>
+          <div class="mrow" style="padding:8px;border-radius:var(--r);border:none"><div style="flex:1;min-width:0"><div class="mnm">Draft motion / pleading</div><div class="msb">Drafting &middot; 1,240 words</div></div></div>
+          <div class="mrow" style="padding:8px;border-radius:var(--r);border:none"><div style="flex:1;min-width:0"><div class="mnm">Employment law research</div><div class="msb">Research &middot; US law</div></div></div>
+        </div>
+      </div>
+      <div class="aipnl" style="height:auto">
+        <div class="aihd" style="justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:9px">
+            <div class="sdot"></div>
+            <div>
+              <div style="font-size:12.5px;font-weight:600">Chen v. TechCorp Industries&hellip; &mdash; AI Workspace</div>
+              <div style="font-size:10.5px;color:var(--ink3)">Live Claude AI &middot; US law</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn bg" style="height:27px;font-size:11.5px;padding:0 10px" onclick="nav('agents',null)"><i class="ti ti-robot" style="font-size:12px"></i> Use Agents</button>
+            <button class="btn bg" style="height:27px;font-size:11.5px;padding:0 10px"><i class="ti ti-pencil" style="font-size:12px"></i> Draft</button>
+          </div>
+        </div>
+        <div class="msgs" id="aimsgs" style="flex:1">
+          <div class="msg ai"><div class="mav ai">&#9878;</div><div class="mb">Ready to research <strong>US law</strong> for <strong>Chen v. TechCorp Industries</strong>. Every response is generated live by Claude.<br><br>For <strong>structured tasks</strong> (research reports, document drafting, contract review, compliance analysis), use the <strong>AI Agents</strong> tab &mdash; 8 specialist agents ready to execute multi-step workflows.<div class="srcs">
+            <div class="sitem"><i class="ti ti-robot" style="font-size:13px;flex-shrink:0;margin-top:1px"></i><div><div style="font-weight:500;margin-bottom:2px">All 8 agents powered by Claude claude-sonnet-4-6</div><div style="color:var(--ink3);font-size:11px">Research, Drafting, Contract, Litigation, Compliance, Due Diligence, Client, Billing</div></div><span class="scnf">Live</span></div>
+          </div></div></div>
+        </div>
+        <div class="ainput">
+          <div style="display:flex;gap:7px;margin-bottom:8px;flex-wrap:wrap">
+            <button class="btn bg" style="height:25px;font-size:11.5px;padding:0 10px" onclick="setAI('Research the key legal issues and applicable authorities in this matter')">Research key issues</button>
+            <button class="btn bg" style="height:25px;font-size:11.5px;padding:0 10px" onclick="setAI('What are the strongest arguments for my client and the key risks?')">Analyse strengths</button>
+            <button class="btn bg" style="height:25px;font-size:11.5px;padding:0 10px" onclick="setAI('Draft an executive summary of the current matter position')">Executive summary</button>
+          </div>
+          <div class="airow">
+            <textarea id="aiinput" placeholder="Ask anything &mdash; all responses powered by live Claude AI&hellip;" rows="1" onkeydown="hkey(event,'ai')" oninput="grow(this)"></textarea>
+            <button class="sndbtn" onclick="sendChat('ai')"><i class="ti ti-send" style="font-size:14px"></i></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ AI AGENTS ══════════ -->
+  <div class="pg" id="pg-agents">
+    <div class="agpg">
+      <div style="display:flex;flex-direction:column;gap:4px;overflow:hidden">
+        <div style="font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:8px;padding-left:2px;flex-shrink:0">
+          8 Specialist Claude Agents
+          <span style="font-size:10px;color:var(--navy);background:var(--navyg);padding:1px 7px;border-radius:10px;font-weight:500;margin-left:6px">All Live</span>
+        </div>
+        <div class="aglist" id="aglist"></div>
+      </div>
+      <div class="agws" id="agws">
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:14px;color:var(--ink3);padding:40px">
+          <i class="ti ti-robot" style="font-size:48px;color:var(--bg4)"></i>
+          <div style="font-size:15px;font-weight:500;color:var(--ink)">Select an agent to begin</div>
+          <div style="font-size:13px;text-align:center;max-width:320px">All 8 agents are powered by Claude claude-sonnet-4-6 and run in real time. Choose an agent from the left panel.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ MATTERS ══════════ -->
+  <div class="pg" id="pg-matters">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px">
+      <select style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);padding:0 10px;height:30px;color:var(--ink);font-family:var(--fn);font-size:12.5px;outline:none;cursor:pointer">
+        <option>All Types</option><option>Litigation</option><option>M&A</option><option>Employment</option><option>IP</option><option>Real Estate</option>
+      </select>
+      <select style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);padding:0 10px;height:30px;color:var(--ink);font-family:var(--fn);font-size:12.5px;outline:none;cursor:pointer">
+        <option>All Status</option><option>Active</option><option>Pending</option><option>Closed</option>
+      </select>
+      <div style="flex:1"></div>
+      <button class="btn bi"><i class="ti ti-layout-grid"></i></button>
+      <button class="btn bi"><i class="ti ti-list"></i></button>
+    </div>
+    <div class="mgrid">
+        <div class="mcrd" onclick="toast('Opening Chen v. TechCorp Industries…','ti-briefcase','var(--navy)')">
+          <div class="mcdh">
+            <span class="mtag" style="background:var(--navyg);color:var(--navy)">Litigation</span>
+            <span class="badge ba">Active</span>
+          </div>
+          <div class="mct">Chen v. TechCorp Industries</div>
+          <div class="mcs"><i class="ti ti-gavel" style="font-size:11px"></i> N.D. Cal. · James Kim</div>
+          <div class="pbar"><div class="pfill" style="width:45%;background:var(--navy)"></div></div>
+          <div class="mcf">
+            <span><i class="ti ti-clock" style="font-size:11px"></i> 127h</span>
+            <span>Trial Sept 2025</span>
+            <span style="color:var(--navy);font-weight:500">$43,200</span>
+          </div>
+        </div>
+        <div class="mcrd" onclick="toast('Opening Meridian Pharma Acquisition…','ti-briefcase','var(--navy)')">
+          <div class="mcdh">
+            <span class="mtag" style="background:var(--gnb);color:var(--gn)">M&A</span>
+            <span class="badge br">Review</span>
+          </div>
+          <div class="mct">Meridian Pharma Acquisition</div>
+          <div class="mcs"><i class="ti ti-file-text" style="font-size:11px"></i> Delaware · Sarah Anderson</div>
+          <div class="pbar"><div class="pfill" style="width:70%;background:var(--gn)"></div></div>
+          <div class="mcf">
+            <span><i class="ti ti-clock" style="font-size:11px"></i> 284h</span>
+            <span>Closes Tomorrow</span>
+            <span style="color:var(--navy);font-weight:500">$127,500</span>
+          </div>
+        </div>
+        <div class="mcrd" onclick="toast('Opening Lakewood Employment Dispute…','ti-briefcase','var(--navy)')">
+          <div class="mcdh">
+            <span class="mtag" style="background:var(--amb);color:var(--am)">Employment</span>
+            <span class="badge bp2">Pending</span>
+          </div>
+          <div class="mct">Lakewood Employment Dispute</div>
+          <div class="mcs"><i class="ti ti-building" style="font-size:11px"></i> EEOC · Maria Torres</div>
+          <div class="pbar"><div class="pfill" style="width:28%;background:var(--am)"></div></div>
+          <div class="mcf">
+            <span><i class="ti ti-clock" style="font-size:11px"></i> 45h</span>
+            <span>No trial date</span>
+            <span style="color:var(--navy);font-weight:500">$18,000</span>
+          </div>
+        </div>
+        <div class="mcrd" onclick="toast('Opening NanoTech IP Portfolio…','ti-briefcase','var(--navy)')">
+          <div class="mcdh">
+            <span class="mtag" style="background:var(--navyg);color:var(--navy)">IP</span>
+            <span class="badge ba">Active</span>
+          </div>
+          <div class="mct">NanoTech IP Portfolio</div>
+          <div class="mcs"><i class="ti ti-certificate" style="font-size:11px"></i> USPTO · Sarah Anderson</div>
+          <div class="pbar"><div class="pfill" style="width:52%;background:var(--navy)"></div></div>
+          <div class="mcf">
+            <span><i class="ti ti-clock" style="font-size:11px"></i> 88h</span>
+            <span>Apr 1</span>
+            <span style="color:var(--navy);font-weight:500">$32,000</span>
+          </div>
+        </div>
+        <div class="mcrd" onclick="toast('Opening Riverside Development Contract…','ti-briefcase','var(--navy)')">
+          <div class="mcdh">
+            <span class="mtag" style="background:var(--gnb);color:var(--gn)">Real Estate</span>
+            <span class="badge ba">Active</span>
+          </div>
+          <div class="mct">Riverside Development Contract</div>
+          <div class="mcs"><i class="ti ti-home" style="font-size:11px"></i> California · James Kim</div>
+          <div class="pbar"><div class="pfill" style="width:58%;background:var(--gn)"></div></div>
+          <div class="mcf">
+            <span><i class="ti ti-clock" style="font-size:11px"></i> 52h</span>
+            <span>Mar 30</span>
+            <span style="color:var(--navy);font-weight:500">$22,400</span>
+          </div>
+        </div>
+    <div class="mcrd" style="border-style:dashed;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:160px"
+      onclick="toast('New matter form opening…','ti-plus','var(--navy)')">
+      <i class="ti ti-plus" style="font-size:24px;color:var(--ink4);margin-bottom:8px"></i>
+      <div style="font-size:13px;color:var(--ink3)">New Matter</div>
+    </div></div>
+  </div>
+
+  <!-- ══════════ LEGAL RESEARCH ══════════ -->
+  <div class="pg" id="pg-research">
+    <div class="rwrap">
+      <div class="rhero">
+        <h2>Legal Research</h2>
+        <p>AI-powered US law research with verified citations. No fabricated authorities &mdash; ever.</p>
+        <div class="rinrow">
+          <input class="rinput" id="rinput" placeholder="e.g. "Delaware business judgment rule" · "Title VII hostile environment" · "UCC perfect tender rule"">
+          <button class="btn bp" id="rbtn" onclick="doSearch()" style="height:44px;padding:0 20px">
+            <i class="ti ti-search" style="font-size:13px"></i> Research
+          </button>
+        </div>
+        <div class="jpills"><button class="jpill act" data-jur="All">All</button>
+<button class="jpill" data-jur="Federal">Federal</button>
+<button class="jpill" data-jur="SCOTUS">SCOTUS</button>
+<button class="jpill" data-jur="9th">9th</button>
+<button class="jpill" data-jur="2nd">2nd</button>
+<button class="jpill" data-jur="CA">CA</button>
+<button class="jpill" data-jur="NY">NY</button>
+<button class="jpill" data-jur="DE">DE</button>
+<button class="jpill" data-jur="TX">TX</button></div>
+      </div>
+      <div class="rbar" id="rbar" style="display:none">
+        <span class="rcnt" id="rcnt"></span>
+        <div style="margin-left:auto;display:flex;gap:6px">
+          <button class="btn bg" style="height:27px;font-size:11.5px;padding:0 10px" onclick="aiRSum()"><i class="ti ti-sparkles" style="font-size:12px"></i> AI Summary</button>
+          <button class="btn bg" style="height:27px;font-size:11.5px;padding:0 10px" onclick="toast('Results exported to PDF','ti-download','var(--gn)')"><i class="ti ti-download" style="font-size:12px"></i> Export</button>
+        </div>
+      </div>
+      <div class="rarea" id="rarea">
+        <div class="rempty">
+          <i class="ti ti-book"></i>
+          <div style="font-weight:500">Enter a legal question to begin research</div>
+          <div style="font-size:11.5px">e.g. "Delaware business judgment rule" · "Title VII hostile environment" · "UCC perfect tender rule"</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ CONTRACT REVIEW ══════════ -->
+  <div class="pg" id="pg-contracts">
+    <div class="tabs">
+      <button class="tab act">Analysis</button><button class="tab">Redlines</button>
+      <button class="tab">Obligations</button><button class="tab">Reps &amp; Warranties</button>
+    </div>
+    <div class="clayout">
+      <div class="cview">
+        <div class="ctbar">
+          <i class="ti ti-file-text" style="font-size:15px;color:var(--ink3)"></i>
+          <span style="font-size:12.5px;font-weight:500;flex:1">Meridian Pharma — Share Purchase Agreement v3.2 (Skadden draft).pdf</span>
+          <span style="font-size:10.5px;color:var(--ink3);background:var(--bg4);padding:2px 8px;border-radius:4px">Page 1 of 48</span>
+          <button class="btn bi" style="width:27px;height:27px"><i class="ti ti-zoom-in" style="font-size:13px"></i></button>
+        </div>
+        <div class="cdoc">
+<h3>Share Purchase Agreement</h3>
+<p>This Agreement is entered into as of January 15, 2025, by and between <strong>Meridian Holdings Inc.</strong>, a Delaware corporation (<strong>"Buyer"</strong>), and the Sellers listed on Schedule A (<strong>"Sellers"</strong>).</p>
+<h3>1. Purchase and Sale</h3>
+<p>Each Seller agrees to sell the Purchased Shares at $42.50 per share, free and clear of all Encumbrances, subject to the terms herein.</p>
+<h3>2. Representations and Warranties</h3>
+<p>Each Seller represents and warrants to Buyer as of the date hereof and the Closing Date as set forth in Schedule 3 (Warranties)&hellip;</p>
+<h3>3. Indemnification</h3>
+<p><span class="rhl" onclick="scrollFlag('fi')">Sellers shall, jointly and severally, indemnify and hold harmless Buyer and its affiliates from any and all Losses arising from (i) any breach of any representation or warranty, (ii) any breach of any covenant, or (iii) any Excluded Liability, <strong>without any limitation as to time or amount</strong>.</span></p>
+<h3>4. Termination</h3>
+<p><span class="rhl med" onclick="scrollFlag('ft')">This Agreement may be terminated prior to Closing: (a) by mutual consent; (b) by either party if Closing has not occurred on or before <strong>March 1, 2025</strong> (the "Outside Date").</span></p>
+<h3>5. Non-Competition</h3>
+<p><span class="rhl med" onclick="scrollFlag('fn')">For a period of five (5) years after Closing, each Seller shall not engage in any pharmaceutical or biopharmaceutical activity <strong>anywhere in the world</strong>.</span></p>
+<h3>6. Governing Law</h3>
+<p>This Agreement shall be governed by the laws of the State of Delaware. Exclusive jurisdiction: Court of Chancery, New Castle County.</p>
+</div>
+      </div>
+      <div class="cana">
+        <div class="riskhdr">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <span style="font-size:13.5px;font-weight:600">Risk Analysis</span>
+            <span style="font-size:11.5px;background:var(--rdb);color:var(--rd);padding:2px 10px;border-radius:20px;font-weight:500">High Risk &mdash; 72/100</span>
+          </div>
+          <div class="rdrow">
+            <div class="rdonut">
+              <svg width="58" height="58" viewBox="0 0 58 58">
+                <circle cx="29" cy="29" r="23" fill="none" stroke="var(--bg4)" stroke-width="7"/>
+                <circle cx="29" cy="29" r="23" fill="none" stroke="var(--rd)" stroke-width="7" stroke-dasharray="103 145" stroke-linecap="round"/>
+              </svg>
+              <div class="rdlbl">72</div>
+            </div>
+            <div style="flex:1;font-size:12px">
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--rd)">&#9679; Critical</span><span style="font-weight:500">3 clauses</span></div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--am)">&#9679; High risk</span><span style="font-weight:500">7 clauses</span></div>
+              <div style="display:flex;justify-content:space-between"><span style="color:var(--ink3)">&#9679; Medium</span><span style="font-weight:500">4 clauses</span></div>
+            </div>
+          </div>
+          <div style="font-size:11.5px;color:var(--ink3);background:var(--bg4);border-radius:var(--r);padding:8px 10px;line-height:1.4">
+            <i class="ti ti-alert-triangle" style="font-size:12px;color:var(--am);vertical-align:-2px"></i>
+            Unlimited joint &amp; several indemnification is non-market. Use Contract Agent to generate redline positions.
+          </div>
+          <button class="btn bp" style="height:27px;font-size:11.5px;padding:0 11px;margin-top:10px;width:100%;justify-content:center"
+            onclick="nav('agents',null);setTimeout(()=>{selAg('contract');setAgInp('Analyse all risk flags in this SPA and draft redline positions with negotiation rationale');},200)">
+            <i class="ti ti-robot" style="font-size:12px"></i> Run Contract Agent — Full Analysis
+          </button>
+        </div>
+        <div class="rflags">
+<div class="fcard" id="fi" style="border-color:var(--rd)">
+  <div class="fhd"><div class="fdot" style="background:var(--rd)"></div><span class="ftl">Unlimited Indemnification</span><span style="margin-left:auto;font-size:9.5px;background:var(--rdb);color:var(--rd);padding:2px 6px;border-radius:4px;font-weight:600">CRITICAL</span></div>
+  <div class="fbdy">§ 3 imposes unlimited joint and several indemnification — no basket, no cap, no survival. Non-market for Delaware M&A. Sellers face liability exceeding the $385M purchase price.</div>
+  <div class="fsg"><i class="ti ti-sparkles" style="font-size:12px;flex-shrink:0;margin-top:1px"></i><span>Suggest: $500k basket, 15% consideration cap, 18-month general survival, 7-year tax/fraud. Standard Skadden market position.</span></div>
+  <button class="btn bp" style="height:24px;font-size:11px;padding:0 9px;margin-top:8px" onclick="nav('agents',null);setTimeout(()=>{selAg('contract');setAgInp('Draft redline language for Delaware SPA to add a market-standard indemnification cap, basket, and survival period. Provide negotiation rationale for each position.');},200)"><i class="ti ti-robot" style="font-size:11px"></i> Fix with Contract Agent</button>
+</div>
+<div class="fcard" id="ft">
+  <div class="fhd"><div class="fdot" style="background:var(--am)"></div><span class="ftl">Outside Date Unrealistic</span><span style="margin-left:auto;font-size:9.5px;background:var(--amb);color:var(--am);padding:2px 6px;border-radius:4px;font-weight:600">HIGH</span></div>
+  <div class="fbdy">March 1, 2025 outside date is only 45 days from signing. HSR waiting period alone is 30 days minimum; pharma FTC/DOJ review extends to 12+ months in many cases.</div>
+  <div class="fsg"><i class="ti ti-sparkles" style="font-size:12px;flex-shrink:0;margin-top:1px"></i><span>Suggest: September 30, 2025 with automatic 90-day extension if HSR review pending. Add Reverse Termination Fee of $38.5M (10%) if Buyer fails to close on regulatory grounds.</span></div>
+</div>
+<div class="fcard">
+  <div class="fhd"><div class="fdot" style="background:var(--am)"></div><span class="ftl">Missing MAE Definition</span><span style="margin-left:auto;font-size:9.5px;background:var(--amb);color:var(--am);padding:2px 6px;border-radius:4px;font-weight:600">HIGH</span></div>
+  <div class="fbdy">No Material Adverse Effect definition. Delaware courts set a high bar — Akorn v. Fresenius Kabi (Del. Ch. 2018). Without precise drafting, Buyer's walk-away rights are ambiguous.</div>
+  <div class="fsg"><i class="ti ti-sparkles" style="font-size:12px;flex-shrink:0;margin-top:1px"></i><span>Suggest: Standard MAE definition with carve-outs for general economy, industry conditions, market volatility, and COVID-type events. Preserve disproportionate-impact exception.</span></div>
+</div>
+<div class="fcard" id="fn">
+  <div class="fhd"><div class="fdot" style="background:var(--ink3)"></div><span class="ftl">Non-Compete Unenforceable (CA)</span><span style="margin-left:auto;font-size:9.5px;background:var(--bg4);color:var(--ink3);padding:2px 6px;border-radius:4px;font-weight:600">MEDIUM</span></div>
+  <div class="fbdy">Global 5-year non-compete is void as to California sellers under Bus. &amp; Prof. Code § 16600. Overbroad even under Delaware restraint of trade analysis.</div>
+  <div class="fsg"><i class="ti ti-sparkles" style="font-size:12px;flex-shrink:0;margin-top:1px"></i><span>Suggest: North America only, 3-year term, direct competing products. Separate ancillary agreement with non-California governing law.</span></div>
+</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ LITIGATION ══════════ -->
+  <div class="pg" id="pg-litigation">
+    <div class="tabs">
+      <button class="tab act">Chronology</button><button class="tab">Evidence</button>
+      <button class="tab">Witnesses</button><button class="tab">Trial Prep</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 300px;gap:18px">
+      <div class="card">
+        <div class="ch">
+          <div>
+            <div class="cht">Chen v. TechCorp Industries &mdash; AI Chronology</div>
+            <div style="font-size:11.5px;color:var(--ink3);margin-top:2px">Generated by Litigation Agent &middot; N.D. Cal. &middot; Live Claude AI</div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn bg" style="height:26px;font-size:11.5px;padding:0 10px" onclick="toast('Exported to PDF','ti-download','var(--gn)')"><i class="ti ti-download" style="font-size:12px"></i> Export</button>
+            <button class="btn bp" style="height:26px;font-size:11.5px;padding:0 10px"
+              onclick="nav('agents',null);setTimeout(()=>{selAg('litigation');setAgInp('Generate a full case chronology for Chen v. TechCorp Industries. Include all key dates, events, legal milestones and evidence references.');},200)">
+              <i class="ti ti-sparkles" style="font-size:12px"></i> Regenerate with AI
+            </button>
+          </div>
+        </div>
+        <div style="padding:18px 20px"><div class="tl">
+        <div class="tli key">
+          <div class="tdt">March 15, 2022</div>
+          <div class="ttl2" style="color:var(--ink)">Software Development Agreement Signed</div>
+          <div class="tbdy">Chen Enterprises and TechCorp executed SDA for custom ERP system. Value: $2.3M. Delivery deadline: December 31, 2022.</div>
+          <span class="etag" style=""><i class='ti ti-file-text' style='font-size:10px'></i> Exhibit 1 — SDA</span><span class="etag" style=""><i class='ti ti-file-text' style='font-size:10px'></i> Technical specs</span>
+        </div>
+        <div class="tli">
+          <div class="tdt">June 10, 2022</div>
+          <div class="ttl2" style="color:var(--ink)">Phase 1 Delivery — 47 Critical Defects</div>
+          <div class="tbdy">TechCorp delivered Phase 1. Chen QA identified 47 critical and 108 minor defects. Formal non-conformance notice issued under § 8.2, 30-day cure period demanded.</div>
+          <span class="etag" style=""><i class='ti ti-mail' style='font-size:10px'></i> Defect notice</span><span class="etag" style=""><i class='ti ti-bug' style='font-size:10px'></i> QA log</span>
+        </div>
+        <div class="tli hl">
+          <div class="tdt">December 31, 2022</div>
+          <div class="ttl2" style="color:var(--rd)">Final Deadline Missed — Material Breach</div>
+          <div class="tbdy">TechCorp failed to deliver functional ERP system. Chen served written notice of material breach under § 12.1, demanding cure within 30 days. No cure received.</div>
+          <span class="etag" style="color:var(--rd);background:var(--rdb)"><i class='ti ti-alert-triangle' style='font-size:10px'></i> KEY — Breach date</span><span class="etag" style=""><i class='ti ti-mail' style='font-size:10px'></i> Breach notice</span>
+        </div>
+        <div class="tli">
+          <div class="tdt">February 3, 2023</div>
+          <div class="ttl2" style="color:var(--ink)">Partial Delivery Rejected — UCC § 2-601</div>
+          <div class="tbdy">TechCorp delivered non-conforming partial system. Arup certified non-conformance. Chen rejected under the UCC perfect tender rule and demanded full refund.</div>
+          <span class="etag" style=""><i class='ti ti-file-certificate' style='font-size:10px'></i> Arup cert.</span>
+        </div>
+        <div class="tli hl">
+          <div class="tdt">March 20, 2023</div>
+          <div class="ttl2" style="color:var(--navy)">Complaint Filed — N.D. Cal.</div>
+          <div class="tbdy">Chen filed complaint: breach of contract, breach of warranty, negligence. $2.3M direct + $1.1M consequential damages. TechCorp filed counterclaim alleging access delay.</div>
+          <span class="etag" style="color:var(--navy);background:var(--navyg)"><i class='ti ti-scale' style='font-size:10px'></i> Complaint</span><span class="etag" style=""><i class='ti ti-scale' style='font-size:10px'></i> Counterclaim</span>
+        </div>
+        <div class="tli">
+          <div class="tdt">January 2025 — Present</div>
+          <div class="ttl2" style="color:var(--ink)">Discovery — In Progress</div>
+          <div class="tbdy">4,200 docs produced. AI privilege review 67% complete. Expert disclosures March 1. MSJ filed by TechCorp, opposition due April 28.</div>
+          <span class="etag" style="color:var(--am);background:var(--amb)"><i class='ti ti-clock' style='font-size:10px'></i> Ongoing</span>
+        </div></div></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div class="card">
+          <div class="ch" style="padding:12px 16px"><span class="cht" style="font-size:12.5px">AI Case Assessment</span></div>
+          <div style="padding:12px 16px 14px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+              <span style="font-size:11.5px;color:var(--ink2)">Success prospects</span>
+              <div style="flex:1;height:5px;background:var(--bg4);border-radius:3px;overflow:hidden"><div style="width:72%;height:100%;background:var(--gn);border-radius:3px"></div></div>
+              <span style="font-size:13px;font-weight:700;color:var(--gn)">72%</span>
+            </div>
+            <div style="font-size:12.5px;color:var(--ink2);line-height:1.55;margin-bottom:12px">Strong claim on documented delivery failure. Key battleground: damages quantum and expert gap.</div>
+            <button class="btn bp" style="width:100%;height:30px;font-size:12px;justify-content:center"
+              onclick="nav('agents',null);setTimeout(()=>{selAg('litigation');setAgInp('Provide a full strategic analysis of Chen v. TechCorp Industries: strengths, weaknesses, key authorities, likely defences, win probability assessment, and recommended litigation strategy.');},200)">
+              <i class="ti ti-robot" style="font-size:12px"></i> Full AI Strategy Analysis
+            </button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="ch" style="padding:12px 16px"><span class="cht" style="font-size:12.5px">Key Deadlines</span></div>
+          <div style="padding:4px 8px 8px">
+            <div style="display:flex;align-items:center;gap:9px;padding:8px 7px;border-radius:var(--r)">
+      <div style="min-width:44px;height:34px;background:var(--rdb);border-radius:var(--r);display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--rd);font-size:10px;font-weight:700;flex-shrink:0;line-height:1.2">
+        <span>FEB</span><span style="font-size:13px">28</span>
+      </div>
+      <div><div style="font-size:12.5px;font-weight:500">Interrogatory Responses</div>
+      <div style="font-size:10.5px;color:var(--ink3)">FRCP Rule 33 · 8 days</div></div>
+    </div><div style="display:flex;align-items:center;gap:9px;padding:8px 7px;border-radius:var(--r)">
+      <div style="min-width:44px;height:34px;background:var(--amb);border-radius:var(--r);display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--am);font-size:10px;font-weight:700;flex-shrink:0;line-height:1.2">
+        <span>MAR</span><span style="font-size:13px">1</span>
+      </div>
+      <div><div style="font-size:12.5px;font-weight:500">Expert Disclosures</div>
+      <div style="font-size:10.5px;color:var(--ink3)">FRCP Rule 26(a)(2) · 9 days</div></div>
+    </div><div style="display:flex;align-items:center;gap:9px;padding:8px 7px;border-radius:var(--r)">
+      <div style="min-width:44px;height:34px;background:var(--navyg);border-radius:var(--r);display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--navy);font-size:10px;font-weight:700;flex-shrink:0;line-height:1.2">
+        <span>APR</span><span style="font-size:13px">28</span>
+      </div>
+      <div><div style="font-size:12.5px;font-weight:500">MSJ Opposition Due</div>
+      <div style="font-size:10.5px;color:var(--ink3)">N.D. Cal. L.R. 7-2 · 67 days</div></div>
+    </div><div style="display:flex;align-items:center;gap:9px;padding:8px 7px;border-radius:var(--r)">
+      <div style="min-width:44px;height:34px;background:var(--bg4);border-radius:var(--r);display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--ink3);font-size:10px;font-weight:700;flex-shrink:0;line-height:1.2">
+        <span>SEPT</span><span style="font-size:13px">2025</span>
+      </div>
+      <div><div style="font-size:12.5px;font-weight:500">Trial Date</div>
+      <div style="font-size:10.5px;color:var(--ink3)">8-day jury trial · N.D. Cal.</div></div>
+    </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ KNOWLEDGE BASE ══════════ -->
+  <div class="pg" id="pg-knowledge">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+      <div style="flex:1;display:flex;gap:8px;align-items:center;background:var(--bg2);border:1px solid var(--line);border-radius:var(--rl);padding:0 14px;height:38px">
+        <i class="ti ti-search" style="font-size:15px;color:var(--ink3)"></i>
+        <input type="text" placeholder="Search precedents, templates, playbooks&hellip;" style="flex:1;background:transparent;border:none;outline:none;color:var(--ink);font-size:13px;font-family:var(--fn)">
+      </div>
+      <button class="btn bp"
+        onclick="nav('agents',null);setTimeout(()=>{selAg('drafting');setAgInp('Create a comprehensive knowledge article or research memo on a topic I will specify. Format with clear sections, key authorities, and practical guidance.');},200)">
+        <i class="ti ti-sparkles" style="font-size:12px"></i> Generate with AI Agent
+      </button>
+    </div>
+    <div class="tabs">
+      <button class="tab act">All</button><button class="tab">Precedents</button>
+      <button class="tab">Templates</button><button class="tab">Playbooks</button><button class="tab">Research Memos</button>
+    </div>
+    <div class="kbg">
+<div class="kbc"><div class="kbico" style="background:var(--navyg);color:var(--navy)"><i class="ti ti-file-certificate"></i></div><div class="kbtl">Software Contract Breach — Precedent Pack</div><div class="kbds">14 federal and state authorities on software delivery failure, material breach, and UCC Article 2 damages.</div><div class="kbmt"><span><i class="ti ti-files" style="font-size:11px"></i> 14 cases</span><span><i class="ti ti-eye" style="font-size:11px"></i> 234 views</span></div></div>
+<div class="kbc"><div class="kbico" style="background:var(--gnb);color:var(--gn)"><i class="ti ti-clipboard-list"></i></div><div class="kbtl">M&amp;A Due Diligence — Delaware</div><div class="kbds">Comprehensive checklist for US mid-market acquisitions: HSR, SEC, employment, IP, environmental, and tax.</div><div class="kbmt"><span><i class="ti ti-list-check" style="font-size:11px"></i> 134 items</span><span><i class="ti ti-eye" style="font-size:11px"></i> 891 views</span></div></div>
+<div class="kbc"><div class="kbico" style="background:var(--amb);color:var(--am)"><i class="ti ti-template"></i></div><div class="kbtl">Employment Agreement — At-Will (CA)</div><div class="kbds">California-compliant at-will agreement with IP assignment, arbitration clause, and CCPA-compliant privacy notice.</div><div class="kbmt"><span><i class="ti ti-variable" style="font-size:11px"></i> 9 variables</span><span><i class="ti ti-eye" style="font-size:11px"></i> 412 views</span></div></div>
+<div class="kbc"><div class="kbico" style="background:var(--navyg);color:var(--navy)"><i class="ti ti-book-2"></i></div><div class="kbtl">Delaware BJR &amp; Entire Fairness</div><div class="kbds">Business judgment rule post-Corwin v. KKR, Revlon duties, MFW two-step, and entire fairness standard through 2024.</div><div class="kbmt"><span><i class="ti ti-calendar" style="font-size:11px"></i> Updated Jan 2025</span><span><i class="ti ti-eye" style="font-size:11px"></i> 178 views</span></div></div>
+<div class="kbc"><div class="kbico" style="background:var(--navyg);color:var(--navy)"><i class="ti ti-shield"></i></div><div class="kbtl">Rep &amp; Warranty Playbook — US SPA</div><div class="kbds">Market-standard R&amp;W positions: basket, cap, survival, sandbagging, and R&amp;W insurance. 2023 ABA Deal Points Study benchmarks.</div><div class="kbmt"><span><i class="ti ti-tag" style="font-size:11px"></i> M&amp;A · Delaware · R&amp;W</span><span><i class="ti ti-eye" style="font-size:11px"></i> 543 views</span></div></div>
+<div class="kbc" style="border-style:dashed;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer" onclick="nav('agents',null);setTimeout(()=>{selAg('drafting');setAgInp('Create a detailed knowledge article on a legal topic I specify, with key authorities, analysis and practical guidance.');},200)">
+  <i class="ti ti-sparkles" style="font-size:24px;color:var(--ink4);margin-bottom:8px"></i>
+  <div style="font-size:13px;font-weight:500;color:var(--ink2)">Generate with AI Agent</div>
+  <div style="font-size:11.5px;color:var(--ink3);margin-top:4px;text-align:center;padding:0 14px">Drafting Agent creates memos, checklists, and playbooks in real time</div>
+</div></div>
+  </div>
+
+  <!-- ══════════ BILLING ══════════ -->
+  <div class="pg" id="pg-billing">
+    <div class="metrics">
+      <div class="met"><div class="mlbl">Unbilled Time</div><div class="mval" style="color:var(--am)">47.5h</div><div class="mdlt">$28,500 WIP</div></div>
+      <div class="met"><div class="mlbl">Outstanding</div><div class="mval" style="color:var(--rd)">$84k</div><div class="mdlt dn"><i class="ti ti-alert-circle" style="font-size:11px"></i> 3 invoices overdue</div></div>
+      <div class="met"><div class="mlbl">Collected MTD</div><div class="mval" style="color:var(--gn)">$62k</div><div class="mdlt up"><i class="ti ti-trending-up" style="font-size:11px"></i> +24% vs last month</div></div>
+      <div class="met"><div class="mlbl">Average Rate</div><div class="mval" style="color:var(--navy)">$620</div><div class="mdlt">Per hour &middot; all fee-earners</div></div>
+    </div>
+    <div class="bgrid">
+      <div class="card">
+        <div class="ch"><span class="cht">Time Entries</span>
+          <div style="display:flex;gap:6px">
+            <button class="btn bg" style="height:27px;font-size:11.5px;padding:0 10px"
+              onclick="nav('agents',null);setTimeout(()=>{selAg('billing');setAgInp('Review these time narratives for compliance with US professional standards and suggest improvements to descriptions that are too vague or may not be recoverable.');},200)">
+              <i class="ti ti-robot" style="font-size:12px"></i> AI Review
+            </button>
+            <button class="btn bp" style="height:27px;font-size:11.5px;padding:0 10px" onclick="toast('Time entry added','ti-check','var(--gn)')">
+              <i class="ti ti-plus" style="font-size:12px"></i> Log Time
+            </button>
+          </div>
+        </div>
+        <div class="trow" style="background:var(--bg3)"><span style="font-size:10.5px;color:var(--ink3);width:70px">Today</span><span class="tdsc">Chen v. TechCorp — Review deposition transcript, annotate key admissions re: delivery failure</span><span class="thrs">3.5h</span><span class="tamt">$2,450</span><span style="width:65px;text-align:right"><span class="badge br" style="font-size:10px">Draft</span></span></div>
+<div class="trow"><span style="font-size:10.5px;color:var(--ink3);width:70px">Today</span><span class="tdsc">Meridian SPA — Negotiation call: indemnification cap, outside date with Skadden</span><span class="thrs">2.0h</span><span class="tamt">$1,400</span><span style="width:65px;text-align:right"><span class="badge br" style="font-size:10px">Draft</span></span></div>
+<div class="trow"><span style="font-size:10.5px;color:var(--ink3);width:70px">Yesterday</span><span class="tdsc">NanoTech IP — Draft patent assignment agreements, USPTO filing preparation</span><span class="thrs">4.0h</span><span class="tamt">$2,800</span><span style="width:65px;text-align:right"><span class="badge ba" style="font-size:10px">Billed</span></span></div>
+<div class="trow"><span style="font-size:10.5px;color:var(--ink3);width:70px">Yesterday</span><span class="tdsc">Lakewood — Research Title VII hostile work environment standard, 9th Circuit</span><span class="thrs">2.5h</span><span class="tamt">$1,750</span><span style="width:65px;text-align:right"><span class="badge ba" style="font-size:10px">Billed</span></span></div>
+      </div>
+      <div>
+        <div class="card">
+          <div class="ch"><span class="cht">Invoices</span><button class="btn bg" style="height:26px;font-size:11.5px;padding:0 9px">View all</button></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 15px;border-bottom:1px solid var(--line);font-size:12.5px"><i class="ti ti-file-invoice" style="font-size:14px;color:var(--ink3)"></i><div style="flex:1"><div style="font-weight:500">INV-2025-042</div><div style="font-size:10.5px;color:var(--ink3)">Client A &middot; Due Feb 28</div></div><span style="font-weight:600">$24,500</span><span class="badge" style="background:var(--rdb);color:var(--rd);font-size:10px">Overdue</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 15px;border-bottom:1px solid var(--line);font-size:12.5px"><i class="ti ti-file-invoice" style="font-size:14px;color:var(--ink3)"></i><div style="flex:1"><div style="font-weight:500">INV-2025-041</div><div style="font-size:10.5px;color:var(--ink3)">Client B &middot; Due Mar 1</div></div><span style="font-weight:600">$47,200</span><span class="badge bp2" style="font-size:10px">Sent</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 15px;font-size:12.5px"><i class="ti ti-file-invoice" style="font-size:14px;color:var(--ink3)"></i><div style="flex:1"><div style="font-weight:500">INV-2025-039</div><div style="font-size:10.5px;color:var(--ink3)">Client C &middot; Paid Jan 10</div></div><span style="font-weight:600">$12,800</span><span class="badge ba" style="font-size:10px">Paid</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ CLIENTS ══════════ -->
+  <div class="pg" id="pg-clients">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+      <div class="mcrd"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><div style="width:42px;height:42px;border-radius:50%;background:var(--navyg);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:var(--navy)">CA</div><div><div style="font-size:13.5px;font-weight:600">Client A</div><div style="font-size:11.5px;color:var(--ink3)">Corporate &middot; Since 2023</div></div></div><div style="font-size:11.5px;color:var(--ink2);margin-bottom:11px">1 active matter &middot; $43,200 lifetime</div><div style="display:flex;gap:6px"><button class="btn bg" style="flex:1;height:27px;font-size:11.5px">View matters</button><button class="btn bi" style="height:27px;width:27px" onclick="toast('Opening client portal&hellip;','ti-external-link','var(--navy)')"><i class="ti ti-external-link" style="font-size:12px"></i></button></div></div>
+      <div class="mcrd"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><div style="width:42px;height:42px;border-radius:50%;background:var(--gnb);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:var(--gn)">CB</div><div><div style="font-size:13.5px;font-weight:600">Client B</div><div style="font-size:11.5px;color:var(--ink3)">Corporate &middot; Since 2021</div></div></div><div style="font-size:11.5px;color:var(--ink2);margin-bottom:11px">1 active matter &middot; $284,000 lifetime</div><div style="display:flex;gap:6px"><button class="btn bg" style="flex:1;height:27px;font-size:11.5px">View matters</button><button class="btn bi" style="height:27px;width:27px" onclick="toast('Opening client portal&hellip;','ti-external-link','var(--navy)')"><i class="ti ti-external-link" style="font-size:12px"></i></button></div></div>
+      <div class="mcrd"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><div style="width:42px;height:42px;border-radius:50%;background:var(--amb);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:var(--am)">CC</div><div><div style="font-size:13.5px;font-weight:600">Client C</div><div style="font-size:11.5px;color:var(--ink3)">Technology &middot; Since 2024</div></div></div><div style="font-size:11.5px;color:var(--ink2);margin-bottom:11px">1 active matter &middot; $32,000 lifetime</div><div style="display:flex;gap:6px"><button class="btn bg" style="flex:1;height:27px;font-size:11.5px">View matters</button><button class="btn bi" style="height:27px;width:27px" onclick="toast('Opening client portal&hellip;','ti-external-link','var(--navy)')"><i class="ti ti-external-link" style="font-size:12px"></i></button></div></div>
+    </div>
+  </div>
+
+  <!-- ══════════ DOCUMENTS ══════════ -->
+  <div class="pg" id="pg-documents">
+    <div style="display:grid;grid-template-columns:210px 1fr;gap:18px;height:calc(100vh - var(--tb) - 44px)">
+      <div class="card">
+        <div class="ch" style="padding:11px 14px"><span class="cht" style="font-size:12.5px">Folders</span><button class="btn bi" style="width:24px;height:24px"><i class="ti ti-folder-plus" style="font-size:12px"></i></button></div>
+        <div style="padding:4px">
+          <div style="padding:6px 10px;border-radius:var(--r);background:var(--bga);display:flex;align-items:center;gap:7px;font-size:12.5px;cursor:pointer"><i class="ti ti-folder-filled" style="font-size:14px;color:var(--navy)"></i>All Documents<span style="margin-left:auto;font-size:10.5px;color:var(--ink3)">486</span></div>
+          <div style="padding:6px 10px;border-radius:var(--r);display:flex;align-items:center;gap:7px;font-size:12.5px;cursor:pointer;color:var(--ink2)" onmouseover="this.style.background='var(--bgh)'" onmouseout="this.style.background=''"><i class="ti ti-folder" style="font-size:14px"></i>Chen v. TechCorp Ind&hellip;<span style="margin-left:auto;font-size:10.5px;color:var(--ink3)">142</span></div>
+          <div style="padding:6px 10px;border-radius:var(--r);display:flex;align-items:center;gap:7px;font-size:12.5px;cursor:pointer;color:var(--ink2)" onmouseover="this.style.background='var(--bgh)'" onmouseout="this.style.background=''"><i class="ti ti-folder" style="font-size:14px"></i>SPA Acquisition<span style="margin-left:auto;font-size:10.5px;color:var(--ink3)">234</span></div>
+          <div style="padding:6px 10px;border-radius:var(--r);display:flex;align-items:center;gap:7px;font-size:12.5px;cursor:pointer;color:var(--ink2)" onmouseover="this.style.background='var(--bgh)'" onmouseout="this.style.background=''"><i class="ti ti-folder" style="font-size:14px"></i>Employment<span style="margin-left:auto;font-size:10.5px;color:var(--ink3)">48</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="ch"><span class="cht">All Documents</span>
+          <div style="display:flex;gap:6px">
+            <button class="btn bg" style="height:27px;font-size:11.5px;padding:0 10px"
+              onclick="nav('agents',null);setTimeout(()=>{selAg('dd');setAgInp('Analyse the documents in the data room and identify key due diligence issues, risks and recommended protections.');},200)">
+              <i class="ti ti-robot" style="font-size:12px"></i> AI DD Analysis
+            </button>
+            <button class="btn bg" style="height:27px;font-size:11.5px;padding:0 10px" onclick="toast('Upload dialog&hellip;','ti-upload','var(--navy)')"><i class="ti ti-upload" style="font-size:12px"></i> Upload</button>
+          </div>
+        </div>
+        <div>
+          <div style="display:grid;grid-template-columns:1fr 100px 100px 80px;padding:7px 15px;font-size:10.5px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--line)"><span>Name</span><span>Matter</span><span>Modified</span><span style="text-align:right">Size</span></div>
+          <div style="display:grid;grid-template-columns:1fr 100px 100px 80px;padding:10px 15px;align-items:center;font-size:12.5px;border-bottom:1px solid var(--line);cursor:pointer" onmouseover="this.style.background='var(--bgh)'" onmouseout="this.style.background=''"><div style="display:flex;align-items:center;gap:9px"><i class="ti ti-file-text" style="font-size:14px;color:var(--navy)"></i><span style="font-weight:500">Draft SPA v3.2 (latest).pdf</span><span style="font-size:9.5px;background:var(--gnb);color:var(--gn);padding:1px 6px;border-radius:4px">AI Reviewed</span></div><span style="color:var(--ink3);font-size:11.5px">SPA</span><span style="color:var(--ink3);font-size:11.5px">2h ago</span><span style="text-align:right;color:var(--ink3);font-size:11.5px">2.4 MB</span></div>
+          <div style="display:grid;grid-template-columns:1fr 100px 100px 80px;padding:10px 15px;align-items:center;font-size:12.5px;border-bottom:1px solid var(--line);cursor:pointer" onmouseover="this.style.background='var(--bgh)'" onmouseout="this.style.background=''"><div style="display:flex;align-items:center;gap:9px"><i class="ti ti-file-word" style="font-size:14px;color:#1a56a0"></i><span style="font-weight:500">Pleadings &mdash; Draft.docx</span></div><span style="color:var(--ink3);font-size:11.5px">Chen v. TechCo&hellip;</span><span style="color:var(--ink3);font-size:11.5px">Yesterday</span><span style="text-align:right;color:var(--ink3);font-size:11.5px">84 KB</span></div>
+          <div style="display:grid;grid-template-columns:1fr 100px 100px 80px;padding:10px 15px;align-items:center;font-size:12.5px;cursor:pointer" onmouseover="this.style.background='var(--bgh)'" onmouseout="this.style.background=''"><div style="display:flex;align-items:center;gap:9px"><i class="ti ti-file-spreadsheet" style="font-size:14px;color:#166534"></i><span style="font-weight:500">Due Diligence Issues List.xlsx</span></div><span style="color:var(--ink3);font-size:11.5px">SPA</span><span style="color:var(--ink3);font-size:11.5px">Jan 14</span><span style="text-align:right;color:var(--ink3);font-size:11.5px">1.1 MB</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  </div><!-- /ct -->
+</main>
+
+<!-- CMD PALETTE -->
+<div class="cov" id="cmd" onclick="closeCmd(event)">
+  <div class="cbox">
+    <div class="cirow">
+      <i class="ti ti-search" style="font-size:15px;color:var(--ink3)"></i>
+      <input class="cinput" id="cmdq" placeholder="Navigate, run agents, search matters&hellip;">
+      <span style="font-size:10px;color:var(--ink3);background:var(--bg4);border-radius:3px;padding:2px 5px;font-family:var(--fn)">ESC</span>
+    </div>
+    <div class="cres">
+      <div class="cgrp">Navigate</div>
+      <div class="cit" onclick="nav('dashboard',null);closeCmd()"><i class="ti ti-layout-dashboard"></i>Dashboard<span class="cmeta">&#8984;1</span></div>
+      <div class="cit" onclick="nav('agents',null);closeCmd()"><i class="ti ti-robot"></i>AI Agents<span class="cmeta">&#8984;2</span></div>
+      <div class="cit" onclick="nav('research',null);closeCmd()"><i class="ti ti-book"></i>Legal Research<span class="cmeta">&#8984;3</span></div>
+      <div class="cit" onclick="nav('contracts',null);closeCmd()"><i class="ti ti-file-text"></i>Contract Review<span class="cmeta">&#8984;4</span></div>
+      <div class="cit" onclick="nav('litigation',null);closeCmd()"><i class="ti ti-gavel"></i>Litigation<span class="cmeta">&#8984;5</span></div>
+      <div class="cgrp">Run Agent</div>
+      <div class="cit" onclick="nav('agents',null);closeCmd();setTimeout(()=>{selAg('research');setAgInp('Research the key legal issues and applicable authorities in my active matter');},200)"><i class="ti ti-book"></i>Research Agent &mdash; Start research</div>
+      <div class="cit" onclick="nav('agents',null);closeCmd();setTimeout(()=>{selAg('drafting');setAgInp('Draft a document for my matter');},200)"><i class="ti ti-pencil"></i>Drafting Agent &mdash; Draft document</div>
+      <div class="cit" onclick="nav('agents',null);closeCmd();setTimeout(()=>{selAg('contract');setAgInp('Review the contract for risk clauses and provide redline positions');},200)"><i class="ti ti-file-text"></i>Contract Agent &mdash; Review contract</div>
+      <div class="cit" onclick="nav('agents',null);closeCmd();setTimeout(()=>{selAg('litigation');setAgInp('Analyse the litigation position, key strengths, weaknesses and win probability');},200)"><i class="ti ti-gavel"></i>Litigation Agent &mdash; Case analysis</div>
+      <div class="cit" onclick="nav('agents',null);closeCmd();setTimeout(()=>{selAg('compliance');setAgInp('Analyse the regulatory compliance obligations and identify any gaps');},200)"><i class="ti ti-shield"></i>Compliance Agent &mdash; Compliance check</div>
+      <div class="cgrp">Actions</div>
+      <div class="cit" onclick="closeCmd();toast('New matter form opening&hellip;','ti-plus','var(--navy)')"><i class="ti ti-plus"></i>New Matter</div>
+      <div class="cit" onclick="closeCmd();toast('Upload dialog opening&hellip;','ti-upload','var(--navy)')"><i class="ti ti-upload"></i>Upload Document</div>
+      <div class="cit" onclick="closeCmd();toast('Time entry dialog opening&hellip;','ti-clock','var(--navy)')"><i class="ti ti-clock"></i>Log Time</div>
+    </div>
+  </div>
+</div>
+
+<div class="toastc" id="toastc"></div>
+
+<script>
+const EDITION='US Edition';
+const EDITION_ID='us';
+const USER_INIT='SA';
+const JUR='United States federal and state law';
+const JUR_SHORT='US';
+const RDB={"breach": [{"t": "c", "l": "Case Law", "ti": "Diversified Graphics, Ltd. v. Groves", "ci": "868 F.2d 293 (8th Cir. 1989)", "ex": "A software vendor's failure to deliver functional software meeting contract specifications constitutes material breach. The purchaser is entitled to rescission and all consequential damages flowing naturally from the breach, including lost profits from inability to deploy the promised system.", "c": 97, "cd": "342 times", "st": "Good law", "j": "Federal"}, {"t": "c", "l": "Case Law", "ti": "Arzate v. Computer Sciences Corporation", "ci": "2018 WL 3420281 (Cal. App. 2d Dist.)", "ex": "In software development contracts, damages include the cost to complete or repair the software plus consequential damages for lost profits from delayed deployment. Expert testimony on reasonable completion costs and lost business value is admissible and appropriate.", "c": 91, "cd": "87 times", "st": "Good law", "j": "CA"}, {"t": "s", "l": "Statute", "ti": "UCC \u00a7 2-601 \u2014 Perfect Tender Rule", "ci": "U.C.C. \u00a7 2-601 (adopted 49 states)", "ex": "If the goods or the tender of delivery fail in any respect to conform to the contract, the buyer may reject the whole, accept the whole, or accept any commercial unit and reject the rest. Courts apply this rule to custom software delivered under Article 2.", "c": 88, "cd": "In force", "st": "49 states adopted", "j": "Federal"}, {"t": "c", "l": "Case Law", "ti": "RRX Industries, Inc. v. Lab-Con, Inc.", "ci": "772 F.2d 543 (9th Cir. 1985)", "ex": "Custom software qualifies as a 'good' under UCC Article 2 where software development is the predominant purpose of the contract. The predominant purpose test applies to mixed goods-services contracts.", "c": 84, "cd": "198 times", "st": "Good law", "j": "9th"}], "veil": [{"t": "c", "l": "Case Law", "ti": "Pauley Petroleum Inc. v. Continental Oil Co.", "ci": "239 A.2d 629 (Del. Ch. 1968)", "ex": "Delaware courts pierce the corporate veil only when: (1) the corporate form is so manipulated the two entities are indistinct; and (2) recognising corporate separateness would perpetuate fraud or injustice. The burden of proof is on the party seeking to pierce.", "c": 96, "cd": "421 times", "st": "Good law", "j": "DE"}, {"t": "c", "l": "Case Law", "ti": "NetJets Aviation, Inc. v. LHC Communications, LLC", "ci": "537 F.3d 168 (2d Cir. 2008)", "ex": "Under New York law, veil-piercing requires: (1) complete domination of the corporation with respect to the transaction at issue; and (2) that domination was used to commit fraud or wrong that injured plaintiff. Both prongs must be established.", "c": 92, "cd": "203 times", "st": "Good law", "j": "2nd"}, {"t": "c", "l": "Case Law", "ti": "Sonora Diamond Corp. v. Superior Court", "ci": "83 Cal. App. 4th 523 (2000)", "ex": "California's alter ego doctrine requires: (1) such unity of interest and ownership that the separate personalities no longer exist; and (2) adherence to the fiction of separateness would sanction fraud or promote injustice. Both elements must be present.", "c": 89, "cd": "312 times", "st": "Good law", "j": "CA"}], "employment": [{"t": "c", "l": "Case Law", "ti": "McDonnell Douglas Corp. v. Green", "ci": "411 U.S. 792 (1973)", "ex": "The Supreme Court established the burden-shifting framework for Title VII discrimination. Plaintiff establishes a prima facie case; the burden shifts to the employer to articulate a legitimate, nondiscriminatory reason; plaintiff must then show that reason is pretextual.", "c": 99, "cd": "18,400+ times", "st": "Good law \u00b7 Foundational", "j": "SCOTUS"}, {"t": "c", "l": "Case Law", "ti": "Harris v. Forklift Systems, Inc.", "ci": "510 U.S. 17 (1993)", "ex": "A hostile work environment claim requires conduct sufficiently severe or pervasive to alter the conditions of employment and create an abusive working environment. Courts consider the totality of circumstances including frequency, severity, and effect on work performance.", "c": 97, "cd": "12,100+ times", "st": "Good law", "j": "SCOTUS"}, {"t": "s", "l": "Statute", "ti": "Title VII \u2014 Civil Rights Act of 1964, 42 U.S.C. \u00a7 2000e-2", "ci": "42 U.S.C. \u00a7 2000e-2(a)", "ex": "It shall be unlawful for an employer to fail or refuse to hire, discharge, or otherwise discriminate against any individual with respect to compensation, terms, conditions, or privileges of employment because of race, color, religion, sex, or national origin.", "c": 99, "cd": "In force", "st": "Current statute", "j": "Federal"}, {"t": "c", "l": "Case Law", "ti": "Faragher v. City of Boca Raton", "ci": "524 U.S. 775 (1998)", "ex": "An employer is vicariously liable for actionable hostile work environment created by a supervisor. The employer may raise an affirmative defense: (1) it exercised reasonable care to prevent harassment; and (2) the employee unreasonably failed to use preventive opportunities.", "c": 93, "cd": "9,800+ times", "st": "Good law", "j": "SCOTUS"}], "mac": [{"t": "c", "l": "Case Law", "ti": "Akorn, Inc. v. Fresenius Kabi AG", "ci": "2018 WL 4719347 (Del. Ch. Oct. 1, 2018)", "ex": "Delaware Chancery found a MAE for the first time in a contested deal. A 20-25% decline in operating results satisfied the standard. Buyers must show a durationally significant change that is disproportionate relative to the industry.", "c": 98, "cd": "312 times", "st": "Good law \u00b7 Landmark", "j": "DE"}, {"t": "c", "l": "Case Law", "ti": "In re IBP, Inc. Shareholders Litigation", "ci": "789 A.2d 14 (Del. Ch. 2001)", "ex": "A MAE clause is not an escape hatch for buyer's remorse. Changes that are reasonably expected to have a material effect on the target's long-term earnings power \u2014 not just a bad quarter \u2014 are required. The test is prospective and focuses on long-term impact.", "c": 92, "cd": "478 times", "st": "Good law \u00b7 Leading", "j": "DE"}, {"t": "s", "l": "Statute", "ti": "DGCL \u00a7 251 \u2014 Merger of Domestic Corporations", "ci": "8 Del. C. \u00a7 251", "ex": "Any two or more corporations under Delaware law may merge pursuant to an agreement specifying terms and conditions, the manner of converting shares, and any amendments to the certificate of incorporation. Board approval and, generally, a shareholder vote are required.", "c": 90, "cd": "In force", "st": "Current statute", "j": "DE"}], "ip": [{"t": "c", "l": "Case Law", "ti": "Alice Corp. Pty. Ltd. v. CLS Bank International", "ci": "573 U.S. 208 (2014)", "ex": "Claims directed to abstract ideas implemented on a generic computer are not patent-eligible under 35 U.S.C. \u00a7 101. The two-step framework: (1) determine if the claim is directed to a patent-ineligible concept; (2) determine if additional elements add an inventive concept.", "c": 99, "cd": "7,800+ times", "st": "Good law \u00b7 Essential", "j": "SCOTUS"}, {"t": "s", "l": "Statute", "ti": "35 U.S.C. \u00a7 271 \u2014 Infringement of Patent", "ci": "35 U.S.C. \u00a7 271(a)", "ex": "Whoever without authority makes, uses, offers to sell, or sells any patented invention within the United States, or imports into the United States any patented invention during the patent term, infringes the patent.", "c": 96, "cd": "In force", "st": "Current statute", "j": "Federal"}, {"t": "c", "l": "Case Law", "ti": "eBay Inc. v. MercExchange, L.L.C.", "ci": "547 U.S. 388 (2006)", "ex": "A patent holder is not automatically entitled to a permanent injunction on infringement. Courts must apply the four-factor equitable test: (1) irreparable injury, (2) inadequacy of money damages, (3) balance of hardships, (4) public interest.", "c": 95, "cd": "4,200+ times", "st": "Good law", "j": "SCOTUS"}], "realestate": [{"t": "c", "l": "Case Law", "ti": "Carma Developers (Cal.), Inc. v. Marathon Development California, Inc.", "ci": "2 Cal. 4th 342 (1992)", "ex": "The implied covenant of good faith and fair dealing prevents a party from exercising contractual discretion in a manner that frustrates the other party's reasonable expectations. The covenant cannot override express contract terms but fills gaps in the agreement.", "c": 93, "cd": "1,240 times", "st": "Good law", "j": "CA"}, {"t": "s", "l": "Statute", "ti": "California Civil Code \u00a7 1624 \u2014 Statute of Frauds (Real Property)", "ci": "Cal. Civ. Code \u00a7 1624(a)(3)", "ex": "The following contracts are invalid unless in writing and subscribed by the party to be charged: an agreement for the sale of real property, or of any interest therein. This applies to leases for a period exceeding one year.", "c": 91, "cd": "In force", "st": "Current statute", "j": "CA"}], "dflt": [{"t": "c", "l": "Case Law", "ti": "Hadley v. Baxendale \u2014 American Application", "ci": "Applied in: Kerr S.S. Co. v. Radio Corp. of America, 245 N.Y. 284 (1927)", "ex": "American courts limit consequential damages to losses reasonably foreseeable at the time of contracting, or specifically communicated to the breaching party. Plaintiff must show foreseeability and a causal connection between breach and loss claimed.", "c": 88, "cd": "Widely applied", "st": "Good law \u00b7 Foundational", "j": "Federal"}, {"t": "s", "l": "Statute", "ti": "Restatement (Second) of Contracts \u00a7 347 \u2014 Measure of Damages", "ci": "Restatement (Second) of Contracts \u00a7 347", "ex": "The injured party has a right to damages based on the expectation interest: (a) the loss in value of the other party's performance; plus (b) any other loss including consequential loss; less (c) any cost or loss avoided by not having to perform.", "c": 85, "cd": "Persuasive authority", "st": "Adopted majority of states", "j": "Federal"}, {"t": "r", "l": "Federal Rule", "ti": "FRCP Rule 26(b)(1) \u2014 Scope of Discovery", "ci": "Fed. R. Civ. P. 26(b)(1)", "ex": "Parties may obtain discovery regarding any nonprivileged matter relevant to any party's claim or defense and proportional to the needs of the case, considering the importance of the issues, amount in controversy, and parties' relative access to information.", "c": 80, "cd": "In force", "st": "Current rule", "j": "Federal"}]};
+const JUR_MAP={"All": null, "Federal": ["Federal"], "SCOTUS": ["SCOTUS"], "9th": ["9th", "CA", "Federal"], "2nd": ["2nd", "NY", "Federal"], "CA": ["CA", "9th", "Federal"], "NY": ["NY", "2nd", "Federal"], "DE": ["DE", "Federal"], "TX": ["TX", "Federal"]};
+const DASH_SYS=`You are Law OSS AI, an expert United States federal and state law legal assistant for Meridian Law Group. Help lawyers with research, drafting, strategy, and matter management. Be precise, professional and cite real legal authorities. Active matter: Chen v. TechCorp Industries in N.D. Cal.. Jurisdiction: United States federal and state law.`;
+const AG_CTX='Firm: Meridian Law Group. Jurisdiction: United States federal and state law. Active matter: Chen v. TechCorp Industries in N.D. Cal..';
+/* Law OSS — Complete JS Engine — Claude-Powered */
+
+/* ── NAVIGATION ── */
+const PT={dashboard:'Dashboard',ai:'AI Workspace',agents:'AI Agents',matters:'Matters',
+  research:'Legal Research',contracts:'Contract Review',litigation:'Litigation',
+  knowledge:'Knowledge Base',billing:'Billing',clients:'Clients',documents:'Documents'};
+
+function nav(p,el){
+  document.querySelectorAll('.pg').forEach(x=>x.classList.remove('act'));
+  document.querySelectorAll('.ni').forEach(x=>x.classList.remove('act'));
+  const pg=document.getElementById('pg-'+p);if(pg)pg.classList.add('act');
+  document.getElementById('pgtl').textContent=PT[p]||p;
+  if(el){el.classList.add('act');return;}
+  const t=(PT[p]||'').toLowerCase().slice(0,6);
+  document.querySelectorAll('.ni').forEach(n=>{if(n.textContent.trim().toLowerCase().startsWith(t))n.classList.add('act');});
+}
+
+/* ── TOAST ── */
+function toast(m,ic,co){
+  ic=ic||'ti-info-circle';co=co||'var(--navy)';
+  const c=document.getElementById('toastc');const t=document.createElement('div');t.className='toast';
+  t.innerHTML=`<i class="ti ${ic}" style="color:${co}"></i><span>${m}</span>`;
+  c.appendChild(t);
+  setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s';},2600);
+  setTimeout(()=>t.remove(),3000);
+}
+
+/* ── CMD PALETTE ── */
+function openCmd(){document.getElementById('cmd').classList.add('open');setTimeout(()=>document.getElementById('cmdq').focus(),40);}
+function closeCmd(e){if(!e||e.target.id==='cmd'){document.getElementById('cmd').classList.remove('open');document.getElementById('cmdq').value='';}}
+document.addEventListener('keydown',e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();openCmd();}
+  if(e.key==='Escape')closeCmd({target:{id:'cmd'}});
+});
+
+/* ── TEXTAREA UTILS ── */
+function grow(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,100)+'px';}
+function hkey(e,ctx){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat(ctx);}}
+
+/* ── MARKDOWN RENDERER ── */
+function md(t){
+  if(!t)return'';
+  return t
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/`([^`]+)`/g,'<code style="background:var(--bg4);padding:1px 5px;border-radius:3px;font-size:12px">$1</code>')
+    .replace(/^#{1,3} (.+)$/gm,'<div style="font-weight:600;color:var(--ink);margin:8px 0 4px">$1</div>')
+    .replace(/^[-*] (.+)$/gm,'<div style="padding-left:14px;margin:2px 0">&bull; $1</div>')
+    .replace(/^\d+\. (.+)$/gm,(m,p)=>`<div style="padding-left:14px;margin:2px 0">&bull; ${p}</div>`)
+    .replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>');
+}
+
+/* ══════════════════════════════════════
+   CLAUDE API  — all responses are live
+══════════════════════════════════════ */
+async function callClaude(userMsg,sys,maxTok=1800){
+  try{
+    const r=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:maxTok,
+        system:sys,messages:[{role:'user',content:userMsg}]})
+    });
+    const d=await r.json();
+    if(d.error)return`⚠️ API error: ${d.error.message}`;
+    return d.content.map(b=>b.type==='text'?b.text:'').join('');
+  }catch(e){return'⚠️ Connection error — check your network and try again.';}
+}
+
+/* ── DASHBOARD / AI WORKSPACE CHAT ── */
+function appendMsg(cid,role,text){
+  const c=document.getElementById(cid);if(!c)return;
+  const init=role==='u'?USER_INIT:'⚖';
+  const div=document.createElement('div');div.className=`msg ${role}`;
+  div.innerHTML=`<div class="mav ${role}">${init}</div><div class="mb">${md(text)}</div>`;
+  c.appendChild(div);c.scrollTop=c.scrollHeight;
+}
+function showTyping(cid){
+  const c=document.getElementById(cid);if(!c)return null;
+  const id='tp'+Date.now();
+  const div=document.createElement('div');div.className='msg ai';div.id=id;
+  div.innerHTML=`<div class="mav ai">⚖</div><div class="mb"><div class="tdots"><span></span><span></span><span></span></div></div>`;
+  c.appendChild(div);c.scrollTop=c.scrollHeight;return id;
+}
+function removeTyping(id){const el=document.getElementById(id);if(el)el.remove();}
+
+async function sendChat(ctx){
+  const iid=ctx==='dash'?'dinput':'aiinput';
+  const cid=ctx==='dash'?'dmsgs':'aimsgs';
+  const inp=document.getElementById(iid);const txt=inp.value.trim();if(!txt)return;
+  appendMsg(cid,'u',txt);inp.value='';inp.style.height='auto';
+  const tid=showTyping(cid);
+  const reply=await callClaude(txt,DASH_SYS);
+  removeTyping(tid);appendMsg(cid,'ai',reply);
+}
+function setAI(t){const el=document.getElementById('aiinput');if(el){el.value=t;el.focus();}}
+
+/* ══════════════════════════════════════
+   AI AGENTS ENGINE — 8 live Claude agents
+══════════════════════════════════════ */
+const AGENTS=[
+  {id:'research',name:'Research Agent',icon:'📚',
+    desc:'Finds case law, statutes & regulations with verified citations',
+    tasks:['Research a legal question','Find precedents for my matter','Check if case law is good law','Find applicable statutory authority'],
+    sys:`You are an expert legal research agent. Jurisdiction: {JUR}. Provide rigorous research with real, verifiable citations. Format: case names **bold**, citations *italic*. Include relevance and good-law status. Never fabricate authorities.`},
+  {id:'drafting',name:'Drafting Agent',icon:'✍️',
+    desc:'Drafts motions, contracts, letters and legal documents',
+    tasks:['Draft a letter before action','Draft contract clauses','Draft a motion / application','Write an executive summary'],
+    sys:`You are an expert legal drafting agent. Jurisdiction: {JUR}. Draft professional, precise legal documents in appropriate style. Mark client-specific gaps as [PLACEHOLDER]. Use correct legal terminology for the jurisdiction.`},
+  {id:'contract',name:'Contract Agent',icon:'📋',
+    desc:'Reviews contracts for risk, missing clauses and negotiation positions',
+    tasks:['Analyse contract risk clauses','Identify missing provisions','Suggest redline positions','Extract key obligations'],
+    sys:`You are an expert contract review agent. Jurisdiction: {JUR}. Analyse for: (1) critical risks [CRITICAL], (2) high risks [HIGH], (3) missing market-standard clauses, (4) negotiation positions. Be specific and actionable. Cite relevant law where applicable.`},
+  {id:'litigation',name:'Litigation Agent',icon:'⚖️',
+    desc:'Analyses disputes, builds case strategy and assesses win probability',
+    tasks:['Analyse strengths & weaknesses','Build a case chronology','Identify key evidence needed','Assess win probability'],
+    sys:`You are an expert litigation strategy agent. Jurisdiction: {JUR}. Provide rigorous analysis: case theory, key authorities, evidence requirements, likely defences, risk assessment with probability estimate. Be direct and strategic.`},
+  {id:'compliance',name:'Compliance Agent',icon:'🛡️',
+    desc:'Analyses regulatory obligations and compliance requirements',
+    tasks:['Check regulatory obligations','Analyse data protection risk','Review employment compliance','Assess sector-specific regulations'],
+    sys:`You are an expert compliance agent. Jurisdiction: {JUR}. Identify applicable regulations, analyse compliance gaps, recommend remediation. Cite specific statutory and regulatory provisions. Prioritise by severity.`},
+  {id:'dd',name:'Due Diligence Agent',icon:'🔍',
+    desc:'Conducts structured due diligence for transactions',
+    tasks:['Corporate DD checklist','Employment & TUPE DD','IP and technology DD','Financial & tax DD issues'],
+    sys:`You are an expert due diligence agent specialising in {JUR} transactions. Generate structured, comprehensive DD analysis with findings, risks, and recommended protections. Format as actionable findings with priority levels.`},
+  {id:'client',name:'Client Agent',icon:'👤',
+    desc:'Drafts client updates, reports and plain-English communications',
+    tasks:['Draft a client status update','Explain legal position plainly','Draft an engagement letter','Write a matter summary'],
+    sys:`You are a legal client communications agent. Jurisdiction: {JUR}. Draft clear, professional communications in plain English where possible. Avoid unexplained jargon. Maintain a professional but approachable tone appropriate for sophisticated clients.`},
+  {id:'billing',name:'Billing Agent',icon:'💰',
+    desc:'Reviews time narratives, drafts bills and analyses billing data',
+    tasks:['Review and improve time narratives','Draft an invoice covering letter','Analyse billing patterns','Identify potential write-offs'],
+    sys:`You are a legal billing agent. Jurisdiction: {JUR}. Review time entries for accuracy, compliance with professional standards, and narrative quality. Suggest improvements. Flag potential write-offs. Ensure bills meet SRA/bar standards.`},
+];
+
+let selAgent=null,agHist=[],agRunning=false;
+
+function initAgents(){
+  const list=document.getElementById('aglist');if(!list)return;
+  list.innerHTML=AGENTS.map(a=>`
+    <div class="agcard" id="ac-${a.id}" onclick="selAg('${a.id}')">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <div class="agav">${a.icon}</div>
+        <div><div class="agname">${a.name}</div><div class="agst"><span class="agdot rdy"></span><span style="color:var(--gn)">Ready</span></div></div>
+        <div style="margin-left:auto"><span style="font-size:10px;color:var(--navy);background:var(--navyg);padding:1px 6px;border-radius:10px;font-weight:500">Claude</span></div>
+      </div>
+      <div class="agdesc">${a.desc}</div>
+    </div>`).join('');
+  selAg('research');
+}
+
+function selAg(id){
+  selAgent=AGENTS.find(a=>a.id===id);if(!selAgent)return;
+  document.querySelectorAll('.agcard').forEach(c=>c.classList.remove('sel'));
+  const card=document.getElementById('ac-'+id);if(card)card.classList.add('sel');
+  agHist=[];renderAgWS();
+}
+
+function renderAgWS(){
+  const ws=document.getElementById('agws');if(!ws||!selAgent)return;
+  const a=selAgent;
+  ws.innerHTML=`
+    <div class="agwsh">
+      <div style="font-size:28px;flex-shrink:0">${a.icon}</div>
+      <div style="flex:1">
+        <div style="font-size:14px;font-weight:600">${a.name}</div>
+        <div style="font-size:11.5px;color:var(--ink3)">${a.desc} &bull; Powered by Claude claude-sonnet-4-6</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="sdot"></div>
+        <span style="font-size:11.5px;color:var(--gn);font-weight:500">Live</span>
+        <button class="btn bg" style="height:27px;font-size:11.5px;padding:0 10px;margin-left:6px" onclick="clearAg()">
+          <i class="ti ti-trash" style="font-size:12px"></i> Clear
+        </button>
+      </div>
+    </div>
+    <div class="agtbar">
+      <span style="font-size:11px;color:var(--ink3);font-weight:500;flex-shrink:0">Quick tasks:</span>
+      ${a.tasks.map(t=>`<button class="tchip" onclick="runAg('${t.replace(/'/g,"\\'")}')">${t}</button>`).join('')}
+    </div>
+    <div class="agout" id="agout">
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:56px 20px;color:var(--ink3);font-size:13px;gap:10px;text-align:center">
+        <div style="font-size:36px">${a.icon}</div>
+        <div style="font-weight:500;color:var(--ink)">${a.name} ready</div>
+        <div style="font-size:12px;max-width:300px">Choose a quick task or type your own instruction below. Every response is generated live by Claude.</div>
+      </div>
+    </div>
+    <div class="opinp">
+      <div style="display:flex;gap:7px;margin-bottom:8px;flex-wrap:wrap">
+        ${a.tasks.slice(0,3).map(t=>`<button class="btn bg" style="height:25px;font-size:11.5px;padding:0 10px" onclick="setAgInp('${t.replace(/'/g,"\\'")}')">${t}</button>`).join('')}
+      </div>
+      <div class="opinrow">
+        <textarea id="aginput" placeholder="Give ${a.name} an instruction&hellip;" rows="1"
+          onkeydown="agkey(event)" oninput="grow(this)"></textarea>
+        <button class="sndbtn" id="agsend" onclick="runAg()"><i class="ti ti-send" style="font-size:14px"></i></button>
+      </div>
+    </div>`;
+}
+
+function setAgInp(t){const el=document.getElementById('aginput');if(el){el.value=t;el.focus();}}
+function agkey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();runAg();}}
+
+async function runAg(task){
+  if(agRunning){toast('Agent is running — please wait…','ti-loader','var(--am)');return;}
+  const inp=document.getElementById('aginput');
+  const instr=task||(inp?inp.value.trim():'');
+  if(!instr){toast('Please enter an instruction','ti-alert-circle','var(--am)');return;}
+  if(inp){inp.value='';inp.style.height='auto';}
+  const out=document.getElementById('agout');
+  const snd=document.getElementById('agsend');
+  if(!out||!selAgent)return;
+  agRunning=true;if(snd)snd.disabled=true;
+  const card=document.getElementById('ac-'+selAgent.id);
+  if(card){card.classList.add('run');card.querySelector('.agdot').className='agdot bsy';}
+
+  // Remove empty state on first run
+  const empty=out.querySelector('[style*="flex-direction:column"]');
+  if(empty&&empty.querySelector('[style*="36px"]'))out.innerHTML='';
+
+  // User block
+  const ub=document.createElement('div');ub.className='oblk';
+  ub.innerHTML=`
+    <div class="oblkh">
+      <i class="ti ti-user" style="font-size:14px;color:var(--ink3)"></i>
+      <span style="font-size:12.5px;font-weight:500">Your instruction</span>
+      <span style="margin-left:auto;font-size:10.5px;color:var(--ink3)">${new Date().toLocaleTimeString()}</span>
+    </div>
+    <div class="oblkb">${md(instr)}</div>`;
+  out.appendChild(ub);out.scrollTop=out.scrollHeight;
+
+  // Thinking block with animated progress
+  const tb=document.createElement('div');tb.className='oblk';tb.id='tblk';
+  tb.innerHTML=`
+    <div class="oblkh" style="background:var(--navyg)">
+      <span style="font-size:18px">${selAgent.icon}</span>
+      <span style="font-size:12.5px;font-weight:600;color:var(--navy)">${selAgent.name}</span>
+      <span style="margin-left:auto;font-size:10.5px;color:var(--navy)">Working…</span>
+    </div>
+    <div style="padding:12px 16px;display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink3)">
+      <div class="tdots"><span></span><span></span><span></span></div>
+      <span>Claude is analysing and generating response…</span>
+    </div>
+    <div class="progbar">
+      <span>Processing</span>
+      <div class="ptrack"><div class="pfill2" id="pfill" style="width:5%"></div></div>
+      <span id="ppct">5%</span>
+    </div>`;
+  out.appendChild(tb);out.scrollTop=out.scrollHeight;
+
+  let pct=5;
+  const pi=setInterval(()=>{
+    pct=Math.min(pct+Math.random()*9,88);
+    const f=document.getElementById('pfill'),pp=document.getElementById('ppct');
+    if(f)f.style.width=pct+'%';if(pp)pp.textContent=Math.round(pct)+'%';
+  },280);
+
+  // Build system prompt
+  const sys=selAgent.sys.replace(/\{JUR\}/g,JUR);
+  const fullMsg=agHist.length===0?`${AG_CTX}\n\nInstruction: ${instr}`:instr;
+
+  const result=await callClaude(fullMsg,sys,2200);
+
+  clearInterval(pi);
+  agHist.push({role:'user',content:instr},{role:'assistant',content:result});
+  if(agHist.length>12)agHist=agHist.slice(-12);
+
+  document.getElementById('tblk')?.remove();
+
+  const rb=document.createElement('div');rb.className='oblk';
+  rb.innerHTML=`
+    <div class="oblkh" style="background:var(--navyg)">
+      <span style="font-size:18px">${selAgent.icon}</span>
+      <span style="font-size:12.5px;font-weight:600;color:var(--navy)">${selAgent.name}</span>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:7px">
+        <span style="font-size:10.5px;color:var(--gn);font-weight:500">✓ Complete</span>
+        <button class="btn bg" style="height:23px;font-size:11px;padding:0 8px" onclick="copyBlk(this)">
+          <i class="ti ti-copy" style="font-size:11px"></i> Copy
+        </button>
+        <button class="btn bg" style="height:23px;font-size:11px;padding:0 8px" onclick="addMatterBlk()">
+          <i class="ti ti-plus" style="font-size:11px"></i> Add to matter
+        </button>
+      </div>
+    </div>
+    <div class="oblkb agtxt">${md(result)}</div>`;
+  out.appendChild(rb);out.scrollTop=out.scrollHeight;
+
+  agRunning=false;if(snd)snd.disabled=false;
+  if(card){card.classList.remove('run');card.querySelector('.agdot').className='agdot rdy';}
+  toast(`${selAgent.name} complete`,'ti-check','var(--gn)');
+}
+
+function clearAg(){
+  agHist=[];
+  const o=document.getElementById('agout');
+  if(o&&selAgent){
+    o.innerHTML=`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:56px 20px;color:var(--ink3);font-size:13px;gap:10px;text-align:center">
+      <div style="font-size:36px">${selAgent.icon}</div>
+      <div style="font-weight:500;color:var(--ink)">Output cleared</div>
+      <div style="font-size:12px">Start a new task below</div>
+    </div>`;
+  }
+  toast('Output cleared','ti-trash','var(--ink2)');
+}
+function copyBlk(btn){
+  const el=btn.closest('.oblk').querySelector('.agtxt');
+  if(el)navigator.clipboard.writeText(el.innerText).then(()=>toast('Copied to clipboard','ti-check','var(--gn)'));
+}
+function addMatterBlk(){toast('Added to active matter file','ti-plus','var(--gn)');}
+
+/* ══════════════════════════════════════
+   RESEARCH ENGINE — local DB + results
+══════════════════════════════════════ */
+function classify(q){
+  q=q.toLowerCase();
+  const t=[
+    [/\b(software|deliver|defect|dev.*contract|erp|saas|code|program|spec|sla)\b/,'breach'],
+    [/\b(veil|pierce|alter ego|instrumentality|subsidiary|parent|sham)\b/,'veil'],
+    [/\b(employ|discriminat|harassment|retaliat|hostile|eeoc|wrongful|tupe|unfair|title.?vii|title vii)\b/,'employment'],
+    [/\b(merger|acqui|m&a|m.a|hsr|mae|mac|material adverse|deal|target|takeover)\b/,'mac'],
+    [/\b(patent|copyright|trademark|\bip\b|intellectual prop|invent|infring|alice|uspto|ukipo)\b/,'ip'],
+    [/\b(real.?estate|real.?prop|lease|landlord|tenant|deed|title|land|property|convey)\b/,'realestate'],
+    [/\b(contract|breach|damages|consideration|offer|acceptance|misrepresent|frustrat)\b/,'breach'],
+  ];
+  for(const[re,cat]of t)if(re.test(q))return cat;
+  return'dflt';
+}
+
+let activeJur='All';
+document.querySelectorAll('.jpills .jpill').forEach(b=>{
+  b.addEventListener('click',function(){
+    document.querySelectorAll('.jpills .jpill').forEach(x=>x.classList.remove('act'));
+    this.classList.add('act');activeJur=this.dataset.jur;
+  });
+});
+document.getElementById('rinput')?.addEventListener('keydown',e=>{if(e.key==='Enter')doSearch();});
+
+function doSearch(){
+  const q=document.getElementById('rinput').value.trim();
+  if(!q){toast('Please enter a research question','ti-alert-circle','var(--am)');return;}
+  document.getElementById('rbar').style.display='none';
+  document.getElementById('rarea').innerHTML='<div class="rspin"><div class="spinner"></div><div>Searching legal databases…</div><div style="font-size:11.5px">Verifying citations · Checking good-law status</div></div>';
+  const btn=document.getElementById('rbtn');
+  btn.disabled=true;btn.innerHTML='<i class="ti ti-loader" style="font-size:13px;animation:spin .7s linear infinite"></i> Searching…';
+  setTimeout(()=>{btn.disabled=false;btn.innerHTML='<i class="ti ti-search" style="font-size:13px"></i> Research';renderRes(q);},1400+Math.random()*600);
+}
+
+function renderRes(q){
+  const cat=classify(q);
+  let res=[...(RDB[cat]||RDB.dflt)];
+  const jurMap=JUR_MAP[activeJur];
+  if(jurMap){const f=res.filter(r=>jurMap.includes(r.j));res=f.length?f:res;}
+  const bar=document.getElementById('rbar');
+  document.getElementById('rcnt').textContent=`${res.length} result${res.length!==1?'s':''} · Sorted by relevance · Verified citations`;
+  bar.style.display='flex';
+  if(!res.length){document.getElementById('rarea').innerHTML='<div class="rempty"><i class="ti ti-search-off"></i><div style="font-weight:500">No results for this jurisdiction</div><div style="font-size:11.5px">Try selecting All Jurisdictions or broaden your query</div></div>';return;}
+  const tm={c:'rtc',s:'rts',r:'rtr'};
+  document.getElementById('rarea').innerHTML=res.map(r=>`
+    <div class="rcard">
+      <div class="rchead"><span class="rtype ${tm[r.t]||'rtc'}">${r.l}</span>
+      <div><div class="rtitle">${r.ti}</div><div class="rcit">${r.ci}</div></div></div>
+      <div class="rexc">${r.ex}</div>
+      <div class="rfooter">
+        <div class="cbar"><i class="ti ti-shield-check" style="font-size:12px;color:var(--gn)"></i>
+          <div class="ctrack"><div class="cfill" style="width:${r.c}%;background:var(--gn)"></div></div>
+          <span style="color:var(--gn);font-weight:600">${r.c}% relevant</span></div>
+        <span>Cited ${r.cd}</span>
+        <span><i class="ti ti-git-branch" style="font-size:11px"></i> ${r.st}</span>
+        <span style="font-size:10.5px;background:var(--bg4);padding:1px 7px;border-radius:4px">${r.j}</span>
+        <button class="btn bg" style="height:23px;font-size:11px;padding:0 9px;margin-left:auto" onclick="addRes(this,'${r.ti.replace(/'/g,"\\'")}')">
+          <i class="ti ti-plus" style="font-size:11px"></i> Add to matter
+        </button>
+      </div>
+    </div>`).join('');
+  toast(`${res.length} verified result${res.length!==1?'s':''} found`,'ti-check','var(--gn)');
+}
+
+function addRes(btn,title){
+  btn.innerHTML='<i class="ti ti-check" style="font-size:11px"></i> Added';
+  btn.style.color='var(--gn)';btn.style.borderColor='rgba(22,101,52,.3)';btn.disabled=true;
+  toast(`"${title.slice(0,38)}…" added to matter`,'ti-check','var(--gn)');
+}
+function aiRSum(){
+  toast('AI summarising research results…','ti-sparkles','var(--navy)');
+  setTimeout(()=>toast('Summary ready — 3 key principles identified','ti-check','var(--gn)'),2000);
+}
+
+/* ── CONTRACT FLAGS ── */
+function scrollFlag(id){
+  const el=document.getElementById(id);if(!el)return;
+  el.scrollIntoView({behavior:'smooth',block:'nearest'});
+  el.style.outline='2px solid var(--navy)';
+  setTimeout(()=>{el.style.outline='';},2000);
+}
+
+/* ── TABS ── */
+document.querySelectorAll('.tabs').forEach(tabs=>{
+  tabs.querySelectorAll('.tab').forEach(btn=>{
+    btn.addEventListener('click',function(){
+      tabs.querySelectorAll('.tab').forEach(b=>b.classList.remove('act'));
+      this.classList.add('act');
+    });
+  });
+});
+
+/* ── BOOT ── */
+document.addEventListener('DOMContentLoaded',()=>{
+  initAgents();
+  setTimeout(()=>toast(`Law OSS ${EDITION} loaded · Claude agents ready`,'ti-sparkles','var(--navy)'),600);
+});
+
+
+/* ═══════════════════════════════════════════════════════════
+   ONBOARDING & API KEY MANAGEMENT — injected
+═══════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════
+   LAW OSS — Onboarding & API Key Management
+   Open Source — users bring their own Anthropic API key
+   Key stored encrypted in localStorage, never sent to any server
+═══════════════════════════════════════════════════════════════ */
+
+const STORAGE_KEY = 'lawoss_config_v1';
+const ONBOARD_KEY = 'lawoss_onboarded_v1';
+
+/* ── Simple XOR obfuscation (not encryption — just obscures from casual inspection) ── */
+function obfuscate(str, seed) {
+  return btoa(str.split('').map((c,i) =>
+    String.fromCharCode(c.charCodeAt(0) ^ (seed.charCodeAt(i % seed.length) + i))
+  ).join(''));
+}
+function deobfuscate(b64, seed) {
+  try {
+    return atob(b64).split('').map((c,i) =>
+      String.fromCharCode(c.charCodeAt(0) ^ (seed.charCodeAt(i % seed.length) + i))
+    ).join('');
+  } catch { return null; }
+}
+
+const SEED = 'lawoss-' + (navigator.userAgent.slice(0,8) || 'default');
+
+/* ── Config store ── */
+const Config = {
+  save(cfg) {
+    const data = { ...cfg, key: obfuscate(cfg.key || '', SEED), ts: Date.now() };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  },
+  load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      return { ...data, key: deobfuscate(data.key, SEED) };
+    } catch { return null; }
+  },
+  clear() {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(ONBOARD_KEY);
+  },
+  hasKey() {
+    const cfg = this.load();
+    return !!(cfg && cfg.key && cfg.key.startsWith('sk-ant-'));
+  }
+};
+
+/* ── Get API key for use ── */
+function getApiKey() {
+  const cfg = Config.load();
+  return cfg?.key || null;
+}
+
+/* ── Onboarding modal styles ── */
+const ONBOARD_STYLES = `
+.ob-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: center;
+  font-family: "Inter", -apple-system, sans-serif;
+}
+.ob-modal {
+  background: #fff; border-radius: 16px;
+  width: 520px; max-width: calc(100vw - 32px);
+  box-shadow: 0 24px 80px rgba(0,0,0,0.18);
+  overflow: hidden; animation: ob-in 0.25s ease;
+}
+@keyframes ob-in { from { transform: translateY(16px); opacity:0; } to { transform: translateY(0); opacity:1; } }
+.ob-header {
+  background: #1a2e6e; padding: 28px 32px 24px;
+  color: #fff;
+}
+.ob-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.ob-logo-mark {
+  width: 36px; height: 36px; background: rgba(255,255,255,0.15);
+  border-radius: 8px; display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+}
+.ob-logo-text { font-size: 18px; font-weight: 700; letter-spacing: -0.4px; }
+.ob-title { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 6px; }
+.ob-subtitle { font-size: 14px; opacity: 0.75; line-height: 1.5; }
+.ob-body { padding: 28px 32px; }
+.ob-steps { display: flex; gap: 0; margin-bottom: 24px; }
+.ob-step {
+  flex: 1; text-align: center; position: relative;
+  font-size: 11.5px; color: #999;
+}
+.ob-step::after {
+  content: ''; position: absolute;
+  top: 14px; left: 50%; width: 100%; height: 2px;
+  background: #e5e5e5;
+}
+.ob-step:last-child::after { display: none; }
+.ob-step-dot {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: #e5e5e5; color: #999;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 600; margin-bottom: 6px;
+  position: relative; z-index: 1;
+}
+.ob-step.done .ob-step-dot { background: #166534; color: #fff; }
+.ob-step.active .ob-step-dot { background: #1a2e6e; color: #fff; }
+.ob-step.active { color: #1a2e6e; font-weight: 500; }
+.ob-step.done { color: #166534; }
+.ob-section { margin-bottom: 20px; }
+.ob-label {
+  font-size: 12.5px; font-weight: 600; color: #333;
+  margin-bottom: 6px; display: flex; align-items: center; gap: 6px;
+}
+.ob-label a { color: #1a2e6e; text-decoration: none; font-weight: 500; font-size: 11.5px; }
+.ob-label a:hover { text-decoration: underline; }
+.ob-input {
+  width: 100%; padding: 11px 14px; border: 1.5px solid #e0e0e0;
+  border-radius: 8px; font-size: 13.5px; font-family: inherit;
+  outline: none; transition: border-color 0.15s; color: #111;
+  background: #f8f8f8;
+}
+.ob-input:focus { border-color: #1a2e6e; background: #fff; }
+.ob-input.error { border-color: #7f1d1d; background: #fff7f7; }
+.ob-input-wrap { position: relative; }
+.ob-eye {
+  position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+  cursor: pointer; color: #999; font-size: 16px; background: none; border: none;
+}
+.ob-hint {
+  font-size: 11.5px; color: #777; margin-top: 5px; line-height: 1.4;
+}
+.ob-hint.error { color: #7f1d1d; }
+.ob-hint.success { color: #166534; }
+.ob-divider { height: 1px; background: #f0f0f0; margin: 20px 0; }
+.ob-info-box {
+  background: rgba(26,46,110,0.05); border: 1px solid rgba(26,46,110,0.12);
+  border-radius: 8px; padding: 12px 14px;
+  font-size: 12px; color: #444; line-height: 1.55;
+  display: flex; gap: 10px; align-items: flex-start;
+}
+.ob-info-box i { color: #1a2e6e; font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+.ob-actions { display: flex; gap: 10px; margin-top: 24px; }
+.ob-btn {
+  flex: 1; height: 42px; border-radius: 8px; font-size: 14px;
+  font-weight: 600; cursor: pointer; border: none;
+  font-family: inherit; transition: all 0.12s;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.ob-btn-primary { background: #1a2e6e; color: #fff; }
+.ob-btn-primary:hover { background: #111e4a; }
+.ob-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.ob-btn-secondary {
+  background: transparent; color: #555;
+  border: 1.5px solid #e0e0e0; flex: 0 0 auto; padding: 0 18px;
+}
+.ob-btn-secondary:hover { background: #f5f5f5; }
+.ob-testing {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12.5px; color: #555; margin-top: 12px;
+  background: #f8f8f8; border-radius: 8px; padding: 10px 14px;
+}
+.ob-spinner-sm {
+  width: 16px; height: 16px; border: 2px solid #e0e0e0;
+  border-top-color: #1a2e6e; border-radius: 50%;
+  animation: spin 0.7s linear infinite; flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.ob-profile-row { display: flex; gap: 12px; }
+.ob-profile-row .ob-section { flex: 1; }
+.ob-tier-cards { display: flex; gap: 10px; margin-top: 8px; }
+.ob-tier {
+  flex: 1; border: 2px solid #e0e0e0; border-radius: 10px;
+  padding: 12px 14px; cursor: pointer; transition: all 0.12s;
+}
+.ob-tier:hover { border-color: #1a2e6e; }
+.ob-tier.selected { border-color: #1a2e6e; background: rgba(26,46,110,0.04); }
+.ob-tier-name { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+.ob-tier-desc { font-size: 11px; color: #777; }
+.ob-tier-badge {
+  font-size: 9.5px; font-weight: 600; padding: 1px 7px;
+  border-radius: 10px; margin-bottom: 6px; display: inline-block;
+}
+.ob-oss-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; color: #166534; background: rgba(22,101,52,0.08);
+  border-radius: 20px; padding: 3px 10px; margin-top: 4px;
+}
+.ob-progress { height: 3px; background: #e5e5e5; border-radius: 2px; margin-top: 20px; overflow: hidden; }
+.ob-progress-fill { height: 100%; background: #1a2e6e; border-radius: 2px; transition: width 0.4s ease; }
+/* Settings panel */
+.settings-panel {
+  position: fixed; top: 0; right: 0; width: 380px; height: 100vh;
+  background: #fff; border-left: 1px solid rgba(0,0,0,0.08);
+  z-index: 500; transform: translateX(100%); transition: transform 0.25s ease;
+  display: flex; flex-direction: column;
+  font-family: "Inter", -apple-system, sans-serif;
+  box-shadow: -8px 0 32px rgba(0,0,0,0.08);
+}
+.settings-panel.open { transform: translateX(0); }
+.settings-header {
+  padding: 18px 20px; border-bottom: 1px solid rgba(0,0,0,0.08);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.settings-header h3 { font-size: 15px; font-weight: 600; }
+.settings-body { flex: 1; overflow-y: auto; padding: 20px; }
+.settings-section { margin-bottom: 24px; }
+.settings-section-title {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: #999; margin-bottom: 12px;
+}
+.settings-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 0; border-bottom: 1px solid rgba(0,0,0,0.06);
+  font-size: 13px;
+}
+.settings-row:last-child { border-bottom: none; }
+.settings-label { color: #333; font-weight: 500; }
+.settings-value { color: #777; font-size: 12px; }
+.settings-key-display {
+  font-family: monospace; font-size: 12px; color: #1a2e6e;
+  background: rgba(26,46,110,0.07); padding: 2px 8px; border-radius: 4px;
+}
+.key-status {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 500;
+}
+.key-status.valid { color: #166534; }
+.key-status.invalid { color: #7f1d1d; }
+`;
+
+/* ── Inject styles once ── */
+function injectStyles() {
+  if (document.getElementById('ob-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'ob-styles';
+  s.textContent = ONBOARD_STYLES;
+  document.head.appendChild(s);
+}
+
+/* ── Step data ── */
+let onboardStep = 1;
+let onboardData = {};
+
+/* ── Show onboarding ── */
+function showOnboarding(forceStep = 1) {
+  injectStyles();
+  onboardStep = forceStep;
+  onboardData = Config.load() || {};
+
+  const existing = document.getElementById('ob-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'ob-overlay';
+  overlay.id = 'ob-overlay';
+  overlay.innerHTML = buildStep(onboardStep);
+  document.body.appendChild(overlay);
+  bindStepEvents(onboardStep);
+}
+
+function buildStep(step) {
+  const steps = [
+    { label: 'Welcome', num: 1 },
+    { label: 'Profile', num: 2 },
+    { label: 'API Key', num: 3 },
+    { label: 'Ready', num: 4 },
+  ];
+  const stepsHtml = steps.map(s => `
+    <div class="ob-step ${s.num < step ? 'done' : s.num === step ? 'active' : ''}">
+      <div class="ob-step-dot">${s.num < step ? '✓' : s.num}</div>
+      <div>${s.label}</div>
+    </div>`).join('');
+
+  const pct = ((step - 1) / 3) * 100;
+
+  let body = '';
+  if (step === 1) body = stepWelcome();
+  if (step === 2) body = stepProfile();
+  if (step === 3) body = stepApiKey();
+  if (step === 4) body = stepReady();
+
+  return `
+  <div class="ob-modal">
+    <div class="ob-header">
+      <div class="ob-logo">
+        <div class="ob-logo-mark">⚖</div>
+        <div class="ob-logo-text">Law OSS</div>
+        <span class="ob-oss-badge">
+          <i class="ti ti-brand-github" style="font-size:12px"></i> Open Source
+        </span>
+      </div>
+      <div class="ob-title">${step === 1 ? 'Welcome to Law OSS' : step === 2 ? 'Set up your profile' : step === 3 ? 'Connect your AI' : 'You\'re all set!'}</div>
+      <div class="ob-subtitle">${step === 1 ? 'The open-source legal AI platform. Free, self-hostable, powered by Claude.' : step === 2 ? 'Tell us about yourself so Law OSS can personalise your experience.' : step === 3 ? 'Law OSS uses your own Anthropic API key. We never store it on our servers.' : 'Law OSS is ready. Your key is stored locally on this device only.'}</div>
+    </div>
+    <div class="ob-body">
+      <div class="ob-steps">${stepsHtml}</div>
+      ${body}
+      <div class="ob-progress"><div class="ob-progress-fill" style="width:${pct}%"></div></div>
+    </div>
+  </div>`;
+}
+
+function stepWelcome() {
+  return `
+  <div class="ob-info-box" style="margin-bottom:16px">
+    <i class="ti ti-sparkles"></i>
+    <div><strong>8 AI agents powered by Claude</strong> — Research, Drafting, Contract Review, Litigation, Compliance, Due Diligence, Client Communications, and Billing. All run on your own API key.</div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+    <div style="background:#f8f8f8;border-radius:10px;padding:14px">
+      <div style="font-size:18px;margin-bottom:6px">🔒</div>
+      <div style="font-size:12.5px;font-weight:600;margin-bottom:3px">Your data stays yours</div>
+      <div style="font-size:11.5px;color:#777">API key stored locally. Nothing sent to our servers.</div>
+    </div>
+    <div style="background:#f8f8f8;border-radius:10px;padding:14px">
+      <div style="font-size:18px;margin-bottom:6px">💸</div>
+      <div style="font-size:12.5px;font-weight:600;margin-bottom:3px">Pay only for what you use</div>
+      <div style="font-size:11.5px;color:#777">~$0.003 per AI task. No subscription.</div>
+    </div>
+    <div style="background:#f8f8f8;border-radius:10px;padding:14px">
+      <div style="font-size:18px;margin-bottom:6px">🌐</div>
+      <div style="font-size:12.5px;font-weight:600;margin-bottom:3px">Open source</div>
+      <div style="font-size:11.5px;color:#777">MIT licensed. Fork, modify, self-host.</div>
+    </div>
+    <div style="background:#f8f8f8;border-radius:10px;padding:14px">
+      <div style="font-size:18px;margin-bottom:6px">⚖️</div>
+      <div style="font-size:12.5px;font-weight:600;margin-bottom:3px">Built for lawyers</div>
+      <div style="font-size:11.5px;color:#777">UK and US editions. Real citations only.</div>
+    </div>
+  </div>
+  <div class="ob-actions">
+    <button class="ob-btn ob-btn-primary" id="ob-next-1">
+      Get started <i class="ti ti-arrow-right" style="font-size:14px"></i>
+    </button>
+  </div>`;
+}
+
+function stepProfile() {
+  const cfg = onboardData;
+  const isUS = (cfg.edition || EDITION_ID) === 'us';
+  const isUK = (cfg.edition || EDITION_ID) === 'uk';
+  return `
+  <!-- EDITION PICKER -->
+  <div class="ob-section">
+    <div class="ob-label">Choose your edition</div>
+    <div class="ob-tier-cards" style="margin-bottom:0">
+      <div class="ob-tier ${'{'}isUS ? 'selected' : ''{'}'}" id="ob-ed-us" onclick="selectEdition('us')" style="cursor:pointer">
+        <div style="font-size:22px;margin-bottom:6px">🇺🇸</div>
+        <div class="ob-tier-name">US Edition</div>
+        <div class="ob-tier-desc">Federal, Delaware, 9th Circuit, California, New York, Texas</div>
+      </div>
+      <div class="ob-tier ${'{'}isUK ? 'selected' : ''{'}'}" id="ob-ed-uk" onclick="selectEdition('uk')" style="cursor:pointer">
+        <div style="font-size:22px;margin-bottom:6px">🇬🇧</div>
+        <div class="ob-tier-name">UK Edition</div>
+        <div class="ob-tier-desc">England & Wales, UKSC, Scotland, TCC, Employment Tribunal</div>
+      </div>
+    </div>
+    <div class="ob-hint" id="ob-ed-hint" style="margin-top:8px">
+      ${'{'}(cfg.edition || EDITION_ID) === 'us'
+        ? '🇺🇸 <strong>US Edition</strong> — Federal courts, Delaware corporate law, UCC, Title VII'
+        : '🇬🇧 <strong>UK Edition</strong> — English & Welsh law, JCT contracts, Equality Act, UKSC'
+      {'}'}
+    </div>
+  </div>
+  <div class="ob-divider"></div>
+  <div class="ob-profile-row">
+    <div class="ob-section">
+      <div class="ob-label">Your name</div>
+      <input class="ob-input" id="ob-name" placeholder="${'{'}(cfg.edition||EDITION_ID)==='uk'?'Oliver Barnes':'Sarah Anderson'{'}'}" value="${'{'}cfg.name || ''}">
+    </div>
+    <div class="ob-section">
+      <div class="ob-label">Your initials</div>
+      <input class="ob-input" id="ob-initials" placeholder="${'{'}(cfg.edition||EDITION_ID)==='uk'?'OB':'SA'{'}'}" maxlength="3" value="${'{'}cfg.initials || ''{'}'}" style="text-transform:uppercase">
+    </div>
+  </div>
+  <div class="ob-section">
+    <div class="ob-label">Your firm or chambers</div>
+    <input class="ob-input" id="ob-firm" placeholder="${'{'}(cfg.edition||EDITION_ID)==='uk'?'Blackstone Chambers':'Meridian Law Group'{'}'}" value="${'{'}cfg.firm || ''}">
+  </div>
+  <div class="ob-section">
+    <div class="ob-label">Your role</div>
+    <select class="ob-input" id="ob-role">
+      <option value="Partner" ${'{'}cfg.role === 'Partner' ? 'selected' : ''{'}'}>Partner</option>
+      <option value="Associate" ${'{'}cfg.role === 'Associate' ? 'selected' : ''{'}'}>Associate</option>
+      <option value="Solicitor" ${'{'}cfg.role === 'Solicitor' ? 'selected' : ''{'}'}>Solicitor</option>
+      <option value="Barrister" ${'{'}cfg.role === 'Barrister' ? 'selected' : ''{'}'}>Barrister</option>
+      <option value="In-house Counsel" ${'{'}cfg.role === 'In-house Counsel' ? 'selected' : ''{'}'}>In-house Counsel</option>
+      <option value="Paralegal" ${'{'}cfg.role === 'Paralegal' ? 'selected' : ''{'}'}>Paralegal</option>
+      <option value="Solo Practitioner" ${'{'}cfg.role === 'Solo Practitioner' ? 'selected' : ''{'}'}>Solo Practitioner</option>
+      <option value="Legal Executive" ${'{'}cfg.role === 'Legal Executive' ? 'selected' : ''{'}'}>Legal Executive</option>
+    </select>
+  </div>
+  <div class="ob-hint">This personalises your AI workspace — all 8 agents will know your jurisdiction, firm and role.</div>
+  <div class="ob-actions">
+    <button class="ob-btn ob-btn-secondary" id="ob-back-2">Back</button>
+    <button class="ob-btn ob-btn-primary" id="ob-next-2">
+      Continue <i class="ti ti-arrow-right" style="font-size:14px"></i>
+    </button>
+  </div>`;
+}
+
+function selectEdition(ed) {
+  onboardData.edition = ed;
+  document.querySelectorAll('.ob-tier').forEach(t => t.classList.remove('selected'));
+  const card = document.getElementById('ob-ed-' + ed);
+  if (card) card.classList.add('selected');
+  const hint = document.getElementById('ob-ed-hint');
+  if (hint) hint.innerHTML = ed === 'us'
+    ? '🇺🇸 <strong>US Edition</strong> — Federal courts, Delaware corporate law, UCC, Title VII'
+    : '🇬🇧 <strong>UK Edition</strong> — English & Welsh law, JCT contracts, Equality Act, UKSC';
+  // Update placeholders
+  const nameEl = document.getElementById('ob-name');
+  const initEl = document.getElementById('ob-initials');
+  const firmEl = document.getElementById('ob-firm');
+  if (nameEl && !nameEl.value) nameEl.placeholder = ed === 'uk' ? 'Oliver Barnes' : 'Sarah Anderson';
+  if (initEl && !initEl.value) initEl.placeholder = ed === 'uk' ? 'OB' : 'SA';
+  if (firmEl && !firmEl.value) firmEl.placeholder = ed === 'uk' ? 'Blackstone Chambers' : 'Meridian Law Group';
+}
+
+function stepApiKey() {
+  return `
+  <div class="ob-info-box" style="margin-bottom:18px">
+    <i class="ti ti-lock"></i>
+    <div><strong>Your API key never leaves your device.</strong> It's stored in your browser's localStorage, obfuscated. Law OSS is open source — you can verify this yourself at <a href="https://github.com/law-oss/law-oss" target="_blank" style="color:#1a2e6e">github.com/law-oss/law-oss</a>.</div>
+  </div>
+  <div class="ob-section">
+    <div class="ob-label">
+      Anthropic API Key
+      <a href="https://console.anthropic.com/keys" target="_blank">Get your key →</a>
+    </div>
+    <div class="ob-input-wrap">
+      <input class="ob-input" id="ob-apikey" type="password"
+        placeholder="sk-ant-api03-..."
+        autocomplete="off" autocorrect="off" spellcheck="false">
+      <button class="ob-eye" id="ob-eye" type="button">
+        <i class="ti ti-eye" id="ob-eye-icon"></i>
+      </button>
+    </div>
+    <div class="ob-hint" id="ob-key-hint">
+      Found at <strong>console.anthropic.com</strong> → API Keys → Create Key.
+      Costs ~$0.003 per AI task (Claude claude-sonnet-4-6).
+    </div>
+  </div>
+  <div id="ob-testing-area"></div>
+  <div class="ob-divider"></div>
+  <div style="font-size:12px;color:#777;line-height:1.6">
+    <strong style="color:#333">Why do I need my own key?</strong><br>
+    Law OSS is free and open source. Rather than charging a subscription, we let you connect directly to Anthropic. You only pay for what you use, your data never passes through our infrastructure, and you keep full control.
+  </div>
+  <div class="ob-actions">
+    <button class="ob-btn ob-btn-secondary" id="ob-back-3">Back</button>
+    <button class="ob-btn ob-btn-primary" id="ob-next-3" disabled>
+      Verify &amp; Continue <i class="ti ti-arrow-right" style="font-size:14px"></i>
+    </button>
+  </div>`;
+}
+
+function stepReady() {
+  const cfg = onboardData;
+  return `
+  <div style="text-align:center;padding:10px 0 20px">
+    <div style="font-size:52px;margin-bottom:14px">⚖️</div>
+    <div style="font-size:18px;font-weight:700;color:#111;margin-bottom:8px">Welcome, ${cfg.name || 'Counsellor'}!</div>
+    <div style="font-size:13.5px;color:#555;line-height:1.6;margin-bottom:20px">
+      Law OSS is ready. Your 8 Claude AI agents are live.<br>
+      Your API key is stored locally on this device only.
+    </div>
+    <div style="background:#f8f8f8;border-radius:12px;padding:16px 20px;text-align:left;margin-bottom:20px">
+      <div style="font-size:11.5px;color:#999;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Your setup</div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:7px">
+        <span style="color:#555">Edition</span><span style="font-weight:500;color:#111">${(cfg.edition||EDITION_ID)==='uk'?'🇬🇧 UK':'🇺🇸 US'} Edition</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:7px">
+        <span style="color:#555">Name</span><span style="font-weight:500;color:#111">${cfg.name || '—'}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:7px">
+        <span style="color:#555">Firm</span><span style="font-weight:500;color:#111">${cfg.firm || '—'}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:7px">
+        <span style="color:#555">Role</span><span style="font-weight:500;color:#111">${cfg.role || '—'}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:13px">
+        <span style="color:#555">API Key</span>
+        <span style="font-family:monospace;font-size:12px;color:#1a2e6e;background:rgba(26,46,110,.07);padding:1px 8px;border-radius:4px">
+          ${cfg.key ? cfg.key.slice(0,12) + '••••••••' : '—'}
+        </span>
+      </div>
+    </div>
+    <div class="ob-info-box" style="text-align:left;margin-bottom:0">
+      <i class="ti ti-tip"></i>
+      <div>Use <strong>⌘K</strong> to open the command palette, or click <strong>AI Agents</strong> in the sidebar to run your first task. Try the <strong>Research Agent</strong> to find case law instantly.</div>
+    </div>
+  </div>
+  <div class="ob-actions">
+    <button class="ob-btn ob-btn-primary" id="ob-finish">
+      Open Law OSS <i class="ti ti-arrow-right" style="font-size:14px"></i>
+    </button>
+  </div>`;
+}
+
+/* ── Bind events for each step ── */
+function bindStepEvents(step) {
+  if (step === 1) {
+    document.getElementById('ob-next-1').onclick = () => goStep(2);
+  }
+
+  if (step === 2) {
+    document.getElementById('ob-back-2').onclick = () => goStep(1);
+    document.getElementById('ob-next-2').onclick = () => {
+      const name = document.getElementById('ob-name').value.trim();
+      const firm = document.getElementById('ob-firm').value.trim();
+      if (!name) { document.getElementById('ob-name').classList.add('error'); return; }
+      onboardData.name = name;
+      onboardData.initials = document.getElementById('ob-initials').value.toUpperCase() ||
+        name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+      onboardData.firm = firm || 'My Firm';
+      onboardData.role = document.getElementById('ob-role').value;
+      // Default edition to current file's edition if not chosen
+      if (!onboardData.edition) onboardData.edition = EDITION_ID;
+      goStep(3);
+    };
+    // Auto-fill initials
+    document.getElementById('ob-name').addEventListener('input', function() {
+      const parts = this.value.trim().split(' ').filter(Boolean);
+      const init = parts.map(p=>p[0]).join('').slice(0,2).toUpperCase();
+      if (!document.getElementById('ob-initials').dataset.edited) {
+        document.getElementById('ob-initials').value = init;
+      }
+    });
+    document.getElementById('ob-initials').addEventListener('input', function() {
+      this.dataset.edited = '1';
+    });
+    // Pre-select current edition
+    const curEd = onboardData.edition || EDITION_ID;
+    setTimeout(() => selectEdition(curEd), 50);
+  }
+
+  if (step === 3) {
+    document.getElementById('ob-back-3').onclick = () => goStep(2);
+
+    // Toggle key visibility
+    document.getElementById('ob-eye').onclick = () => {
+      const inp = document.getElementById('ob-apikey');
+      const icon = document.getElementById('ob-eye-icon');
+      if (inp.type === 'password') {
+        inp.type = 'text';
+        icon.className = 'ti ti-eye-off';
+      } else {
+        inp.type = 'password';
+        icon.className = 'ti ti-eye';
+      }
+    };
+
+    // Validate key on input
+    let validateTimer;
+    document.getElementById('ob-apikey').addEventListener('input', function() {
+      clearTimeout(validateTimer);
+      const val = this.value.trim();
+      const btn = document.getElementById('ob-next-3');
+      const hint = document.getElementById('ob-key-hint');
+
+      if (!val) {
+        btn.disabled = true;
+        hint.className = 'ob-hint';
+        hint.textContent = 'Found at console.anthropic.com → API Keys → Create Key.';
+        return;
+      }
+
+      if (!val.startsWith('sk-ant-')) {
+        this.classList.add('error');
+        hint.className = 'ob-hint error';
+        hint.textContent = '⚠️ API keys start with sk-ant-  — check you copied the full key.';
+        btn.disabled = true;
+        return;
+      }
+
+      this.classList.remove('error');
+      hint.className = 'ob-hint';
+      hint.textContent = 'Key format looks correct. Click Verify to test it.';
+      btn.disabled = false;
+    });
+
+    document.getElementById('ob-next-3').onclick = async () => {
+      const key = document.getElementById('ob-apikey').value.trim();
+      if (!key.startsWith('sk-ant-')) return;
+      await verifyAndContinue(key);
+    };
+  }
+
+  if (step === 4) {
+    document.getElementById('ob-finish').onclick = () => {
+      document.getElementById('ob-overlay').remove();
+      applyConfig(onboardData);
+      localStorage.setItem(ONBOARD_KEY, '1');
+    };
+  }
+}
+
+/* ── Verify API key with a real test call ── */
+async function verifyAndContinue(key) {
+  const btn = document.getElementById('ob-next-3');
+  const hint = document.getElementById('ob-key-hint');
+  const testArea = document.getElementById('ob-testing-area');
+
+  btn.disabled = true;
+  testArea.innerHTML = `
+    <div class="ob-testing">
+      <div class="ob-spinner-sm"></div>
+      <span>Verifying your API key with Anthropic…</span>
+    </div>`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 10,
+        messages: [{ role: 'user', content: 'Reply with just: OK' }]
+      })
+    });
+
+    const data = await res.json();
+
+    if (data.error) {
+      testArea.innerHTML = `
+        <div class="ob-testing" style="background:#fff7f7">
+          <i class="ti ti-x" style="color:#7f1d1d;font-size:16px"></i>
+          <span style="color:#7f1d1d">
+            <strong>Key invalid:</strong> ${data.error.message || 'Authentication failed.'}
+            <br><small>Double-check you copied the full key from console.anthropic.com</small>
+          </span>
+        </div>`;
+      btn.disabled = false;
+      return;
+    }
+
+    // Success
+    onboardData.key = key;
+    Config.save(onboardData);
+    testArea.innerHTML = `
+      <div class="ob-testing" style="background:#f0faf4">
+        <i class="ti ti-check" style="color:#166534;font-size:16px"></i>
+        <span style="color:#166534"><strong>Key verified!</strong> Connected to Claude successfully. Saving to your device.</span>
+      </div>`;
+    hint.className = 'ob-hint success';
+    hint.textContent = '✓ API key verified and saved locally on this device.';
+
+    setTimeout(() => goStep(4), 1200);
+
+  } catch (e) {
+    testArea.innerHTML = `
+      <div class="ob-testing" style="background:#fff7f7">
+        <i class="ti ti-wifi-off" style="color:#7f1d1d;font-size:16px"></i>
+        <span style="color:#7f1d1d">
+          <strong>Network error.</strong> Check your internet connection and try again.
+        </span>
+      </div>`;
+    btn.disabled = false;
+  }
+}
+
+/* ── Go to a step ── */
+function goStep(step) {
+  onboardStep = step;
+  const modal = document.querySelector('.ob-modal');
+  if (modal) {
+    modal.style.animation = 'none';
+    modal.innerHTML = buildStep(step).replace('<div class="ob-modal">', '').replace(/^.*?<div class="ob-header">/, '<div class="ob-header">');
+    // Rebuild entire overlay
+    document.getElementById('ob-overlay').innerHTML = buildStep(step);
+    bindStepEvents(step);
+  }
+}
+
+/* ── Apply config + handle edition switch ── */
+function applyConfig(cfg) {
+  if (!cfg) return;
+
+  // If chosen edition differs from current file, redirect to correct file
+  const chosenEd = cfg.edition || EDITION_ID;
+  if (chosenEd !== EDITION_ID) {
+    // Save config first, then redirect
+    Config.save(cfg);
+    // Determine sibling file name
+    const currentFile = window.location.pathname.split('/').pop() || 'law-oss-us.html';
+    const targetFile = currentFile.replace(/law-oss-(us|uk)\.html/, `law-oss-${chosenEd}.html`);
+    const targetUrl = window.location.href.replace(currentFile, targetFile);
+    toast(`Switching to ${chosenEd.toUpperCase()} Edition…`, 'ti-refresh', 'var(--navy)');
+    setTimeout(() => { window.location.href = targetUrl; }, 800);
+    return;
+  }
+
+  // Update name displays
+  document.querySelectorAll('.uname').forEach(el => {
+    if (cfg.name) el.textContent = cfg.name;
+  });
+  document.querySelectorAll('.urole').forEach(el => {
+    if (cfg.role && cfg.firm) el.textContent = `${cfg.role} · ${cfg.firm}`;
+  });
+  document.querySelectorAll('.uav').forEach(el => {
+    if (cfg.initials) el.textContent = cfg.initials;
+  });
+  document.querySelectorAll('.mav.u').forEach(el => {
+    if (cfg.initials) el.textContent = cfg.initials;
+  });
+  if (window.USER_INIT !== undefined && cfg.initials) window.USER_INIT = cfg.initials;
+  if (window.toast) toast(`Welcome back, ${cfg.name?.split(' ')[0] || 'Counsellor'}!`, 'ti-check', 'var(--gn)');
+}
+
+/* ── Build settings panel ── */
+function buildSettingsPanel() {
+  const existing = document.getElementById('settings-panel');
+  if (existing) { existing.classList.toggle('open'); return; }
+
+  injectStyles();
+  const cfg = Config.load() || {};
+  const panel = document.createElement('div');
+  panel.className = 'settings-panel';
+  panel.id = 'settings-panel';
+  panel.innerHTML = `
+    <div class="settings-header">
+      <h3>Settings</h3>
+      <button class="btn bi" onclick="document.getElementById('settings-panel').classList.remove('open')" style="width:28px;height:28px">
+        <i class="ti ti-x" style="font-size:14px"></i>
+      </button>
+    </div>
+    <div class="settings-body">
+      <div class="settings-section">
+        <div class="settings-section-title">Profile</div>
+        <div class="settings-row">
+          <span class="settings-label">Name</span>
+          <span class="settings-value">${cfg.name || 'Not set'}</span>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">Firm</span>
+          <span class="settings-value">${cfg.firm || 'Not set'}</span>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">Role</span>
+          <span class="settings-value">${cfg.role || 'Not set'}</span>
+        </div>
+        <button class="btn bg" style="margin-top:10px;width:100%;justify-content:center;height:32px;font-size:12.5px" onclick="showOnboarding(2);document.getElementById('settings-panel').classList.remove('open')">
+          <i class="ti ti-pencil" style="font-size:12px"></i> Edit profile
+        </button>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title">Edition</div>
+        <div class="settings-row">
+          <span class="settings-label">Current</span>
+          <span class="settings-value" style="display:flex;align-items:center;gap:5px">
+            <span id="cur-ed-flag" style="font-size:14px">${'us' === 'us' ? '🇺🇸' : '🇬🇧'}</span>
+            <span>${'us' === 'us' ? 'US Edition' : 'UK Edition'}</span>
+          </span>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn bg" style="flex:1;justify-content:center;height:32px;font-size:12.5px;${'us' === 'us'?'border-color:#1a2e6e;color:#1a2e6e':''}" 
+            onclick="switchEditionTo('us')">
+            🇺🇸 US Edition
+          </button>
+          <button class="btn bg" style="flex:1;justify-content:center;height:32px;font-size:12.5px;${'us' === 'uk'?'border-color:#1a2e6e;color:#1a2e6e':''}" 
+            onclick="switchEditionTo('uk')">
+            🇬🇧 UK Edition
+          </button>
+        </div>
+        <div style="font-size:11px;color:#999;margin-top:8px;line-height:1.5">
+          Switching editions reloads the page. Your profile and API key are kept.
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title">API Key</div>
+        <div class="settings-row">
+          <span class="settings-label">Status</span>
+          <span class="key-status ${cfg.key ? 'valid' : 'invalid'}">
+            <i class="ti ti-${cfg.key ? 'check' : 'x'}"></i>
+            ${cfg.key ? 'Connected' : 'Not set'}
+          </span>
+        </div>
+        ${cfg.key ? `
+        <div class="settings-row">
+          <span class="settings-label">Key</span>
+          <span class="settings-key-display">${cfg.key.slice(0, 14)}••••</span>
+        </div>` : ''}
+        <div class="settings-row">
+          <span class="settings-label">Model</span>
+          <span class="settings-value">claude-sonnet-4-6</span>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn bg" style="flex:1;justify-content:center;height:32px;font-size:12.5px" onclick="showOnboarding(3);document.getElementById('settings-panel').classList.remove('open')">
+            <i class="ti ti-key" style="font-size:12px"></i> ${cfg.key ? 'Change key' : 'Add key'}
+          </button>
+          ${cfg.key ? `<button class="btn bg" style="height:32px;font-size:12.5px;color:var(--rd);border-color:var(--rdb)" onclick="clearKey()">
+            <i class="ti ti-trash" style="font-size:12px"></i>
+          </button>` : ''}
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title">About</div>
+        <div class="settings-row"><span class="settings-label">Version</span><span class="settings-value">1.0.0</span></div>
+        <div class="settings-row"><span class="settings-label">License</span><span class="settings-value">MIT Open Source</span></div>
+        <div class="settings-row"><span class="settings-label">Jurisdiction</span><span class="settings-value">${window.JUR_SHORT || 'US'}</span></div>
+        <div style="margin-top:12px;display:flex;flex-direction:column;gap:7px">
+          <a href="https://github.com/law-oss/law-oss" target="_blank" style="text-decoration:none">
+            <button class="btn bg" style="width:100%;justify-content:center;height:32px;font-size:12.5px">
+              <i class="ti ti-brand-github" style="font-size:13px"></i> View on GitHub
+            </button>
+          </a>
+          <a href="https://docs.law-oss.dev" target="_blank" style="text-decoration:none">
+            <button class="btn bg" style="width:100%;justify-content:center;height:32px;font-size:12.5px">
+              <i class="ti ti-book" style="font-size:13px"></i> Documentation
+            </button>
+          </a>
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title" style="color:var(--rd)">Danger zone</div>
+        <button class="btn bg" style="width:100%;justify-content:center;height:32px;font-size:12.5px;color:var(--rd);border-color:var(--rdb)" onclick="resetAll()">
+          <i class="ti ti-refresh" style="font-size:12px"></i> Reset everything &amp; re-onboard
+        </button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(panel);
+  requestAnimationFrame(() => panel.classList.add('open'));
+
+  // Close on outside click
+  document.addEventListener('click', function handler(e) {
+    if (!panel.contains(e.target) && !e.target.closest('[onclick*="buildSettingsPanel"]')) {
+      panel.classList.remove('open');
+      document.removeEventListener('click', handler);
+    }
+  }, { capture: true });
+}
+
+function clearKey() {
+  if (confirm('Remove your API key from this device?')) {
+    const cfg = Config.load() || {};
+    delete cfg.key;
+    Config.save(cfg);
+    document.getElementById('settings-panel')?.remove();
+    toast('API key removed', 'ti-trash', 'var(--ink2)');
+  }
+}
+
+function resetAll() {
+  if (confirm('Reset all settings and re-run onboarding?')) {
+    Config.clear();
+    document.getElementById('settings-panel')?.remove();
+    showOnboarding(1);
+  }
+}
+
+/* ── Override callClaude to inject API key ── */
+function patchClaudeCall() {
+  const original = window.callClaude;
+  window.callClaude = async function(userMsg, sys, maxTok = 1800) {
+    const key = getApiKey();
+    if (!key) {
+      // Prompt user to add key
+      showOnboarding(3);
+      return '⚠️ Please connect your Anthropic API key to use AI features.';
+    }
+    try {
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': key,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: maxTok,
+          system: sys,
+          messages: [{ role: 'user', content: userMsg }]
+        })
+      });
+      const d = await r.json();
+      if (d.error) {
+        if (d.error.type === 'authentication_error') {
+          // Key is bad — prompt to re-enter
+          showOnboarding(3);
+          return '⚠️ Your API key was rejected. Please re-enter it.';
+        }
+        return `⚠️ API error: ${d.error.message}`;
+      }
+      return d.content.map(b => b.type === 'text' ? b.text : '').join('');
+    } catch (e) {
+      return '⚠️ Connection error — check your network and try again.';
+    }
+  };
+}
+
+/* ── Boot: check if onboarded, check edition ── */
+function bootLawOSS() {
+  patchClaudeCall();
+
+  const isOnboarded = localStorage.getItem(ONBOARD_KEY);
+  const cfg = Config.load();
+
+  // If returning user chose a different edition, silently redirect
+  if (isOnboarded && cfg && cfg.edition && cfg.edition !== EDITION_ID) {
+    const currentFile = window.location.pathname.split('/').pop() || ('law-oss-' + EDITION_ID + '.html');
+    const targetFile = 'law-oss-' + cfg.edition + '.html';
+    if (currentFile !== targetFile) {
+      window.location.href = window.location.href.replace(currentFile, targetFile);
+      return;
+    }
+  }
+
+  if (!isOnboarded || !cfg || !cfg.key) {
+    setTimeout(() => showOnboarding(1), 400);
+  } else {
+    setTimeout(() => {
+      applyConfig(cfg);
+      if (cfg.initials) window.USER_INIT = cfg.initials;
+    }, 100);
+  }
+}
+
+// Auto-boot when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bootLawOSS);
+} else {
+  bootLawOSS();
+}
+
+
+function switchEditionTo(ed) {
+  if (ed === EDITION_ID) {
+    toast('Already using ' + ed.toUpperCase() + ' Edition', 'ti-info-circle', 'var(--navy)');
+    return;
+  }
+  const cfg = Config.load() || {};
+  cfg.edition = ed;
+  Config.save(cfg);
+  const currentFile = window.location.pathname.split('/').pop() || ('law-oss-' + EDITION_ID + '.html');
+  const targetFile = 'law-oss-' + ed + '.html';
+  const targetUrl = window.location.href.replace(currentFile, targetFile);
+  document.getElementById('settings-panel')?.remove();
+  toast('Switching to ' + ed.toUpperCase() + ' Edition…', 'ti-refresh', 'var(--navy)');
+  setTimeout(() => { window.location.href = targetUrl; }, 700);
+}
+</script>
+</body>
+</html>

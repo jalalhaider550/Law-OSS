@@ -1,0 +1,14 @@
+{
+  "id": "session-1781388719619",
+  "startedAt": "2026-06-13T22:11:59.620Z",
+  "cwd": "/Users/mjh/Downloads/Law oss update",
+  "context": {},
+  "metrics": {
+    "edits": 7,
+    "commands": 0,
+    "tasks": 0,
+    "errors": 0
+  },
+  "endedAt": "2026-06-13T22:25:12.508Z",
+  "duration": 792894
+}
