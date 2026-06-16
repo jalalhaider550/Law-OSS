@@ -1,0 +1,31 @@
+{
+  "name": "law-oss",
+  "private": true,
+  "packageManager": "npm@10.0.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "deploy": "bash scripts/deploy.sh",
+    "setup": "bash scripts/setup.sh",
+    "db:push": "dotenv -e .env -- sh -c 'cd packages/db && npx prisma db push'",
+    "db:migrate": "dotenv -e .env -- sh -c 'cd packages/db && npx prisma migrate dev'",
+    "db:migrate:prod": "dotenv -e .env -- sh -c 'cd packages/db && npx prisma migrate deploy'",
+    "db:studio": "dotenv -e .env -- sh -c 'cd packages/db && npx prisma studio'",
+    "db:generate": "dotenv -e .env -- sh -c 'cd packages/db && npx prisma generate'"
+  },
+  "devDependencies": {
+    "dotenv-cli": "^7.0.0",
+    "turbo": "^2.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "three": "^0.167.1"
+  }
+}

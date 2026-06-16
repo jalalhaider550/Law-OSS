@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- Background circle -->
+  <circle cx="24" cy="24" r="24" fill="#1a2e6e"/>
+  <!-- Scales of justice -->
+  <!-- Pole -->
+  <rect x="23" y="10" width="2" height="22" fill="white" rx="1"/>
+  <!-- Crossbeam -->
+  <rect x="11" y="14" width="26" height="2" fill="white" rx="1"/>
+  <!-- Top pivot -->
+  <circle cx="24" cy="13" r="2" fill="white"/>
+  <!-- Left chain -->
+  <rect x="14" y="16" width="1.5" height="8" fill="white" rx="0.75"/>
+  <!-- Right chain -->
+  <rect x="32.5" y="16" width="1.5" height="8" fill="white" rx="0.75"/>
+  <!-- Left pan -->
+  <ellipse cx="14.75" cy="25" rx="5" ry="1.5" fill="white"/>
+  <!-- Right pan -->
+  <ellipse cx="33.25" cy="25" rx="5" ry="1.5" fill="white"/>
+  <!-- Base -->
+  <rect x="20" y="32" width="8" height="2" fill="white" rx="1"/>
+  <rect x="18" y="33.5" width="12" height="2" fill="white" rx="1"/>
+</svg>

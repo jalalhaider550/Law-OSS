@@ -1,0 +1,35 @@
+:root {
+  --bg: #ffffff;
+  --bg2: #f8f8f8;
+  --bg3: #f0f0f0;
+  --bg4: #e5e5e5;
+  --line: rgba(0,0,0,0.08);
+  --line2: rgba(0,0,0,0.14);
+  --ink: #0f0f0f;
+  --ink2: #555555;
+  --ink3: #999999;
+  --ink4: #cccccc;
+  --navy: #1a2e6e;
+  --navyd: #111e4a;
+  --navyg: rgba(26,46,110,0.07);
+  --gn: #166534;
+  --gnb: rgba(22,101,52,0.08);
+  --rd: #7f1d1d;
+  --rdb: rgba(127,29,29,0.07);
+  --am: #78350f;
+  --r: 7px;
+  --rl: 11px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  font-size: 14px;
+}
+a { color: inherit; }
+button { font-family: inherit; }
+textarea { font-family: inherit; }
+input { font-family: inherit; }
