@@ -31,24 +31,22 @@ router.post('/', requireAuth, authLimiter, async (req: AuthRequest, res, next) =
       return
     }
 
+    // Ensure a User row exists (Supabase users don't auto-create Prisma records)
+    const userId = req.user!.id
+    const userEmail = req.user!.email || `${userId}@unknown.local`
+    await prisma.user.upsert({
+      where: { id: userId },
+      create: { id: userId, email: userEmail },
+      update: {},
+    })
+
     const encryptedKey = encrypt(apiKey)
     const keyPreview = apiKey.slice(0, 8) + '...' + apiKey.slice(-4)
 
     await prisma.apiKey.upsert({
-      where: { userId: req.user!.id },
-      create: {
-        userId: req.user!.id,
-        provider,
-        encryptedKey,
-        keyPreview,
-        verifiedAt: new Date(),
-      },
-      update: {
-        provider,
-        encryptedKey,
-        keyPreview,
-        verifiedAt: new Date(),
-      },
+      where: { userId },
+      create: { userId, provider, encryptedKey, keyPreview, verifiedAt: new Date() },
+      update: { provider, encryptedKey, keyPreview, verifiedAt: new Date() },
     })
 
     res.json({ hasKey: true, provider, keyPreview, verifiedAt: new Date() })
