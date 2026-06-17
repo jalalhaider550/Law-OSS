@@ -1,6 +1,7 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import MarkdownRenderer from '../../../components/MarkdownRenderer'
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
@@ -155,14 +156,13 @@ export default function ContractsPage() {
         <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.1)', borderRadius: 12, padding: '20px 24px', marginBottom: 20 }}>
           {selectedFilename && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-              <span style={{ fontSize: 16 }}>📋</span>
               <span style={{ fontSize: 14, fontWeight: 600, color: '#0f0f0f' }}>{selectedFilename}</span>
             </div>
           )}
-          <pre style={{ fontSize: 13.5, lineHeight: 1.75, color: '#0f0f0f', whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, fontFamily: 'inherit' }}>
-            {analysis}
+          <div style={{ fontSize: 14 }}>
+            <MarkdownRenderer content={analysis} />
             {busy && <span style={{ display: 'inline-block', width: 8, height: 14, background: '#0f0f0f', marginLeft: 2, animation: 'pulse 1s infinite', verticalAlign: 'middle' }} />}
-          </pre>
+          </div>
         </div>
       )}
 

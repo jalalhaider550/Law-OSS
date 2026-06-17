@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import LogoLoader from '../../../components/LogoLoader'
+import MarkdownRenderer from '../../../components/MarkdownRenderer'
 
 type Msg = { role: 'user' | 'assistant'; content: string }
 type AttachedDoc = { name: string; text: string }
@@ -196,39 +197,48 @@ function getSystemPrompt(agentId: string): string {
   return AGENTS.find(a => a.id === agentId)?.sys || AGENTS[0].sys
 }
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
-
-async function streamFromBackend(
-  token: string, agentId: string, messages: Msg[], sys: string,
+async function streamAI(
+  apiKey: string, provider: string, messages: Msg[], sys: string,
   onToken: (t: string) => void, onDone: () => void, onError: (e: string) => void,
 ) {
   try {
-    const res = await fetch(`${API}/api/agents/chat/stream`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ agentId, message: messages[messages.length - 1].content, history: messages.slice(0, -1), systemPrompt: sys }),
-    })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({})) as any
-      onError(err.error || `Server error ${res.status}`)
-      return
-    }
-    const reader = res.body!.getReader(); const dec = new TextDecoder(); let buf = ''
-    while (true) {
-      const { done, value } = await reader.read(); if (done) break
-      buf += dec.decode(value, { stream: true })
-      const lines = buf.split('\n'); buf = lines.pop() || ''
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue
-        const raw = line.slice(6).trim(); if (!raw) continue
-        try {
-          const p = JSON.parse(raw)
-          if (p.token) onToken(p.token)
-          if (p.done) onDone()
-          if (p.error) onError(p.error)
-        } catch {}
+    if (provider === 'gemini') {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?key=${apiKey}&alt=sse`
+      const res = await fetch(url, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ system_instruction: { parts: [{ text: sys }] }, contents: messages.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })), generationConfig: { maxOutputTokens: 8000, temperature: 0.2 } }),
+      })
+      const reader = res.body!.getReader(); const dec = new TextDecoder(); let buf = ''
+      while (true) {
+        const { done, value } = await reader.read(); if (done) break
+        buf += dec.decode(value, { stream: true })
+        const lines = buf.split('\n'); buf = lines.pop() || ''
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          const raw = line.slice(6).trim(); if (!raw || raw === '[DONE]') continue
+          try { const p = JSON.parse(raw); const t = p.candidates?.[0]?.content?.parts?.[0]?.text; if (t) onToken(t) } catch {}
+        }
+      }
+    } else {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 8000, stream: true, system: sys, messages }),
+      })
+      if (!res.ok) { const e = await res.json().catch(() => ({})) as any; onError(e.error?.message || `Error ${res.status}`); return }
+      const reader = res.body!.getReader(); const dec = new TextDecoder(); let buf = ''
+      while (true) {
+        const { done, value } = await reader.read(); if (done) break
+        buf += dec.decode(value, { stream: true })
+        const lines = buf.split('\n'); buf = lines.pop() || ''
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          const raw = line.slice(6).trim(); if (!raw || raw === '[DONE]') continue
+          try { const p = JSON.parse(raw); if (p.type === 'content_block_delta' && p.delta?.text) onToken(p.delta.text) } catch {}
+        }
       }
     }
+    onDone()
   } catch (e: any) { onError(e.message || 'Network error') }
 }
 
@@ -238,7 +248,6 @@ export default function AgentsPage() {
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
   const [noKey, setNoKey] = useState(false)
-  const [authToken, setAuthToken] = useState<string | null>(null)
   const [attachedDoc, setAttachedDoc] = useState<AttachedDoc | null>(null)
   const [uploadError, setUploadError] = useState('')
   const [uploading, setUploading] = useState(false)
@@ -249,10 +258,7 @@ export default function AgentsPage() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) { window.location.href = '/login'; return }
-      setAuthToken(session.access_token)
-      // Check if API key is configured on backend
-      fetch(`${API}/api/api-keys/status`, { headers: { Authorization: `Bearer ${session.access_token}` } })
-        .then(r => r.json()).then(d => setNoKey(!d.hasKey)).catch(() => setNoKey(true))
+      setNoKey(!localStorage.getItem('law_oss_api_key'))
     })
   }, [])
 
@@ -268,14 +274,15 @@ export default function AgentsPage() {
 
   async function send(text: string) {
     if (!text.trim() || streaming) return
-    if (!authToken) { window.location.href = '/login'; return }
-    if (noKey) return
+    const apiKey = localStorage.getItem('law_oss_api_key') || ''
+    const provider = localStorage.getItem('law_oss_provider') || 'claude'
+    if (!apiKey) { setNoKey(true); return }
+
     const msg = attachedDoc ? `${text.trim()}\n\n[Attached: ${attachedDoc.name}]\n${attachedDoc.text}` : text.trim()
-    setInput(''); setAttachedDoc(null)
+    setInput(''); setAttachedDoc(null); setUploadError('')
     const sys = getSystemPrompt(agentId)
     setStreaming(true)
 
-    // Build history and add assistant placeholder
     let history: Msg[] = [...messages, { role: 'user', content: msg }]
     setMessages([...history, { role: 'assistant', content: '' }])
 
@@ -287,24 +294,28 @@ export default function AgentsPage() {
       setStreaming(false)
     }
 
-    // Auto-continuation loop: if response ends with [CONTINUE FROM CLAUSE X], keep going
-    let continueLoop = true
-    while (continueLoop) {
-      continueLoop = false
-      let fullResponse = ''
-      let resolved = false
-      await new Promise<void>((resolve) => {
-        const onToken = (t: string) => { fullResponse += t; appendToken(t) }
-        const onDone = () => { if (!resolved) { resolved = true; resolve() } }
-        const onErr = (e: string) => { onError(e); if (!resolved) { resolved = true; resolve() } }
-        streamFromBackend(authToken!, agentId, history, sys, onToken, onDone, onErr)
-      })
+    // Contract complete markers — if response contains any, stop continuing
+    const DONE_RE = /IN WITNESS WHEREOF|EXECUTED AS A DEED|SIGNATURE PAGE|\bsigned by\b|\bEND OF (CONTRACT|AGREEMENT|DOCUMENT)\b/i
 
-      // Check if AI signalled continuation
-      if (/\[CONTINUE FROM CLAUSE/i.test(fullResponse)) {
-        continueLoop = true
-        history = [...history, { role: 'assistant', content: fullResponse }, { role: 'user', content: 'Continue.' }]
-        appendToken('\n\n')
+    let rounds = 0
+    let keepGoing = true
+    while (keepGoing && rounds < 8) {
+      keepGoing = false
+      rounds++
+      let chunk = ''
+      let errored = false
+      await new Promise<void>((resolve) => {
+        const onTok = (t: string) => { chunk += t; appendToken(t) }
+        const onDone = () => resolve()
+        const onErr = (e: string) => { errored = true; onError(e); resolve() }
+        streamAI(apiKey, provider, history, sys, onTok, onDone, onErr)
+      })
+      if (errored) break
+      // Keep going if: long response AND no completion marker found
+      if (chunk.length > 1500 && !DONE_RE.test(chunk)) {
+        keepGoing = true
+        history = [...history, { role: 'assistant', content: chunk }, { role: 'user', content: 'Continue exactly from where you left off. Do not repeat any text already written.' }]
+        appendToken('\n')
       }
     }
 
@@ -359,8 +370,12 @@ export default function AgentsPage() {
             return (
               <div key={i}>
                 <div style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                  <div style={{ maxWidth: '72%', padding: '10px 14px', fontSize: 14, lineHeight: 1.65, whiteSpace: 'pre-wrap', borderRadius: m.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px', background: m.role === 'user' ? '#0f0f0f' : '#fff', color: m.role === 'user' ? '#fff' : '#0f0f0f', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                    {m.content || (streaming && isLastAssistant ? (
+                  <div style={{ maxWidth: '72%', padding: '10px 14px', fontSize: 14, lineHeight: 1.65, borderRadius: m.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px', background: m.role === 'user' ? '#0f0f0f' : '#fff', color: m.role === 'user' ? '#fff' : '#0f0f0f', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                    {m.content ? (
+                      m.role === 'user'
+                        ? <span style={{ whiteSpace: 'pre-wrap' }}>{m.content}</span>
+                        : <MarkdownRenderer content={m.content} />
+                    ) : (streaming && isLastAssistant ? (
                       <LogoLoader label="Thinking..." />
                     ) : '')}
                   </div>
@@ -382,11 +397,34 @@ export default function AgentsPage() {
           <div ref={bottomRef} />
         </div>
 
+        <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
         <div style={{ padding: '10px 20px 14px', background: '#fff', borderTop: '1px solid rgba(0,0,0,0.07)', flexShrink: 0 }}>
           {attachedDoc && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', marginBottom: 8, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, fontSize: 12.5 }}>
-              <span style={{ color: '#166534' }}>Attached: {attachedDoc.name}</span>
-              <button onClick={() => setAttachedDoc(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: 16 }}>x</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', marginBottom: 8, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, fontSize: 12.5, flexWrap: 'wrap' }}>
+              <span style={{ color: '#166534', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📎 {attachedDoc.name}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                <div style={{ position: 'relative' }}>
+                  <select
+                    defaultValue=""
+                    onChange={e => {
+                      const targetId = e.target.value
+                      if (!targetId) return
+                      const doc = attachedDoc
+                      setAgentId(targetId)
+                      setMessages([])
+                      setAttachedDoc(doc)
+                      e.target.value = ''
+                    }}
+                    style={{ padding: '2px 6px', fontSize: 11.5, border: '1px solid #86efac', borderRadius: 5, background: '#fff', color: '#166534', cursor: 'pointer' }}
+                  >
+                    <option value="" disabled>Send to agent...</option>
+                    {AGENTS.filter(a => a.id !== agentId).map(a => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <button onClick={() => setAttachedDoc(null)} style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
+              </div>
             </div>
           )}
           {uploadError && (
@@ -394,7 +432,12 @@ export default function AgentsPage() {
           )}
           <div style={{ display: 'flex', gap: 8, background: '#f8f8f8', border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10, padding: '6px 10px' }}>
             <input ref={fileInputRef} type="file" accept=".pdf,.txt,.md,.csv,.json" onChange={handleFileSelect} style={{ display: 'none' }} />
-            <button onClick={() => fileInputRef.current?.click()} disabled={uploading} title="Attach document" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', fontSize: 18, padding: '0 2px', alignSelf: 'flex-end', marginBottom: 2 }}>{uploading ? '...' : 'P'}</button>
+            <button onClick={() => fileInputRef.current?.click()} disabled={uploading} title="Attach document (PDF, TXT, MD, CSV, JSON)" style={{ background: 'none', border: 'none', cursor: uploading ? 'not-allowed' : 'pointer', color: uploading ? '#ccc' : '#666', padding: '0 2px', alignSelf: 'flex-end', marginBottom: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, transition: 'color 0.15s' }}>
+              {uploading
+                ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                : <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+              }
+            </button>
             <textarea value={input} onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input) } }}
               placeholder={`Ask ${activeAgent.name}... (Enter to send)`}

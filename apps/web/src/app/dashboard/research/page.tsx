@@ -2,8 +2,9 @@
 import { useState, useEffect } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import LogoLoader from '../../../components/LogoLoader'
+import MarkdownRenderer from '../../../components/MarkdownRenderer'
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+const API = ''  // use Next.js API routes (same origin)
 
 const JURISDICTIONS = [
   { value: 'global',    label: 'All jurisdictions' },
@@ -47,7 +48,7 @@ export default function ResearchPage() {
     try {
       const apiKey      = localStorage.getItem('law_oss_api_key') || ''
       const apiProvider = localStorage.getItem('law_oss_provider') || 'claude'
-      const url = `${API}/api/research?q=${encodeURIComponent(query)}&jurisdiction=${encodeURIComponent(jurisdiction)}&apiKey=${encodeURIComponent(apiKey)}&apiProvider=${encodeURIComponent(apiProvider)}`
+      const url = `/api/research?q=${encodeURIComponent(query)}&jurisdiction=${encodeURIComponent(jurisdiction)}&apiKey=${encodeURIComponent(apiKey)}&apiProvider=${encodeURIComponent(apiProvider)}`
       const res = await fetch(url, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -214,8 +215,8 @@ export default function ResearchPage() {
           <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#999', marginBottom: 12 }}>
             AI Analysis — Verified sources only
           </div>
-          <div style={{ fontSize: 14, lineHeight: 1.7, color: '#333', whiteSpace: 'pre-wrap' }}>
-            {aiAnalysis}
+          <div style={{ fontSize: 14 }}>
+            <MarkdownRenderer content={aiAnalysis} />
             {loading && <span style={{ opacity: 0.4 }}>▌</span>}
           </div>
         </div>

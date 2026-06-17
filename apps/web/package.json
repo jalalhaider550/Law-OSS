@@ -19,6 +19,8 @@
     "pdfjs-dist": "4.10.38",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "three": "^0.167.1"
   },
   "devDependencies": {
