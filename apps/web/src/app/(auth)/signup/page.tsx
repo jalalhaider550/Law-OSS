@@ -23,10 +23,7 @@ export default function SignupPage() {
   const supabase = createClientComponentClient()
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) router.replace('/dashboard')
-      else setChecking(false)
-    })
+    supabase.auth.signOut().finally(() => setChecking(false))
   }, [])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -56,14 +53,14 @@ export default function SignupPage() {
           boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
         }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>📧</div>
-          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, color: '#1a2e6e' }}>Check your email</h2>
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, color: '#0f0f0f' }}>Check your email</h2>
           <p style={{ fontSize: 14, color: '#555', lineHeight: 1.6, marginBottom: 24 }}>
             We sent a confirmation link to <strong>{email}</strong>.<br />
             Click it to activate your account, then sign in.
           </p>
           <Link href="/login" style={{
             display: 'inline-flex', alignItems: 'center', padding: '0 24px', height: 40,
-            background: '#1a2e6e', color: '#fff', borderRadius: 8, textDecoration: 'none',
+            background: '#0f0f0f', color: '#fff', borderRadius: 8, textDecoration: 'none',
             fontSize: 14, fontWeight: 600,
           }}>Go to Sign In</Link>
         </div>
@@ -80,7 +77,7 @@ export default function SignupPage() {
         background: '#fff', borderRadius: 16, width: '100%', maxWidth: 420,
         boxShadow: '0 4px 24px rgba(0,0,0,0.08)', overflow: 'hidden',
       }}>
-        <div style={{ background: '#1a2e6e', padding: '28px 32px 24px', color: '#fff' }}>
+        <div style={{ background: '#0f0f0f', padding: '28px 32px 24px', color: '#fff' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
             <div style={{
               width: 32, height: 32, background: 'rgba(255,255,255,0.15)', borderRadius: 8,
@@ -115,10 +112,10 @@ export default function SignupPage() {
 
           <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 20, cursor: 'pointer' }}>
             <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)}
-              style={{ marginTop: 2, accentColor: '#1a2e6e', width: 16, height: 16, flexShrink: 0 }} />
+              style={{ marginTop: 2, accentColor: '#0f0f0f', width: 16, height: 16, flexShrink: 0 }} />
             <span style={{ fontSize: 13, color: '#555', lineHeight: 1.5 }}>
               I have read and agree to the{' '}
-              <Link href="/terms" target="_blank" style={{ color: '#1a2e6e', fontWeight: 600 }}>Terms of Service</Link>
+              <Link href="/terms" target="_blank" style={{ color: '#0f0f0f', fontWeight: 600 }}>Terms of Service</Link>
               {' '}and understand this is beta software.
             </span>
           </label>
@@ -132,7 +129,7 @@ export default function SignupPage() {
 
           <button type="submit" disabled={loading || !agreed} style={{
             width: '100%', height: 42,
-            background: loading || !agreed ? '#94a3b8' : '#1a2e6e',
+            background: loading || !agreed ? '#aaa' : '#0f0f0f',
             color: '#fff', border: 'none', borderRadius: 8, fontSize: 14.5, fontWeight: 600,
             cursor: loading || !agreed ? 'not-allowed' : 'pointer',
           }}>
@@ -141,7 +138,7 @@ export default function SignupPage() {
 
           <div style={{ textAlign: 'center', marginTop: 20, fontSize: 13, color: '#999' }}>
             Already have an account?{' '}
-            <Link href="/login" style={{ color: '#1a2e6e', fontWeight: 600, textDecoration: 'none' }}>Sign in</Link>
+            <Link href="/login" style={{ color: '#0f0f0f', fontWeight: 600, textDecoration: 'none' }}>Sign in</Link>
           </div>
         </form>
       </div>

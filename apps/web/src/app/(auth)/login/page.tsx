@@ -20,10 +20,8 @@ export default function LoginPage() {
   const supabase = createClientComponentClient()
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) router.replace('/dashboard')
-      else setChecking(false)
-    })
+    // Always sign out on login page visit — forces fresh credentials every time
+    supabase.auth.signOut().finally(() => setChecking(false))
   }, [])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -47,7 +45,7 @@ export default function LoginPage() {
         boxShadow: '0 4px 24px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)',
         overflow: 'hidden',
       }}>
-        <div style={{ background: '#1a2e6e', padding: '28px 32px 24px', color: '#fff' }}>
+        <div style={{ background: '#0f0f0f', padding: '28px 32px 24px', color: '#fff' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
             <div style={{
               width: 32, height: 32, background: 'rgba(255,255,255,0.15)', borderRadius: 8,
@@ -83,7 +81,7 @@ export default function LoginPage() {
           )}
 
           <button type="submit" disabled={loading} style={{
-            width: '100%', height: 42, background: loading ? '#374a99' : '#1a2e6e',
+            width: '100%', height: 42, background: loading ? '#333' : '#0f0f0f',
             color: '#fff', border: 'none', borderRadius: 8, fontSize: 14.5, fontWeight: 600,
             cursor: loading ? 'not-allowed' : 'pointer',
           }}>
@@ -92,7 +90,7 @@ export default function LoginPage() {
 
           <div style={{ textAlign: 'center', marginTop: 20, fontSize: 13, color: '#999' }}>
             No account?{' '}
-            <Link href="/signup" style={{ color: '#1a2e6e', fontWeight: 600, textDecoration: 'none' }}>
+            <Link href="/signup" style={{ color: '#0f0f0f', fontWeight: 600, textDecoration: 'none' }}>
               Create one free
             </Link>
           </div>
