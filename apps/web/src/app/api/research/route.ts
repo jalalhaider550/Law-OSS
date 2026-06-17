@@ -5,10 +5,12 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
 
 // ── CourtListener ──────────────────────────────────────────────────────────────
 
@@ -117,6 +119,7 @@ export async function GET(req: NextRequest) {
   const token = req.headers.get('authorization')?.replace('Bearer ', '')
   if (!token) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
 
+  const supabase = getSupabase()
   const { data: { user }, error } = await supabase.auth.getUser(token)
   if (error || !user) return new Response(JSON.stringify({ error: 'Invalid token' }), { status: 401 })
 
