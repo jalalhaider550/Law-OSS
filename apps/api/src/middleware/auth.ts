@@ -31,11 +31,13 @@ export async function requireAuth(
       return
     }
     req.user = { id: user.id, email: user.email! }
-    prisma.user.upsert({
-      where: { id: user.id },
-      create: { id: user.id, email: user.email! },
-      update: { email: user.email! },
-    }).catch(() => {}) // non-blocking, DB may be unavailable
+    if (process.env.DATABASE_URL) {
+      prisma.user.upsert({
+        where: { id: user.id },
+        create: { id: user.id, email: user.email! },
+        update: { email: user.email! },
+      }).catch(() => {}) // non-blocking, DB may be unavailable
+    }
     next()
   } catch {
     res.status(401).json({ error: 'Authentication failed' })
