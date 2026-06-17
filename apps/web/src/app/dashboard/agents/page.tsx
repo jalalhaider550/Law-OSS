@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import LogoLoader from '../../../components/LogoLoader'
 
 type Msg = { role: 'user' | 'assistant'; content: string }
 type AttachedDoc = { name: string; text: string }
@@ -360,11 +361,7 @@ export default function AgentsPage() {
                 <div style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
                   <div style={{ maxWidth: '72%', padding: '10px 14px', fontSize: 14, lineHeight: 1.65, whiteSpace: 'pre-wrap', borderRadius: m.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px', background: m.role === 'user' ? '#0f0f0f' : '#fff', color: m.role === 'user' ? '#fff' : '#0f0f0f', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                     {m.content || (streaming && isLastAssistant ? (
-                      <span style={{ display: 'inline-flex', gap: 3, alignItems: 'center' }}>
-                        <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#aaa', display: 'inline-block' }} />
-                        <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#aaa', display: 'inline-block' }} />
-                        <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#aaa', display: 'inline-block' }} />
-                      </span>
+                      <LogoLoader label="Thinking..." />
                     ) : '')}
                   </div>
                 </div>

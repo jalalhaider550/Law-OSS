@@ -1,22 +1,31 @@
 import { Router } from 'express'
-import { prisma } from '@law-oss/db'
+import { createClient } from '@supabase/supabase-js'
 import { requireAuth, AuthRequest } from '../middleware/auth'
-import { encrypt, decrypt } from '../services/encryption'
 import { verifyApiKey } from '@law-oss/ai'
 import { authLimiter } from '../middleware/rateLimit'
 
 const router = Router()
 
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
+
+// GET /status — check if user has a key configured
 router.get('/status', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const result = await getUserApiKey(req.user!.id)
     if (!result) { res.json({ hasKey: false }); return }
-    res.json({ hasKey: true, provider: result.provider })
+    const preview = result.key.slice(0, 8) + '...' + result.key.slice(-4)
+    res.json({ hasKey: true, provider: result.provider, keyPreview: preview })
   } catch (err) {
     next(err)
   }
 })
 
+// POST / — save API key into Supabase user metadata (no DB needed)
 router.post('/', requireAuth, authLimiter, async (req: AuthRequest, res, next) => {
   try {
     const { provider, apiKey } = req.body as { provider: string; apiKey: string }
@@ -31,76 +40,44 @@ router.post('/', requireAuth, authLimiter, async (req: AuthRequest, res, next) =
       return
     }
 
-    // Ensure a User row exists (Supabase users don't auto-create Prisma records)
-    const userId = req.user!.id
-    const userEmail = req.user!.email || `${userId}@unknown.local`
-    await prisma.user.upsert({
-      where: { id: userId },
-      create: { id: userId, email: userEmail },
-      update: {},
+    const supabase = getSupabaseAdmin()
+    const { error } = await supabase.auth.admin.updateUserById(req.user!.id, {
+      user_metadata: { apiKey, apiProvider: provider },
     })
+    if (error) throw new Error(error.message)
 
-    const encryptedKey = encrypt(apiKey)
     const keyPreview = apiKey.slice(0, 8) + '...' + apiKey.slice(-4)
-
-    await prisma.apiKey.upsert({
-      where: { userId },
-      create: { userId, provider, encryptedKey, keyPreview, verifiedAt: new Date() },
-      update: { provider, encryptedKey, keyPreview, verifiedAt: new Date() },
-    })
-
-    res.json({ hasKey: true, provider, keyPreview, verifiedAt: new Date() })
+    res.json({ hasKey: true, provider, keyPreview })
   } catch (err) {
     next(err)
   }
 })
 
-// Sync key from client without re-verification (key already verified client-side)
-router.post('/sync', requireAuth, async (req: AuthRequest, res, next) => {
-  try {
-    const { provider, apiKey } = req.body as { provider: string; apiKey: string }
-    if (!apiKey || !provider) { res.status(400).json({ error: 'provider and apiKey are required' }); return }
-    const encryptedKey = encrypt(apiKey)
-    const keyPreview = apiKey.slice(0, 8) + '...' + apiKey.slice(-4)
-    await prisma.apiKey.upsert({
-      where: { userId: req.user!.id },
-      create: { userId: req.user!.id, provider, encryptedKey, keyPreview, verifiedAt: new Date() },
-      update: { provider, encryptedKey, keyPreview, verifiedAt: new Date() },
-    })
-    res.json({ synced: true })
-  } catch (err) { next(err) }
-})
-
+// DELETE / — remove API key from Supabase user metadata
 router.delete('/', requireAuth, async (req: AuthRequest, res, next) => {
   try {
-    await prisma.apiKey.deleteMany({ where: { userId: req.user!.id } })
+    const supabase = getSupabaseAdmin()
+    await supabase.auth.admin.updateUserById(req.user!.id, {
+      user_metadata: { apiKey: null, apiProvider: null },
+    })
     res.json({ removed: true })
   } catch (err) {
     next(err)
   }
 })
 
+// GET key for internal use by AI routes
 export async function getUserApiKey(
   userId: string
 ): Promise<{ key: string; provider: string } | null> {
-  // First try Supabase user metadata (new approach)
   try {
-    const { createClient } = await import('@supabase/supabase-js')
-    const supabase = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const supabase = getSupabaseAdmin()
     const { data } = await supabase.auth.admin.getUserById(userId)
     const meta = data?.user?.user_metadata
     if (meta?.apiKey) {
       return { key: meta.apiKey, provider: meta.apiProvider || 'claude' }
     }
-  } catch {}
-  // Fallback: DB record
-  try {
-    const record = await prisma.apiKey.findUnique({ where: { userId } })
-    if (!record) return null
-    return { key: decrypt(record.encryptedKey), provider: record.provider }
+    return null
   } catch {
     return null
   }
