@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+
 export default function SettingsPage() {
   const [userEmail, setUserEmail] = useState('')
   const [hasKey, setHasKey] = useState(false)
@@ -13,6 +15,8 @@ export default function SettingsPage() {
   const [showKey, setShowKey] = useState(false)
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [authToken, setAuthToken] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClientComponentClient()
 
@@ -20,39 +24,44 @@ export default function SettingsPage() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) { router.replace('/login'); return }
       setUserEmail(session.user.email || '')
+      setAuthToken(session.access_token)
+      // Load key status from backend
+      fetch(`${API}/api/api-keys/status`, { headers: { Authorization: `Bearer ${session.access_token}` } })
+        .then(r => r.json()).then(d => {
+          if (d.hasKey) { setHasKey(true); setProvider(d.provider || ''); setKeyPreview(d.keyPreview || '') }
+        }).catch(() => {})
     })
-    const stored = localStorage.getItem('law_oss_api_key')
-    const storedProvider = localStorage.getItem('law_oss_provider') || 'claude'
-    if (stored) {
-      setHasKey(true)
-      setProvider(storedProvider)
-      setKeyPreview(stored.slice(0, 8) + '...' + stored.slice(-4))
-    }
   }, [])
 
-  function saveKey() {
+  async function saveKey() {
     const key = newKey.trim()
-    if (!key) return
+    if (!key || !authToken) return
     if (newProvider === 'claude' && !key.startsWith('sk-ant-')) {
       setErr('Invalid Claude key — must start with sk-ant-'); return
     }
     if (newProvider === 'gemini' && !key.startsWith('AIza')) {
       setErr('Invalid Gemini key — must start with AIza'); return
     }
-    setErr('')
-    localStorage.setItem('law_oss_api_key', key)
-    localStorage.setItem('law_oss_provider', newProvider)
-    setHasKey(true)
-    setProvider(newProvider)
-    setKeyPreview(key.slice(0, 8) + '...' + key.slice(-4))
-    setNewKey('')
-    setMsg('API key saved successfully.')
+    setErr(''); setSaving(true)
+    try {
+      const res = await fetch(`${API}/api/api-keys`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ provider: newProvider, apiKey: key }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setErr(data.error || 'Failed to save key'); return }
+      setHasKey(true); setProvider(newProvider)
+      setKeyPreview(data.keyPreview || key.slice(0, 8) + '...' + key.slice(-4))
+      setNewKey(''); setMsg('API key saved and verified.')
+    } catch { setErr('Network error — could not save key.') }
+    finally { setSaving(false) }
   }
 
-  function removeKey() {
+  async function removeKey() {
     if (!window.confirm('Remove your API key? AI features will stop working.')) return
-    localStorage.removeItem('law_oss_api_key')
-    localStorage.removeItem('law_oss_provider')
+    if (!authToken) return
+    await fetch(`${API}/api/api-keys`, { method: 'DELETE', headers: { Authorization: `Bearer ${authToken}` } }).catch(() => {})
     setHasKey(false); setProvider(''); setKeyPreview(''); setMsg('API key removed.')
   }
 
@@ -115,11 +124,11 @@ export default function SettingsPage() {
             />
             <button onClick={() => setShowKey(s => !s)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#999', fontSize: 12 }}>{showKey ? 'Hide' : 'Show'}</button>
           </div>
-          <button onClick={saveKey} disabled={!newKey.trim()} style={{
+          <button onClick={saveKey} disabled={!newKey.trim() || saving} style={{
             padding: '9px 18px', border: 'none', borderRadius: 8,
-            background: !newKey.trim() ? 'rgba(0,0,0,0.1)' : '#0f0f0f',
-            color: '#fff', fontSize: 14, fontWeight: 600, cursor: !newKey.trim() ? 'not-allowed' : 'pointer', flexShrink: 0,
-          }}>Save</button>
+            background: !newKey.trim() || saving ? 'rgba(0,0,0,0.1)' : '#0f0f0f',
+            color: '#fff', fontSize: 14, fontWeight: 600, cursor: !newKey.trim() || saving ? 'not-allowed' : 'pointer', flexShrink: 0,
+          }}>{saving ? 'Saving...' : 'Save'}</button>
         </div>
 
         {hasKey && (

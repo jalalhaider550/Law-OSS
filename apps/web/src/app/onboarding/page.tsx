@@ -24,9 +24,9 @@ export default function OnboardingPage() {
     })
   }, [])
 
-  function handleSave() {
+  async function handleSave() {
     const key = apiKey.trim()
-    if (!key) return
+    if (!key || !token) return
     const p = provider === 'anthropic' ? 'claude' : provider
     if (p === 'claude' && !key.startsWith('sk-ant-')) {
       setError('Invalid Claude key — must start with sk-ant-'); return
@@ -34,9 +34,18 @@ export default function OnboardingPage() {
     if (p === 'gemini' && !key.startsWith('AIza')) {
       setError('Invalid Gemini key — must start with AIza'); return
     }
-    localStorage.setItem('law_oss_api_key', key)
-    localStorage.setItem('law_oss_provider', p)
-    router.push('/dashboard')
+    setLoading(true); setError('')
+    try {
+      const res = await fetch(`${API}/api/api-keys`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ provider: p, apiKey: key }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error || 'Failed to save key'); return }
+      router.push('/dashboard')
+    } catch { setError('Network error — could not save key.') }
+    finally { setLoading(false) }
   }
 
   if (checking) return null
