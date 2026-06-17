@@ -7,6 +7,7 @@ const router = Router()
 const CLIO_CLIENT_ID = process.env.CLIO_CLIENT_ID!
 const CLIO_CLIENT_SECRET = process.env.CLIO_CLIENT_SECRET!
 const CLIO_REDIRECT_URI = process.env.CLIO_REDIRECT_URI!
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://lawoss.com'
 const CLIO_AUTH_URL = 'https://app.clio.com/oauth/authorize'
 const CLIO_TOKEN_URL = 'https://app.clio.com/oauth/token'
 const CLIO_API = 'https://app.clio.com/api/v4'
@@ -82,7 +83,7 @@ router.get('/auth', async (req: any, res: any) => {
 router.get('/callback', async (req: any, res: any) => {
   try {
     const { code, state, error: oauthError } = req.query
-    if (oauthError) return res.redirect(`/dashboard/settings?clio=error&reason=${oauthError}`)
+    if (oauthError) return res.redirect(`${FRONTEND_URL}/dashboard/settings?clio=error&reason=${oauthError}`)
     if (!code || !state) return res.status(400).json({ error: 'Missing code or state' })
 
     const userId = Buffer.from(state as string, 'base64').toString('utf8')
@@ -102,7 +103,7 @@ router.get('/callback', async (req: any, res: any) => {
     if (!tokenRes.ok) {
       const err = await tokenRes.text()
       console.error('Clio token exchange failed:', err)
-      return res.redirect('/dashboard/settings?clio=error&reason=token_exchange')
+      return res.redirect(`${FRONTEND_URL}/dashboard/settings?clio=error&reason=token_exchange`)
     }
 
     const tokens = await tokenRes.json() as any
@@ -127,10 +128,10 @@ router.get('/callback', async (req: any, res: any) => {
       },
     })
 
-    res.redirect('/dashboard/settings?clio=connected')
+    res.redirect(`${FRONTEND_URL}/dashboard/settings?clio=connected`)
   } catch (err) {
     console.error('Clio callback error:', err)
-    res.redirect('/dashboard/settings?clio=error&reason=server')
+    res.redirect(`${FRONTEND_URL}/dashboard/settings?clio=error&reason=server`)
   }
 })
 
