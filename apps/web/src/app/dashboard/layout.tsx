@@ -43,6 +43,14 @@ const Icons = {
       <path d="M8 1v1.5M8 13.5V15M15 8h-1.5M2.5 8H1M12.95 3.05l-1.06 1.06M4.11 11.89l-1.06 1.06M12.95 12.95l-1.06-1.06M4.11 4.11L3.05 3.05" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
     </svg>
   ),
+  admin: (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" strokeWidth="1.4"/>
+      <rect x="9" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" strokeWidth="1.4"/>
+      <rect x="1.5" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" strokeWidth="1.4"/>
+      <path d="M12 9v5.5M9.5 11.75H15" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+    </svg>
+  ),
 }
 
 const NAV = [
@@ -55,7 +63,8 @@ const NAV = [
 ] as const
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<{ name: string; email: string } | null>(null)
+  const [user, setUser]       = useState<{ name: string; email: string } | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
   const router   = useRouter()
   const pathname = usePathname()
   const supabase = createClientComponentClient()
@@ -63,11 +72,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) { router.replace('/login'); return }
-      const meta = session.user.user_metadata
+      const meta = session.user.user_metadata || {}
       setUser({
         name:  meta.full_name || meta.name || session.user.email?.split('@')[0] || 'User',
         email: session.user.email || '',
       })
+      setIsAdmin(!!meta.isAdmin)
     })
   }, [])
 
@@ -115,6 +125,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </Link>
             )
           })}
+          {isAdmin && (() => {
+            const active = pathname.startsWith('/dashboard/admin')
+            return (
+              <Link href="/dashboard/admin" style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '8px 10px', borderRadius: 7,
+                textDecoration: 'none', marginTop: 8,
+                borderTop: '1px solid rgba(0,0,0,0.07)', paddingTop: 12,
+                background: active ? 'rgba(0,0,0,0.06)' : 'transparent',
+                color: active ? '#0f0f0f' : '#666',
+                fontWeight: active ? 600 : 400, fontSize: 13.5,
+              }}>
+                <span style={{ flexShrink: 0, opacity: active ? 1 : 0.6 }}>{Icons.admin}</span>
+                Admin
+              </Link>
+            )
+          })()}
         </nav>
 
         {/* User */}
