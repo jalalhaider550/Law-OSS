@@ -5,35 +5,27 @@ import MarkdownRenderer from '../../../components/MarkdownRenderer'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://law-oss-api-production.up.railway.app'
 
-const CONTRACT_SYS = `You are Law OSS AI, an expert contract analyst. Analyse the contract and produce these sections in order:
+const CONTRACT_SYS = `You are Law OSS AI, an expert contract analyst.
 
-## 1. CONTRACT SUMMARY
-Parties, purpose, key dates, governing law.
+Analyse the contract and write your analysis in normal markdown prose covering:
+1. CONTRACT SUMMARY — parties, purpose, key dates, governing law
+2. KEY RISKS — describe each risk in plain prose
+3. UNUSUAL OR MISSING CLAUSES — flag non-standard or absent provisions
+4. OBLIGATIONS — main duties of each party
 
-## 2. KEY RISKS
-List each risk with severity. Use this EXACT format for every single risk:
+After your full prose analysis, append a CHANGES section. For EVERY risk and every unusual/missing clause you mentioned, output one XML block in exactly this format with no extra whitespace or attributes:
 
-RISK: [title] | SEVERITY: [CRITICAL or HIGH or MEDIUM or LOW]
-Current clause: [exact text from contract, or "Not present"]
-Suggested fix: [your safer replacement text]
-Why: [brief explanation]
+<change>
+<title>Short title of the issue</title>
+<severity>CRITICAL</severity>
+<current>Exact clause text from contract, or: Not present</current>
+<suggested>Your improved replacement text</suggested>
+<why>One sentence explanation</why>
+</change>
 
----
-
-## 3. UNUSUAL OR MISSING CLAUSES
-Use this EXACT format for each issue:
-
-RISK: [title] | SEVERITY: [HIGH or MEDIUM or LOW]
-Current clause: [exact text, or "Not present"]
-Suggested fix: [your safer replacement]
-Why: [brief explanation]
-
----
-
-## 4. OBLIGATIONS
-Main duties of each party (plain prose, no special format needed).
-
-Always complete the full analysis. Never truncate.`
+Use severity: CRITICAL, HIGH, MEDIUM, or LOW.
+Output one <change> block per risk/issue. Do not skip any.
+Do not put anything between the closing tag of one block and the opening tag of the next.`
 
 type StoredContract = {
   id: string
@@ -121,34 +113,25 @@ async function streamContractAnalysis(
   } catch (e: any) { onError(e.message || 'Network error') }
 }
 
-// Robust parser — handles "RISK: title | SEVERITY: HIGH" lines
+// Parse <change> XML blocks — format Claude follows reliably
 function parseChanges(analysis: string): ParsedChange[] {
   const changes: ParsedChange[] = []
-  const lines = analysis.split('\n')
-  let i = 0; let idx = 1
-  while (i < lines.length) {
-    const line = lines[i].trim()
-    // Match: RISK: ... | SEVERITY: ...
-    const riskMatch = line.match(/^RISK:\s*(.+?)\s*\|\s*SEVERITY:\s*(CRITICAL|HIGH|MEDIUM|LOW)/i)
-    if (riskMatch) {
-      const title = riskMatch[1].trim()
-      const severity = riskMatch[2].toUpperCase()
-      let current = ''; let suggested = ''; let why = ''
-      // Read following lines for current/suggested/why
-      let j = i + 1
-      while (j < lines.length && j < i + 8) {
-        const l = lines[j].trim()
-        if (/^Current clause:/i.test(l)) current = l.replace(/^Current clause:\s*/i, '').replace(/^"(.+)"$/, '$1').trim()
-        else if (/^Suggested fix:/i.test(l)) suggested = l.replace(/^Suggested fix:\s*/i, '').replace(/^"(.+)"$/, '$1').trim()
-        else if (/^Why:/i.test(l)) why = l.replace(/^Why:\s*/i, '').trim()
-        else if (l === '---' || /^RISK:/i.test(l) || /^##/.test(l)) break
-        j++
-      }
-      changes.push({ index: idx++, title, severity, current, suggested, why })
-      i = j
-      continue
+  // Match each <change>...</change> block
+  const blockRe = /<change>([\s\S]*?)<\/change>/gi
+  let m: RegExpExecArray | null
+  let idx = 1
+  while ((m = blockRe.exec(analysis)) !== null) {
+    const body = m[1]
+    const get = (tag: string) => {
+      const r = new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, 'i').exec(body)
+      return r ? r[1].trim() : ''
     }
-    i++
+    const title = get('title')
+    const severity = get('severity').toUpperCase()
+    const current = get('current')
+    const suggested = get('suggested')
+    const why = get('why')
+    if (title) changes.push({ index: idx++, title, severity: ['CRITICAL','HIGH','MEDIUM','LOW'].includes(severity) ? severity : 'MEDIUM', current, suggested, why })
   }
   return changes
 }
@@ -249,7 +232,7 @@ function DocModal({ contract, changes, accepted, onClose, onSave }: {
   onClose: () => void
   onSave: (text: string) => void
 }) {
-  const baseText = contract.docText || '(No document text — re-upload to enable editing.)'
+  const baseText = (contract.docText || '(No document text — re-upload to enable editing.)').replace(/<change>[\s\S]*?<\/change>/gi, '').trim()
   const [content, setContent] = useState(() => applyChangesToDoc(baseText, changes, accepted))
   const [saved, setSaved] = useState(false)
 
@@ -498,9 +481,9 @@ export default function ContractsPage() {
             </div>
           </div>
 
-          {/* Analysis text */}
+          {/* Analysis text — strip raw XML change blocks from prose */}
           <div style={{ padding: '20px 24px', fontSize: 14 }}>
-            <MarkdownRenderer content={analysis} />
+            <MarkdownRenderer content={analysis.replace(/<change>[\s\S]*?<\/change>/gi, '').trim()} />
             {busy && <span style={{ display: 'inline-block', width: 8, height: 14, background: '#0f0f0f', marginLeft: 2, animation: 'pulse 1s infinite', verticalAlign: 'middle' }} />}
           </div>
 
@@ -585,7 +568,7 @@ export default function ContractsPage() {
 
                   {analysisExpanded && (
                     <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(0,0,0,0.06)', background: '#fff' }}>
-                      <MarkdownRenderer content={c.analysis} />
+                      <MarkdownRenderer content={c.analysis.replace(/<change>[\s\S]*?<\/change>/gi, '').trim()} />
                       {cChanges.length > 0 && (
                         <div style={{ marginTop: 20, borderTop: '1px solid rgba(0,0,0,0.06)', paddingTop: 16 }}>
                           <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#999', marginBottom: 12 }}>
@@ -620,7 +603,7 @@ export default function ContractsPage() {
                         </div>
                         {vAnalysisExpanded && v.analysis && (
                           <div style={{ padding: '14px 20px', borderTop: '1px solid rgba(0,0,0,0.05)', background: '#fff' }}>
-                            <MarkdownRenderer content={v.analysis} />
+                            <MarkdownRenderer content={v.analysis.replace(/<change>[\s\S]*?<\/change>/gi, '').trim()} />
                             {vChanges.length > 0 && (
                               <div style={{ marginTop: 16, borderTop: '1px solid rgba(0,0,0,0.06)', paddingTop: 14 }}>
                                 {vChanges.map(ch => (
