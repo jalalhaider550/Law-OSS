@@ -13,6 +13,7 @@ import documentRoutes from './routes/documents'
 import timeEntryRoutes from './routes/timeEntries'
 import apiKeyRoutes from './routes/apiKeys'
 import adminRoutes from './routes/admin'
+import clioRoutes from './routes/clio'
 
 validateEnv()
 
@@ -54,6 +55,7 @@ app.use('/api/documents', documentRoutes)
 app.use('/api/time-entries', timeEntryRoutes)
 app.use('/api/api-keys', apiKeyRoutes)
 app.use('/api/admin', adminRoutes)
+app.use('/api/clio', clioRoutes)
 
 app.use(errorHandler)
 

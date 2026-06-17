@@ -30,6 +30,11 @@ export default function SettingsPage() {
   const [savingProfile, setSavingProfile] = useState(false)
 
   // API key fields
+  // Clio integration
+  const [clioConnected, setClioConnected] = useState(false)
+  const [clioFirmName,  setClioFirmName]  = useState('')
+  const [clioLoading,   setClioLoading]   = useState(false)
+
   const [hasKey,       setHasKey]       = useState(false)
   const [provider,     setProvider]     = useState('')
   const [keyPreview,   setKeyPreview]   = useState('')
@@ -42,6 +47,14 @@ export default function SettingsPage() {
 
   const router  = useRouter()
   const supabase = createClientComponentClient()
+
+  useEffect(() => {
+    // Handle Clio OAuth return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('clio') === 'connected') {
+      window.history.replaceState({}, '', '/dashboard/settings')
+    }
+  }, [])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -58,6 +71,12 @@ export default function SettingsPage() {
       fetch(`${API}/api/api-keys/status`, { headers: { Authorization: `Bearer ${session.access_token}` } })
         .then(r => r.json()).then(d => {
           if (d.hasKey) { setHasKey(true); setProvider(d.provider || ''); setKeyPreview(d.keyPreview || '') }
+        }).catch(() => {})
+      // Load Clio status
+      fetch(`${API}/api/clio/status`, { headers: { Authorization: `Bearer ${session.access_token}` } })
+        .then(r => r.json()).then(d => {
+          setClioConnected(d.connected || false)
+          setClioFirmName(d.firmName || '')
         }).catch(() => {})
     })
   }, [])
@@ -109,6 +128,15 @@ export default function SettingsPage() {
     setHasKey(false); setProvider(''); setKeyPreview('')
     setKeySaved('API key removed.')
     setTimeout(() => setKeySaved(''), 3000)
+  }
+
+  async function disconnectClio() {
+    if (!window.confirm('Disconnect Clio? This will remove your Clio connection.')) return
+    if (!authToken) return
+    setClioLoading(true)
+    await fetch(`${API}/api/clio/disconnect`, { method: 'DELETE', headers: { Authorization: `Bearer ${authToken}` } }).catch(() => {})
+    setClioConnected(false); setClioFirmName('')
+    setClioLoading(false)
   }
 
   async function signOut() {
@@ -243,6 +271,34 @@ export default function SettingsPage() {
             Remove key
           </button>
         )}
+      </Section>
+
+      {/* Integrations */}
+      <Section title="Integrations">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#0f0f0f' }}>Clio Practice Management</div>
+            <div style={{ fontSize: 12.5, color: '#888', marginTop: 2 }}>
+              {clioConnected
+                ? (clioFirmName ? `Connected — ${clioFirmName}` : 'Connected')
+                : 'Import matters, contacts and time entries into AI context.'}
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            {clioConnected && (
+              <span style={{ padding: '3px 10px', borderRadius: 20, background: '#dcfce7', color: '#15803d', fontSize: 11.5, fontWeight: 700 }}>Connected</span>
+            )}
+            {clioConnected ? (
+              <button onClick={disconnectClio} disabled={clioLoading} style={{ padding: '7px 14px', border: '1.5px solid #fca5a5', borderRadius: 7, background: '#fff', color: '#b91c1c', fontSize: 13, cursor: clioLoading ? 'not-allowed' : 'pointer' }}>
+                {clioLoading ? 'Disconnecting...' : 'Disconnect'}
+              </button>
+            ) : (
+              <button onClick={() => { if (authToken) window.location.href = `${API}/api/clio/auth?token=${authToken}` }} style={{ padding: '8px 18px', border: 'none', borderRadius: 8, background: '#0f0f0f', color: '#fff', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>
+                Connect Clio
+              </button>
+            )}
+          </div>
+        </div>
       </Section>
 
       {/* Account */}

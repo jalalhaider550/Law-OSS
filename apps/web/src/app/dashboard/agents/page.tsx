@@ -6,6 +6,7 @@ import MarkdownRenderer from '../../../components/MarkdownRenderer'
 
 type Msg = { role: 'user' | 'assistant'; content: string }
 type AttachedDoc = { name: string; text: string }
+type ClioMatter = { id: string; display_number: string; description: string; status: string; client_name: string }
 type SavedChat = { id: string; agentId: string; agentName: string; title: string; messages: Msg[]; savedAt: string }
 type Matter = { id: string; name: string; type: string; status: string; court?: string; attorney?: string; dueDate?: string; notes?: string; savedChats: SavedChat[] }
 
@@ -248,6 +249,13 @@ export default function AgentsPage() {
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
   const [noKey, setNoKey] = useState(false)
+  const [clioConnected, setClioConnected] = useState(false)
+  const [clioMatters, setClioMatters] = useState<ClioMatter[]>([])
+  const [clioMatterOpen, setClioMatterOpen] = useState(false)
+  const [selectedClioMatter, setSelectedClioMatter] = useState<ClioMatter | null>(null)
+  const [clioContext, setClioContext] = useState<string | null>(null)
+  const [clioLoadingContext, setClioLoadingContext] = useState(false)
+  const [authToken, setAuthToken] = useState<string | null>(null)
   const [attachedDoc, setAttachedDoc] = useState<AttachedDoc | null>(null)
   const [uploadError, setUploadError] = useState('')
   const [uploading, setUploading] = useState(false)
@@ -255,14 +263,41 @@ export default function AgentsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const supabase = createClientComponentClient()
 
+  const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) { window.location.href = '/login'; return }
       setNoKey(!localStorage.getItem('law_oss_api_key'))
+      setAuthToken(session.access_token)
+      fetch(`${API}/api/clio/status`, { headers: { Authorization: `Bearer ${session.access_token}` } })
+        .then(r => r.json()).then(d => { if (d.connected) setClioConnected(true) }).catch(() => {})
     })
   }, [])
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+
+  async function openClioMatters() {
+    setClioMatterOpen(o => !o)
+    if (!clioMatterOpen && clioMatters.length === 0 && authToken) {
+      fetch(`${API}/api/clio/matters`, { headers: { Authorization: `Bearer ${authToken}` } })
+        .then(r => r.json()).then(d => { if (d.matters) setClioMatters(d.matters) }).catch(() => {})
+    }
+  }
+
+  async function selectClioMatter(matter: ClioMatter) {
+    setSelectedClioMatter(matter)
+    setClioMatterOpen(false)
+    setClioContext(null)
+    if (!authToken) return
+    setClioLoadingContext(true)
+    try {
+      const r = await fetch(`${API}/api/clio/matters/${matter.id}/context`, { headers: { Authorization: `Bearer ${authToken}` } })
+      const d = await r.json()
+      setClioContext(d.context || null)
+    } catch {}
+    setClioLoadingContext(false)
+  }
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return
@@ -278,7 +313,10 @@ export default function AgentsPage() {
     const provider = localStorage.getItem('law_oss_provider') || 'claude'
     if (!apiKey) { setNoKey(true); return }
 
-    const msg = attachedDoc ? `${text.trim()}\n\n[Attached: ${attachedDoc.name}]\n${attachedDoc.text}` : text.trim()
+    let baseMsg = attachedDoc ? `${text.trim()}\n\n[Attached: ${attachedDoc.name}]\n${attachedDoc.text}` : text.trim()
+    const msg = clioContext
+      ? `[CLIO MATTER CONTEXT]\n${clioContext}\n\n[USER QUERY]\n${baseMsg}`
+      : baseMsg
     setInput(''); setAttachedDoc(null); setUploadError('')
     const sys = getSystemPrompt(agentId)
     setStreaming(true)
@@ -295,7 +333,7 @@ export default function AgentsPage() {
     }
 
     // Contract complete markers — if response contains any, stop continuing
-    const DONE_RE = /IN WITNESS WHEREOF|EXECUTED AS A DEED|SIGNATURE PAGE|\bsigned by\b|\bEND OF (CONTRACT|AGREEMENT|DOCUMENT)\b/i
+    const DONE_RE = /IN WITNESS WHEREOF|EXECUTED AS A DEED|SIGNATURE PAGE|EXECUTION BLOCK|\bSIGNED BY\b|\bSIGNATURE BLOCK\b|\bEND OF (CONTRACT|AGREEMENT|DOCUMENT)\b|\bSchedule [0-9]\b.*\n.*\n.*\n.*\n.*(?:\n.*){0,3}$/i
 
     let rounds = 0
     let keepGoing = true
@@ -311,8 +349,8 @@ export default function AgentsPage() {
         streamAI(apiKey, provider, history, sys, onTok, onDone, onErr)
       })
       if (errored) break
-      // Keep going if: long response AND no completion marker found
-      if (chunk.length > 1500 && !DONE_RE.test(chunk)) {
+      // Keep going until a completion marker appears (signature block, end of contract etc)
+      if (!DONE_RE.test(chunk)) {
         keepGoing = true
         history = [...history, { role: 'assistant', content: chunk }, { role: 'user', content: 'Continue exactly from where you left off. Do not repeat any text already written.' }]
         appendToken('\n')
@@ -399,6 +437,40 @@ export default function AgentsPage() {
 
         <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
         <div style={{ padding: '10px 20px 14px', background: '#fff', borderTop: '1px solid rgba(0,0,0,0.07)', flexShrink: 0 }}>
+          {clioConnected && (
+            <div style={{ marginBottom: 8, position: 'relative' }}>
+              {selectedClioMatter ? (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 10px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, fontSize: 12.5 }}>
+                  <span style={{ color: '#1d4ed8' }}>
+                    {clioLoadingContext ? 'Loading context...' : `Clio: ${selectedClioMatter.display_number} — ${selectedClioMatter.client_name || selectedClioMatter.description || ''}`}
+                  </span>
+                  <button onClick={() => { setSelectedClioMatter(null); setClioContext(null) }} style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
+                </div>
+              ) : (
+                <div style={{ display: 'inline-block' }}>
+                  <button onClick={openClioMatters} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', border: '1.5px solid rgba(0,0,0,0.15)', borderRadius: 6, background: '#fff', color: '#374151', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
+                    Import Clio matter
+                  </button>
+                  {clioMatterOpen && (
+                    <div style={{ position: 'absolute', bottom: '110%', left: 0, background: '#fff', border: '1px solid #e5e5e5', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', minWidth: 280, zIndex: 100, overflow: 'hidden' }}>
+                      <div style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #f3f4f6' }}>Select a matter</div>
+                      {clioMatters.length === 0
+                        ? <div style={{ padding: '10px 12px', fontSize: 13, color: '#9ca3af' }}>Loading matters...</div>
+                        : clioMatters.map(m => (
+                          <button key={m.id} onClick={() => selectClioMatter(m)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, color: '#0f0f0f' }}
+                            onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                            <span style={{ fontWeight: 600 }}>{m.display_number}</span>
+                            {m.client_name && <span style={{ color: '#6b7280', marginLeft: 6 }}>{m.client_name}</span>}
+                            {m.status && <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 6, textTransform: 'capitalize' }}>{m.status}</span>}
+                          </button>
+                        ))
+                      }
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           {attachedDoc && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', marginBottom: 8, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, fontSize: 12.5, flexWrap: 'wrap' }}>
               <span style={{ color: '#166534', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📎 {attachedDoc.name}</span>
