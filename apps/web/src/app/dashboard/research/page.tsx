@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import LogoLoader from '../../../components/LogoLoader'
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
@@ -44,13 +45,12 @@ export default function ResearchPage() {
     setProgress('Searching verified case databases...')
 
     try {
-      const res = await fetch(
-        `${API}/api/research?q=${encodeURIComponent(query)}&jurisdiction=${jurisdiction}`,
-        {
+      const apiKey      = localStorage.getItem('law_oss_api_key') || ''
+      const apiProvider = localStorage.getItem('law_oss_provider') || 'claude'
+      const url = `${API}/api/research?q=${encodeURIComponent(query)}&jurisdiction=${encodeURIComponent(jurisdiction)}&apiKey=${encodeURIComponent(apiKey)}&apiProvider=${encodeURIComponent(apiProvider)}`
+      const res = await fetch(url, {
           headers: {
-            Authorization:     `Bearer ${token}`,
-            'X-Api-Key':       localStorage.getItem('law_oss_api_key') || '',
-            'X-Api-Provider':  localStorage.getItem('law_oss_provider') || 'claude',
+            Authorization: `Bearer ${token}`,
           },
         }
       )
@@ -139,7 +139,7 @@ export default function ResearchPage() {
             cursor: loading || !query.trim() ? 'not-allowed' : 'pointer',
           }}
         >
-          {loading ? 'Searching...' : 'Search'}
+          Search
         </button>
       </div>
 
@@ -150,10 +150,10 @@ export default function ResearchPage() {
         </div>
       )}
 
-      {/* Progress — only while loading */}
-      {progress && loading && (
-        <div style={{ padding: '10px 14px', background: '#f5f5f5', borderRadius: 8, marginBottom: 16, fontSize: 13, color: '#555' }}>
-          {progress}
+      {/* Loading */}
+      {loading && (
+        <div style={{ padding: '48px 0', display: 'flex', justifyContent: 'center' }}>
+          <LogoLoader label={progress || 'Searching case law...'} />
         </div>
       )}
 

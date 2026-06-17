@@ -64,7 +64,10 @@ router.get('/', requireAuth, async (req: AuthRequest, res, next) => {
       })
     }
 
-    const apiKeyH = (req.headers["x-api-key"] as string) || ""; const providerH = (req.headers["x-api-provider"] as string) || "claude"; const aiCfg = apiKeyH ? { key: apiKeyH, provider: providerH } : await getUserApiKey(req.user!.id)
+    // Read API key from header OR query param (query param avoids CORS preflight issues)
+    const apiKeyH   = (req.headers['x-api-key'] as string) || (req.query.apiKey as string) || ''
+    const providerH = (req.headers['x-api-provider'] as string) || (req.query.apiProvider as string) || 'claude'
+    const aiCfg     = apiKeyH ? { key: apiKeyH, provider: providerH } : await getUserApiKey(req.user!.id)
     if (!aiCfg) {
       send({ error: 'No API key configured. Add one in Settings.' })
       res.end()

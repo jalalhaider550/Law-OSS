@@ -14,11 +14,11 @@ const TABS = [
 ]
 
 const SYSTEM_PROMPTS: Record<string, string> = {
-  general: `You are Law OSS AI, an expert legal assistant. Apply the governing law relevant to the user's matter. If the user specifies a jurisdiction, apply that law; otherwise apply general common law principles. Be precise, professional and cite real legal authorities.`,
-  research: `You are Law OSS AI, an expert legal research assistant. Find relevant cases, statutes, and regulations. Always cite specific authorities with proper citation format. Never fabricate citations. Apply governing law as specified.`,
-  drafting: `You are Law OSS AI, an expert legal document drafter. Create precise, enforceable legal language. Mark client-specific gaps as [PLACEHOLDER]. Flag ambiguities and suggest improvements.`,
-  contract: `You are Law OSS AI, an expert contract analyst. Identify risks [CRITICAL/HIGH/MEDIUM/LOW], unusual clauses, and missing provisions. Compare against market standard terms.`,
-  litigation: `You are Law OSS AI, an expert litigation assistant. Analyse merits, identify key issues, suggest case strategy, and assess litigation risk with probability estimates.`,
+  general: `You are Law OSS AI, an expert legal assistant. Apply the governing law relevant to the user's matter. If the user specifies a jurisdiction, apply that law; otherwise apply general common law principles. Be precise, professional and cite real legal authorities. Do not use emojis, decorative symbols, or coloured text. Use plain professional text. Always produce complete responses without truncating.`,
+  research: `You are Law OSS AI, an expert legal research assistant. Find relevant cases, statutes, and regulations. Always cite specific authorities with proper citation format. Never fabricate citations. Apply governing law as specified. Do not use emojis, decorative symbols, or coloured text. Use plain professional text. Always produce complete responses without truncating.`,
+  drafting: `You are a senior commercial lawyer generating legally enforceable contracts and legal documents. CRITICAL — NEVER TRUNCATE: If a contract exceeds your output limit, split into sequential parts. End each part with [CONTINUE FROM CLAUSE X] and wait for the user to prompt continuation. Resume exactly where stopped. Never omit, summarise, or abbreviate clauses. Never stop mid-sentence or mid-clause. Every clause must contain complete legal drafting. Number all clauses sequentially. Use professional UK legal drafting standards unless another jurisdiction is specified. Do not use emojis, decorative symbols, or coloured text. Use plain professional text.`,
+  contract: `You are Law OSS AI, an expert contract analyst. Identify risks [CRITICAL/HIGH/MEDIUM/LOW], unusual clauses, and missing provisions. Compare against market standard terms. Do not use emojis, decorative symbols, or coloured text. Use plain professional text. Always produce complete responses without truncating.`,
+  litigation: `You are Law OSS AI, an expert litigation assistant. Analyse merits, identify key issues, suggest case strategy, and assess litigation risk with probability estimates. Do not use emojis, decorative symbols, or coloured text. Use plain professional text. Always produce complete responses without truncating.`,
 }
 
 const SUGGESTIONS = [
@@ -48,7 +48,7 @@ async function streamClaude(
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 2200,
+        max_tokens: 8000,
         stream: true,
         system: sys,
         messages,
@@ -103,7 +103,7 @@ async function streamGemini(
           role: m.role === 'assistant' ? 'model' : 'user',
           parts: [{ text: m.content }],
         })),
-        generationConfig: { maxOutputTokens: 2200, temperature: 0.3 },
+        generationConfig: { maxOutputTokens: 8000, temperature: 0.3 },
       }),
     })
     const reader = res.body!.getReader()
@@ -175,11 +175,26 @@ export default function DashboardPage() {
       setStreaming(false)
     }
 
-    if (provider === 'gemini') {
-      await streamGemini(apiKey, newHistory, sys, onToken, onDone, onError)
-    } else {
-      await streamClaude(apiKey, newHistory, sys, onToken, onDone, onError)
+    // Auto-continuation: if response ends with [CONTINUE FROM CLAUSE X], keep going
+    let history = newHistory
+    let continueLoop = true
+    while (continueLoop) {
+      continueLoop = false
+      let fullResponse = ''
+      await new Promise<void>((resolve) => {
+        const tok = (t: string) => { fullResponse += t; onToken(t) }
+        const done = () => resolve()
+        const err = (e: string) => { onError(e); resolve() }
+        if (provider === 'gemini') streamGemini(apiKey, history, sys, tok, done, err)
+        else streamClaude(apiKey, history, sys, tok, done, err)
+      })
+      if (/\[CONTINUE FROM CLAUSE/i.test(fullResponse)) {
+        continueLoop = true
+        history = [...history, { role: 'assistant', content: fullResponse }, { role: 'user', content: 'Continue.' }]
+        onToken('\n\n')
+      }
     }
+    setStreaming(false)
   }
 
   return (

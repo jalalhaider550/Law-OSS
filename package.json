@@ -26,6 +26,7 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
+    "pdfjs-dist": "4.10.38",
     "three": "^0.167.1"
   }
 }

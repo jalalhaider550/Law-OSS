@@ -1,9 +1,9 @@
 [build]
 builder = "nixpacks"
-buildCommand = "npm install && npx turbo run build --filter=@law-oss/api..."
+buildCommand = "npm install && npx turbo run build --filter=@law-oss/api... --force"
 
 [deploy]
 startCommand = "node apps/api/dist/index.js"
 healthcheckPath = "/health"
-healthcheckTimeout = 60
+healthcheckTimeout = 120
 restartPolicyType = "on_failure"

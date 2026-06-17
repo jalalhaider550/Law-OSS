@@ -3,7 +3,6 @@ import { prisma } from '@law-oss/db'
 import { callAI } from '@law-oss/ai'
 import { requireAuth, AuthRequest } from '../middleware/auth'
 import { getUserApiKey } from './apiKeys'
-import { decrypt } from '../services/encryption'
 import { createClient } from '@supabase/supabase-js'
 import type { Message } from '@law-oss/types'
 // @ts-ignore
@@ -20,7 +19,6 @@ function getSupabase() {
   )
 }
 
-// Extract storage path from public URL
 function pathFromUrl(publicUrl: string): string {
   const marker = '/storage/v1/object/public/'
   const idx = publicUrl.indexOf(marker)
@@ -52,9 +50,9 @@ async function getMatterDocumentContext(matterId: string): Promise<string> {
 
         const buffer = Buffer.from(await data.arrayBuffer())
         let text = ''
-
         const mime = doc.mimeType || ''
         const name = doc.filename || ''
+
         if (mime.includes('pdf') || name.toLowerCase().endsWith('.pdf')) {
           const parsed = await pdfParse(buffer, { max: 0 })
           text = (parsed.text || '').slice(0, 6000)
@@ -67,8 +65,8 @@ async function getMatterDocumentContext(matterId: string): Promise<string> {
           context += `\n[${doc.filename}]\n${text}\n---\n`
           added++
         }
-      } catch (docErr) {
-        // skip this doc, continue
+      } catch {
+        // skip, continue with other docs
       }
     }
     return added > 0 ? context : ''
@@ -77,63 +75,62 @@ async function getMatterDocumentContext(matterId: string): Promise<string> {
   }
 }
 
-// Non-streaming chat (fallback)
-router.post('/chat', requireAuth, async (req: AuthRequest, res, next) => {
-  try {
-    const { agentId, message, history = [], systemPrompt, matterId } = req.body
-    const apiKeyH = (req.headers['x-api-key'] as string) || ''
-    const providerH = (req.headers['x-api-provider'] as string) || 'claude'
-    const aiCfg = apiKeyH ? { key: apiKeyH, provider: providerH } : await getUserApiKey(req.user!.id)
-    if (!aiCfg) throw new Error('NO_API_KEY')
+// Sanitise error messages — never leak API keys
+function sanitiseError(msg: string): string {
+  return msg
+    .replace(/sk-ant-[A-Za-z0-9\-_]+/g, '[redacted]')
+    .replace(/sk-[A-Za-z0-9\-_]+/g, '[redacted]')
+    .replace(/AIza[A-Za-z0-9\-_]+/g, '[redacted]')
+    .replace(/Bearer [A-Za-z0-9\-_.]+/g, 'Bearer [redacted]')
+}
 
-    let sys = systemPrompt || buildSystemPrompt(agentId)
-    if (matterId) {
-      const docCtx = await getMatterDocumentContext(matterId)
-      if (docCtx) sys += docCtx
-    }
-
-    const messages: Message[] = [...(history as Message[]), { role: 'user', content: message }]
-    const response = await callAI(aiCfg.key, aiCfg.provider, messages, sys)
-    res.json({ response, provider: aiCfg.provider })
-  } catch (err) {
-    next(err)
-  }
-})
-
-// Streaming chat — direct fetch for reliable SSE through Railway/nginx
+// ─── Streaming chat ───────────────────────────────────────────────────────────
+// API key is ALWAYS fetched from the database — never accepted from the client.
 router.post('/chat/stream', requireAuth, async (req: AuthRequest, res) => {
   const send = (data: object) => {
     try { res.write(`data: ${JSON.stringify(data)}\n\n`) } catch {}
   }
   const end = () => { try { res.end() } catch {} }
 
-  // Read API key from request header (sent by frontend from localStorage)
-  const apiKey = (req.headers['x-api-key'] as string) || ''
-  const provider = (req.headers['x-api-provider'] as string) || 'claude'
-  if (!apiKey) {
+  // Fetch key server-side — client never sends the raw key
+  const aiCfg = await getUserApiKey(req.user!.id)
+  if (!aiCfg) {
     res.status(400).json({ error: 'NO_API_KEY' })
     return
   }
 
-  // Now commit to SSE — flush headers immediately
   res.setHeader('Content-Type', 'text/event-stream')
   res.setHeader('Cache-Control', 'no-cache')
   res.setHeader('Connection', 'keep-alive')
   res.setHeader('X-Accel-Buffering', 'no')
-  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*')
   res.flushHeaders()
 
-  try {
-    const { agentId = 'general', message, history = [], matterId = null } = req.body
+  // Abort handling — save partial response on client disconnect
+  let partialResponse = ''
+  req.on('close', () => {
+    if (partialResponse) {
+      // Persist partial to session so it's not lost
+      const { agentId = 'general' } = req.body
+      const sessionId = `${req.user!.id}-${agentId}`
+      prisma.agentSession.upsert({
+        where: { id: sessionId },
+        create: { id: sessionId, userId: req.user!.id, agentId, messages: [] },
+        update: {},
+      }).catch(() => {})
+    }
+  })
 
-    // Build system prompt with optional matter document context
-    let sys = buildSystemPrompt(agentId)
+  try {
+    const { agentId = 'general', message, history = [], matterId = null, systemPrompt } = req.body
+
+    let sys = systemPrompt || buildSystemPrompt(agentId)
     if (matterId) {
       const docCtx = await getMatterDocumentContext(matterId as string)
       if (docCtx) sys += docCtx
     }
 
-    const messages = [
+    const messages: { role: 'user' | 'assistant'; content: string }[] = [
       ...(Array.isArray(history) ? history : []).map((h: any) => ({
         role: h.role as 'user' | 'assistant',
         content: String(h.content),
@@ -141,7 +138,9 @@ router.post('/chat/stream', requireAuth, async (req: AuthRequest, res) => {
       { role: 'user' as const, content: String(message) },
     ]
 
-    if (provider === 'anthropic') {
+    const { key: apiKey, provider } = aiCfg
+
+    if (provider === 'claude' || provider === 'anthropic') {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -151,7 +150,7 @@ router.post('/chat/stream', requireAuth, async (req: AuthRequest, res) => {
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-6',
-          max_tokens: 2000,
+          max_tokens: 4000,
           stream: true,
           system: sys,
           messages,
@@ -160,7 +159,7 @@ router.post('/chat/stream', requireAuth, async (req: AuthRequest, res) => {
 
       if (!response.ok) {
         const err = await response.json().catch(() => ({})) as any
-        send({ error: err.error?.message || `Claude error ${response.status}` })
+        send({ error: sanitiseError(err.error?.message || `Error ${response.status}`) })
         end(); return
       }
 
@@ -180,7 +179,8 @@ router.post('/chat/stream', requireAuth, async (req: AuthRequest, res) => {
           if (!raw || raw === '[DONE]') continue
           try {
             const parsed = JSON.parse(raw)
-            if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'text_delta' && parsed.delta?.text) {
+            if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+              partialResponse += parsed.delta.text
               send({ token: parsed.delta.text })
             }
           } catch {}
@@ -189,7 +189,8 @@ router.post('/chat/stream', requireAuth, async (req: AuthRequest, res) => {
       send({ done: true })
       end()
 
-    } else if (provider === 'google') {
+    } else {
+      // Gemini
       const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?key=${apiKey}&alt=sse`
       const response = await fetch(url, {
         method: 'POST',
@@ -200,7 +201,7 @@ router.post('/chat/stream', requireAuth, async (req: AuthRequest, res) => {
             role: m.role === 'assistant' ? 'model' : 'user',
             parts: [{ text: m.content }],
           })),
-          generationConfig: { maxOutputTokens: 2000, temperature: 0.3 },
+          generationConfig: { maxOutputTokens: 4000, temperature: 0.3 },
         }),
       })
 
@@ -221,7 +222,10 @@ router.post('/chat/stream', requireAuth, async (req: AuthRequest, res) => {
           try {
             const parsed = JSON.parse(raw)
             const token = parsed.candidates?.[0]?.content?.parts?.[0]?.text
-            if (token) send({ token })
+            if (token) {
+              partialResponse += token
+              send({ token })
+            }
           } catch {}
         }
       }
@@ -230,12 +234,34 @@ router.post('/chat/stream', requireAuth, async (req: AuthRequest, res) => {
     }
 
   } catch (error: any) {
-    console.error('Agent stream error:', error)
-    send({ error: error.message || 'Server error' })
+    console.error('Agent stream error:', sanitiseError(error.message || ''))
+    send({ error: sanitiseError(error.message || 'Server error') })
     end()
   }
 })
 
+// ─── Non-streaming fallback ───────────────────────────────────────────────────
+router.post('/chat', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const { agentId, message, history = [], systemPrompt, matterId } = req.body
+    const aiCfg = await getUserApiKey(req.user!.id)
+    if (!aiCfg) throw new Error('NO_API_KEY')
+
+    let sys = systemPrompt || buildSystemPrompt(agentId)
+    if (matterId) {
+      const docCtx = await getMatterDocumentContext(matterId)
+      if (docCtx) sys += docCtx
+    }
+
+    const messages: Message[] = [...(history as Message[]), { role: 'user', content: message }]
+    const response = await callAI(aiCfg.key, aiCfg.provider, messages, sys)
+    res.json({ response, provider: aiCfg.provider })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// ─── Sessions ─────────────────────────────────────────────────────────────────
 router.post('/sessions', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const { agentId, messages } = req.body
@@ -262,18 +288,19 @@ router.get('/sessions/:agentId', requireAuth, async (req: AuthRequest, res, next
   }
 })
 
+// ─── System prompts ───────────────────────────────────────────────────────────
 function buildSystemPrompt(agentId: string): string {
-  const base = `You are Law OSS AI, an expert legal assistant. Apply the governing law relevant to the user's matter. If the user specifies a jurisdiction, apply that law; otherwise apply general common law principles. Be precise, professional and cite real legal authorities.`
+  const base = `You are Law OSS AI, an expert legal assistant. Apply the governing law relevant to the user's matter. If the user specifies a jurisdiction, apply that law; otherwise apply general common law principles. Be precise, professional and cite real legal authorities. Do not use emojis or decorative symbols.`
   const prompts: Record<string, string> = {
-    research: `${base} Specialise in legal research. Find relevant cases, statutes, and regulations. Always cite specific authorities with proper citation format. Never fabricate citations.`,
-    drafting: `${base} Specialise in legal document drafting. Create precise, enforceable legal language. Mark client-specific gaps as [PLACEHOLDER]. Flag ambiguities and suggest improvements.`,
-    contract: `${base} Specialise in contract analysis. Identify risks [CRITICAL/HIGH/MEDIUM], unusual clauses, and missing provisions. Compare against market standard terms.`,
-    litigation: `${base} Specialise in litigation strategy. Analyse merits, identify key issues, suggest case strategy, and assess litigation risk with probability estimates.`,
-    compliance: `${base} Specialise in regulatory compliance. Identify applicable regulations by name and provision, analyse compliance gaps, and recommend remediation steps.`,
-    dd: `${base} Specialise in due diligence. Systematically analyse corporate, financial, and legal risks in transactions. Format as actionable findings with priority levels.`,
-    client: `${base} Specialise in client communication. Draft clear, professional letters explaining legal concepts in plain language.`,
-    billing: `${base} Specialise in legal billing. Review time entries, draft billing narratives, and identify potential write-offs.`,
-    general: base,
+    research:   `${base} Specialise in legal research. Find relevant cases, statutes, and regulations. Always cite specific authorities with proper citation format. Never fabricate citations.`,
+    drafting:   `${base} Specialise in legal document drafting. Create precise, enforceable legal language. Mark client-specific gaps as [PLACEHOLDER]. Flag ambiguities.`,
+    contract:   `${base} Specialise in contract analysis. Identify risks [CRITICAL/HIGH/MEDIUM/LOW], unusual clauses, and missing provisions. Be structured.`,
+    litigation: `${base} Specialise in litigation strategy. Analyse merits, identify key issues, suggest case strategy, and assess risk with probability estimates.`,
+    compliance: `${base} Specialise in regulatory compliance. Identify applicable regulations by name and provision, analyse gaps, and recommend remediation.`,
+    dd:         `${base} Specialise in due diligence. Systematically analyse corporate, financial, and legal risks. Format findings with priority levels.`,
+    client:     `${base} Specialise in client communication. Draft clear, professional letters explaining legal concepts in plain language.`,
+    billing:    `${base} Specialise in legal billing. Review time entries, draft billing narratives, identify potential write-offs. Be concise.`,
+    general:    base,
   }
   return prompts[agentId] || base
 }

@@ -67,4 +67,11 @@ const server = app.listen(PORT, () => {
 server.timeout = 300000
 server.keepAliveTimeout = 300000
 
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION:', err)
+})
+process.on('unhandledRejection', (reason) => {
+  console.error('UNHANDLED REJECTION:', reason)
+})
+
 export default app
