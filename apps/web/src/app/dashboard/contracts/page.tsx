@@ -5,21 +5,26 @@ import MarkdownRenderer from '../../../components/MarkdownRenderer'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://law-oss-api-production.up.railway.app'
 
-const CONTRACT_SYS = `You are Law OSS AI, an expert contract analyst. When given a contract document, provide a thorough analysis including:
+// Every risk and every recommendation uses the same CHANGE block so they all get inline cards
+const CONTRACT_SYS = `You are Law OSS AI, an expert contract analyst. Analyse the contract and produce these sections:
+
 1. CONTRACT SUMMARY — parties, purpose, key dates, governing law
-2. KEY RISKS — rated [CRITICAL/HIGH/MEDIUM/LOW] with explanation
-3. UNUSUAL OR MISSING CLAUSES — flag anything non-standard or absent
-4. OBLIGATIONS — main duties of each party
-5. RECOMMENDED CHANGES — for each recommendation, format it EXACTLY as:
 
-**CHANGE [N]: [Short title]**
-- **Current text:** "[exact quote from contract, or 'Not present' if missing]"
-- **Suggested text:** "[your replacement text]"
-- **Reason:** [brief explanation]
+2. KEY RISKS & SUGGESTED FIXES — For EACH risk, write the risk explanation then IMMEDIATELY below it add a CHANGE block:
 
-This format is required for the accept/reject feature. Number changes sequentially.
+**CHANGE [N]: [Risk title]**
+- **Severity:** [CRITICAL/HIGH/MEDIUM/LOW]
+- **Current text:** "[exact risky clause, or 'Not present' if missing]"
+- **Suggested text:** "[your safer replacement]"
+- **Reason:** [why this matters]
 
-Be precise, structured, and professional. Use plain professional text with clear numbered headings. Always produce the complete analysis without truncating.`
+3. UNUSUAL OR MISSING CLAUSES — flag anything non-standard or absent. For each issue, add a CHANGE block in the same format continuing the numbering.
+
+4. OBLIGATIONS — main duties of each party (no CHANGE blocks needed here)
+
+Number CHANGE blocks sequentially across the entire document (1, 2, 3...).
+
+Be precise, structured, and professional. Always produce the complete analysis without truncating.`
 
 type StoredContract = {
   id: string
@@ -36,6 +41,7 @@ type StoredContract = {
 type ParsedChange = {
   index: number
   title: string
+  severity: string
   current: string
   suggested: string
   reason: string
@@ -113,18 +119,77 @@ async function streamContractAnalysis(
   } catch (e: any) { onError(e.message || 'Network error') }
 }
 
+// Parse all CHANGE blocks out of analysis text
 function parseChanges(analysis: string): ParsedChange[] {
   const changes: ParsedChange[] = []
-  const blockRe = /\*\*CHANGE (\d+):\s*([^\n*]+)\*\*\s*\n([\s\S]*?)(?=\*\*CHANGE \d+:|$)/gi
+  const blockRe = /\*\*CHANGE (\d+):\s*([^\n*]+)\*\*\s*\n([\s\S]*?)(?=\n\*\*CHANGE \d+:|$)/gi
   let m: RegExpExecArray | null
   while ((m = blockRe.exec(analysis)) !== null) {
     const index = parseInt(m[1]); const title = m[2].trim(); const body = m[3]
-    const currentMatch = /\*\*Current text:\*\*\s*[""]?([^"\n]+)[""]?/i.exec(body)
-    const suggestedMatch = /\*\*Suggested text:\*\*\s*[""]?([^"\n]+)[""]?/i.exec(body)
+    const sevMatch = /\*\*Severity:\*\*\s*([^\n]+)/i.exec(body)
+    const currentMatch = /\*\*Current text:\*\*\s*"?([^"\n]+)"?/i.exec(body)
+    const suggestedMatch = /\*\*Suggested text:\*\*\s*"?([^"\n]+)"?/i.exec(body)
     const reasonMatch = /\*\*Reason:\*\*\s*([^\n]+)/i.exec(body)
-    changes.push({ index, title, current: currentMatch?.[1]?.trim() || '', suggested: suggestedMatch?.[1]?.trim() || '', reason: reasonMatch?.[1]?.trim() || '' })
+    changes.push({
+      index, title,
+      severity: sevMatch?.[1]?.trim() || '',
+      current: currentMatch?.[1]?.trim() || '',
+      suggested: suggestedMatch?.[1]?.trim() || '',
+      reason: reasonMatch?.[1]?.trim() || '',
+    })
   }
   return changes
+}
+
+// Split analysis into segments: [text, changeIndex, text, changeIndex, ...]
+type Segment = { type: 'text'; content: string } | { type: 'change'; index: number }
+
+function splitAnalysisIntoSegments(analysis: string): Segment[] {
+  const segments: Segment[] = []
+  // Split on CHANGE block headers
+  const parts = analysis.split(/(?=\*\*CHANGE \d+:)/i)
+  const changeHeaderRe = /^\*\*CHANGE (\d+):[^\n]+\*\*[\s\S]*?(?=\n\*\*CHANGE \d+:|$)/i
+
+  for (const part of parts) {
+    const headerMatch = /^\*\*CHANGE (\d+):/.exec(part)
+    if (headerMatch) {
+      const idx = parseInt(headerMatch[1])
+      // Find where the change block ends (before next prose) — take everything after the block as text
+      // The block is the lines starting with ** and - **
+      const blockEnd = findChangeBlockEnd(part)
+      const afterBlock = part.slice(blockEnd).trim()
+      segments.push({ type: 'change', index: idx })
+      if (afterBlock) segments.push({ type: 'text', content: afterBlock })
+    } else if (part.trim()) {
+      segments.push({ type: 'text', content: part })
+    }
+  }
+  return segments
+}
+
+function findChangeBlockEnd(text: string): number {
+  const lines = text.split('\n')
+  let inBlock = false
+  let endLine = lines.length
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i].trim()
+    if (l.startsWith('**CHANGE')) { inBlock = true; continue }
+    if (inBlock) {
+      if (l.startsWith('- **') || l === '') continue
+      // Non-block line after block started — this is prose after the block
+      endLine = i; break
+    }
+  }
+  return lines.slice(0, endLine).join('\n').length
+}
+
+// Severity color mapping
+function severityStyle(sev: string): { bg: string; color: string; border: string } {
+  const s = sev.toUpperCase()
+  if (s.includes('CRITICAL')) return { bg: '#fef2f2', color: '#991b1b', border: '#fca5a5' }
+  if (s.includes('HIGH')) return { bg: '#fff7ed', color: '#c2410c', border: '#fdba74' }
+  if (s.includes('MEDIUM')) return { bg: '#fefce8', color: '#92400e', border: '#fde047' }
+  return { bg: '#f0fdf4', color: '#166534', border: '#86efac' }
 }
 
 // Apply accepted changes to doc text
@@ -135,7 +200,6 @@ function applyChangesToDoc(docText: string, changes: ParsedChange[], acceptedSet
     if (change.current && change.suggested && change.current !== 'Not present' && change.current !== '') {
       result = result.replace(change.current, change.suggested)
     } else if (change.suggested && (!change.current || change.current === 'Not present')) {
-      // Append at end
       result = result + '\n\n' + change.suggested
     }
   }
@@ -151,6 +215,136 @@ function findRelated(filename: string, stored: StoredContract[]): StoredContract
   return match || null
 }
 
+// Inline change card rendered within the analysis flow
+function InlineChangeCard({
+  change, accepted, rejected,
+  onAccept, onReject,
+}: {
+  change: ParsedChange
+  accepted: Set<number>
+  rejected: Set<number>
+  onAccept: (i: number) => void
+  onReject: (i: number) => void
+}) {
+  const isAcc = accepted.has(change.index)
+  const isRej = rejected.has(change.index)
+  const sev = severityStyle(change.severity)
+  return (
+    <div style={{
+      margin: '10px 0 18px',
+      border: `1.5px solid ${isAcc ? '#86efac' : isRej ? '#fca5a5' : sev.border}`,
+      borderRadius: 10,
+      background: isAcc ? '#f0fdf4' : isRej ? '#fff1f2' : sev.bg,
+      overflow: 'hidden',
+    }}>
+      {/* Header */}
+      <div style={{ padding: '10px 14px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+          {change.severity && (
+            <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 7px', borderRadius: 6, background: sev.border, color: sev.color, flexShrink: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              {change.severity.replace(/\[|\]/g, '')}
+            </span>
+          )}
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#0f0f0f', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {change.title}
+          </span>
+        </div>
+        {/* Accept / Reject buttons */}
+        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+          <button
+            onClick={() => onAccept(change.index)}
+            style={{
+              padding: '5px 13px', borderRadius: 7, fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+              background: isAcc ? '#16a34a' : '#fff',
+              color: isAcc ? '#fff' : '#16a34a',
+              border: `1.5px solid ${isAcc ? '#16a34a' : '#86efac'}`,
+            }}>
+            {isAcc ? 'Accepted' : 'Accept'}
+          </button>
+          <button
+            onClick={() => onReject(change.index)}
+            style={{
+              padding: '5px 13px', borderRadius: 7, fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+              background: isRej ? '#dc2626' : '#fff',
+              color: isRej ? '#fff' : '#dc2626',
+              border: `1.5px solid ${isRej ? '#dc2626' : '#fca5a5'}`,
+            }}>
+            {isRej ? 'Rejected' : 'Reject'}
+          </button>
+        </div>
+      </div>
+      {/* Current / Suggested */}
+      {(change.current || change.suggested) && (
+        <div style={{ padding: '0 14px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {change.current && change.current !== 'Not present' && (
+            <div style={{ background: 'rgba(185,28,28,0.05)', border: '1px solid rgba(185,28,28,0.12)', borderRadius: 6, padding: '7px 10px' }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: '#b91c1c', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Current</div>
+              <div style={{ fontSize: 12.5, color: '#555', fontStyle: 'italic', lineHeight: 1.5 }}>{change.current}</div>
+            </div>
+          )}
+          {change.suggested && (
+            <div style={{ background: 'rgba(21,128,61,0.05)', border: '1px solid rgba(21,128,61,0.12)', borderRadius: 6, padding: '7px 10px' }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: '#15803d', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Suggested fix</div>
+              <div style={{ fontSize: 12.5, color: '#1a1a1a', lineHeight: 1.5 }}>{change.suggested}</div>
+            </div>
+          )}
+          {change.reason && (
+            <div style={{ fontSize: 12, color: '#888', paddingTop: 2, lineHeight: 1.5 }}>{change.reason}</div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Analysis renderer: interleaves markdown text with inline change cards
+function AnalysisWithInlineCards({
+  analysis, changes, accepted, rejected, busy,
+  onAccept, onReject,
+}: {
+  analysis: string
+  changes: ParsedChange[]
+  accepted: Set<number>
+  rejected: Set<number>
+  busy: boolean
+  onAccept: (i: number) => void
+  onReject: (i: number) => void
+}) {
+  if (busy && !analysis) return (
+    <div style={{ fontSize: 14, color: '#888', padding: '8px 0' }}>Analysing...</div>
+  )
+
+  const changeMap = new Map(changes.map(c => [c.index, c]))
+  const segments = splitAnalysisIntoSegments(analysis)
+
+  return (
+    <div style={{ fontSize: 14 }}>
+      {segments.map((seg, i) => {
+        if (seg.type === 'text') {
+          return (
+            <div key={i}>
+              <MarkdownRenderer content={seg.content} />
+            </div>
+          )
+        }
+        const change = changeMap.get(seg.index)
+        if (!change) return null
+        return (
+          <InlineChangeCard
+            key={i}
+            change={change}
+            accepted={accepted}
+            rejected={rejected}
+            onAccept={onAccept}
+            onReject={onReject}
+          />
+        )
+      })}
+      {busy && <span style={{ display: 'inline-block', width: 8, height: 14, background: '#0f0f0f', marginLeft: 2, animation: 'pulse 1s infinite', verticalAlign: 'middle' }} />}
+    </div>
+  )
+}
+
 // Word doc viewer/editor panel
 function DocPanel({ contract, changes, accepted, onClose }: {
   contract: StoredContract
@@ -160,11 +354,10 @@ function DocPanel({ contract, changes, accepted, onClose }: {
 }) {
   const storedAcc = new Set<number>(contract.acceptedChanges || [])
   const effectiveAcc = accepted.size > 0 ? accepted : storedAcc
-  const baseText = contract.docText || '(Original document text not available — please re-upload to enable editing.)'
+  const baseText = contract.docText || '(Original document text not available — re-upload to enable editing.)'
   const [content, setContent] = useState(() => applyChangesToDoc(baseText, changes, effectiveAcc))
   const [saved, setSaved] = useState(false)
 
-  // Re-apply when accepted changes update
   useEffect(() => {
     setContent(applyChangesToDoc(baseText, changes, effectiveAcc))
   }, [accepted.size, storedAcc.size])
@@ -178,7 +371,6 @@ function DocPanel({ contract, changes, accepted, onClose }: {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#e8e8e8' }}>
-      {/* Toolbar */}
       <div style={{ background: '#2b2b2b', padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>{contract.filename}</span>
@@ -189,47 +381,20 @@ function DocPanel({ contract, changes, accepted, onClose }: {
           )}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={handleSave} style={{
-            padding: '5px 14px', background: saved ? '#16a34a' : '#fff', color: saved ? '#fff' : '#0f0f0f',
-            border: 'none', borderRadius: 6, fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
-          }}>
+          <button onClick={handleSave} style={{ padding: '5px 14px', background: saved ? '#16a34a' : '#fff', color: saved ? '#fff' : '#0f0f0f', border: 'none', borderRadius: 6, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
             {saved ? 'Saved' : 'Save'}
           </button>
-          <button onClick={onClose} style={{
-            padding: '5px 12px', background: 'rgba(255,255,255,0.1)', color: '#fff',
-            border: 'none', borderRadius: 6, fontSize: 12.5, cursor: 'pointer',
-          }}>
+          <button onClick={onClose} style={{ padding: '5px 12px', background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12.5, cursor: 'pointer' }}>
             Close
           </button>
         </div>
       </div>
-
-      {/* Page area */}
       <div style={{ flex: 1, overflow: 'auto', padding: '32px 40px' }}>
-        <div style={{
-          background: '#fff',
-          boxShadow: '0 2px 16px rgba(0,0,0,0.18)',
-          borderRadius: 2,
-          minHeight: '100%',
-          padding: '72px 80px',
-          maxWidth: 820,
-          margin: '0 auto',
-        }}>
+        <div style={{ background: '#fff', boxShadow: '0 2px 16px rgba(0,0,0,0.18)', borderRadius: 2, minHeight: '100%', padding: '72px 80px', maxWidth: 820, margin: '0 auto' }}>
           <textarea
             value={content}
             onChange={e => setContent(e.target.value)}
-            style={{
-              width: '100%',
-              minHeight: 900,
-              border: 'none',
-              outline: 'none',
-              resize: 'none',
-              fontFamily: '"Times New Roman", Times, serif',
-              fontSize: 14,
-              lineHeight: 1.8,
-              color: '#1a1a1a',
-              background: 'transparent',
-            }}
+            style={{ width: '100%', minHeight: 900, border: 'none', outline: 'none', resize: 'none', fontFamily: '"Times New Roman", Times, serif', fontSize: 14, lineHeight: 1.8, color: '#1a1a1a', background: 'transparent' }}
             spellCheck
           />
         </div>
@@ -250,7 +415,6 @@ export default function ContractsPage() {
   const [accepted, setAccepted] = useState<Set<number>>(new Set())
   const [rejected, setRejected] = useState<Set<number>>(new Set())
   const [currentContractId, setCurrentContractId] = useState<string | null>(null)
-  // Split-pane doc viewer
   const [docPanelContract, setDocPanelContract] = useState<StoredContract | null>(null)
 
   const fileRef = useRef<HTMLInputElement>(null)
@@ -258,7 +422,6 @@ export default function ContractsPage() {
 
   useEffect(() => { setStored(loadContracts()) }, [])
 
-  // Sync doc panel when stored updates (e.g. after accept/reject saves)
   useEffect(() => {
     if (docPanelContract) {
       const fresh = stored.find(c => c.id === docPanelContract.id)
@@ -271,8 +434,7 @@ export default function ContractsPage() {
     if (!session) { setError('Please sign in first.'); return }
 
     setError(''); setBusy(true); setAnalysis(''); setSelectedFilename(file.name)
-    setAccepted(new Set()); setRejected(new Set()); setCurrentContractId(null)
-    setDocPanelContract(null)
+    setAccepted(new Set()); setRejected(new Set()); setCurrentContractId(null); setDocPanelContract(null)
     setProgress('Reading document...')
 
     let docText = ''
@@ -330,102 +492,79 @@ export default function ContractsPage() {
     if (docPanelContract?.id === id) setDocPanelContract(null)
   }
 
-  function persistDecision(accSet: Set<number>, rejSet: Set<number>) {
-    if (!currentContractId) return
+  function persistDecision(accSet: Set<number>, rejSet: Set<number>, cid = currentContractId) {
+    if (!cid) return
     const current = loadContracts()
-    const updated = current.map(c => c.id === currentContractId
+    const updated = current.map(c => c.id === cid
       ? { ...c, acceptedChanges: [...accSet], rejectedChanges: [...rejSet] } : c)
     saveContracts(updated); setStored(updated)
   }
 
-  function handleAccept(changeIndex: number) {
-    const newAcc = new Set(accepted); newAcc.add(changeIndex)
-    const newRej = new Set(rejected); newRej.delete(changeIndex)
-    setAccepted(newAcc); setRejected(newRej)
-    persistDecision(newAcc, newRej)
+  function handleAccept(changeIndex: number, cid?: string) {
+    if (cid) {
+      // For history contracts
+      const c = stored.find(s => s.id === cid)!
+      const newAcc = new Set<number>(c.acceptedChanges || []); newAcc.add(changeIndex)
+      const newRej = new Set<number>(c.rejectedChanges || []); newRej.delete(changeIndex)
+      persistDecision(newAcc, newRej, cid)
+    } else {
+      const newAcc = new Set(accepted); newAcc.add(changeIndex)
+      const newRej = new Set(rejected); newRej.delete(changeIndex)
+      setAccepted(newAcc); setRejected(newRej)
+      persistDecision(newAcc, newRej)
+    }
   }
 
-  function handleReject(changeIndex: number) {
-    const newRej = new Set(rejected); newRej.add(changeIndex)
-    const newAcc = new Set(accepted); newAcc.delete(changeIndex)
-    setRejected(newRej); setAccepted(newAcc)
-    persistDecision(newAcc, newRej)
-  }
-
-  function openDocPanel(contract: StoredContract) {
-    setDocPanelContract(contract)
+  function handleReject(changeIndex: number, cid?: string) {
+    if (cid) {
+      const c = stored.find(s => s.id === cid)!
+      const newRej = new Set<number>(c.rejectedChanges || []); newRej.add(changeIndex)
+      const newAcc = new Set<number>(c.acceptedChanges || []); newAcc.delete(changeIndex)
+      persistDecision(newAcc, newRej, cid)
+    } else {
+      const newRej = new Set(rejected); newRej.add(changeIndex)
+      const newAcc = new Set(accepted); newAcc.delete(changeIndex)
+      setRejected(newRej); setAccepted(newAcc)
+      persistDecision(newAcc, newRej)
+    }
   }
 
   const topLevel = stored.filter(c => !c.parentId)
   const changes = analysis ? parseChanges(analysis) : []
-  const pendingCount = changes.filter(c => !accepted.has(c.index) && !rejected.has(c.index)).length
   const currentContract = currentContractId ? stored.find(c => c.id === currentContractId) : null
 
-  // Full-screen split when doc panel is open
+  // Full-screen split-pane doc viewer
   if (docPanelContract) {
     const docChanges = parseChanges(docPanelContract.analysis || '')
-    const docAccepted = new Set<number>(docPanelContract.acceptedChanges || [])
+    const docAcc = new Set<number>(docPanelContract.acceptedChanges || [])
+    const docRej = new Set<number>(docPanelContract.rejectedChanges || [])
     return (
       <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
-        {/* Left: analysis */}
-        <div style={{ width: '42%', borderRight: '1px solid rgba(0,0,0,0.1)', overflow: 'auto', background: '#fff' }}>
-          <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button onClick={() => setDocPanelContract(null)} style={{ padding: '5px 12px', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 6, background: '#fff', fontSize: 12.5, cursor: 'pointer', color: '#555' }}>
-              ← Back
-            </button>
+        <div style={{ width: '44%', borderRight: '1px solid rgba(0,0,0,0.1)', overflow: 'auto', background: '#fff' }}>
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', display: 'flex', alignItems: 'center', gap: 10, position: 'sticky', top: 0, background: '#fff', zIndex: 10 }}>
+            <button onClick={() => setDocPanelContract(null)} style={{ padding: '5px 12px', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 6, background: '#fff', fontSize: 12.5, cursor: 'pointer', color: '#555' }}>← Back</button>
             <span style={{ fontSize: 14, fontWeight: 600, color: '#0f0f0f' }}>AI Analysis</span>
+            <span style={{ fontSize: 12, color: '#aaa', marginLeft: 'auto' }}>
+              {docAcc.size}/{docChanges.length} accepted
+            </span>
           </div>
-          <div style={{ padding: '20px' }}>
-            <MarkdownRenderer content={docPanelContract.analysis} />
-
-            {/* Accept/Reject in left panel */}
-            {docChanges.length > 0 && (
-              <div style={{ marginTop: 24, borderTop: '1px solid rgba(0,0,0,0.07)', paddingTop: 20 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#999', marginBottom: 14 }}>Recommended Changes</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {docChanges.map(change => {
-                    const isAcc = docAccepted.has(change.index)
-                    const storedRej = new Set<number>(docPanelContract.rejectedChanges || [])
-                    const isRej = storedRej.has(change.index)
-                    return (
-                      <div key={change.index} style={{ border: `1.5px solid ${isAcc ? '#86efac' : isRej ? '#fca5a5' : 'rgba(0,0,0,0.1)'}`, borderRadius: 8, padding: '10px 12px', background: isAcc ? '#f0fdf4' : isRej ? '#fff1f2' : '#fafafa' }}>
-                        <div style={{ fontSize: 12.5, fontWeight: 700, color: '#0f0f0f', marginBottom: 6 }}>Change {change.index}: {change.title}</div>
-                        {change.reason && <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>{change.reason}</div>}
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button onClick={() => {
-                            const newAcc = new Set(docAccepted); newAcc.add(change.index)
-                            const storedRejSet = new Set<number>(docPanelContract.rejectedChanges || []); storedRejSet.delete(change.index)
-                            const all = loadContracts()
-                            const updated = all.map(c => c.id === docPanelContract.id ? { ...c, acceptedChanges: [...newAcc], rejectedChanges: [...storedRejSet] } : c)
-                            saveContracts(updated); setStored(updated)
-                          }} style={{ padding: '4px 12px', border: `1.5px solid ${isAcc ? '#16a34a' : '#86efac'}`, borderRadius: 6, background: isAcc ? '#16a34a' : '#f0fdf4', color: isAcc ? '#fff' : '#16a34a', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                            {isAcc ? 'Accepted' : 'Accept'}
-                          </button>
-                          <button onClick={() => {
-                            const storedRejSet = new Set<number>(docPanelContract.rejectedChanges || []); storedRejSet.add(change.index)
-                            const newAcc = new Set(docAccepted); newAcc.delete(change.index)
-                            const all = loadContracts()
-                            const updated = all.map(c => c.id === docPanelContract.id ? { ...c, acceptedChanges: [...newAcc], rejectedChanges: [...storedRejSet] } : c)
-                            saveContracts(updated); setStored(updated)
-                          }} style={{ padding: '4px 12px', border: `1.5px solid ${isRej ? '#dc2626' : '#fca5a5'}`, borderRadius: 6, background: isRej ? '#dc2626' : '#fff1f2', color: isRej ? '#fff' : '#dc2626', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                            {isRej ? 'Rejected' : 'Reject'}
-                          </button>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
+          <div style={{ padding: '16px 20px' }}>
+            <AnalysisWithInlineCards
+              analysis={docPanelContract.analysis}
+              changes={docChanges}
+              accepted={docAcc}
+              rejected={docRej}
+              busy={false}
+              onAccept={(i) => handleAccept(i, docPanelContract.id)}
+              onReject={(i) => handleReject(i, docPanelContract.id)}
+            />
           </div>
         </div>
-
-        {/* Right: Word-style doc editor */}
         <div style={{ flex: 1, overflow: 'hidden' }}>
           <DocPanel
             contract={docPanelContract}
             changes={docChanges}
-            accepted={docAccepted}
+            accepted={docAcc}
             onClose={() => setDocPanelContract(null)}
           />
         </div>
@@ -440,7 +579,6 @@ export default function ContractsPage() {
         <p style={{ fontSize: 13.5, color: '#888', margin: '4px 0 0' }}>Upload a contract for AI-powered risk analysis. Supports PDF and Word (.docx) — full document, no length limit.</p>
       </div>
 
-      {/* Version prompt modal */}
       {versionPrompt && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: '#fff', borderRadius: 12, padding: '28px', maxWidth: 420, width: '90%', boxShadow: '0 8px 40px rgba(0,0,0,0.18)' }}>
@@ -462,7 +600,6 @@ export default function ContractsPage() {
         </div>
       )}
 
-      {/* Drop zone */}
       <div onDrop={onDrop} onDragOver={e => e.preventDefault()}
         onClick={() => !busy && fileRef.current?.click()}
         style={{ border: '2px dashed rgba(0,0,0,0.18)', borderRadius: 12, padding: '40px 24px', textAlign: 'center', cursor: busy ? 'not-allowed' : 'pointer', background: busy ? '#f5f5f5' : 'rgba(0,0,0,0.01)', marginBottom: 20 }}>
@@ -487,7 +624,7 @@ export default function ContractsPage() {
         </div>
       )}
 
-      {/* Live analysis after upload */}
+      {/* Live analysis */}
       {(analysis || (busy && progress.includes('Analysing'))) && (
         <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.1)', borderRadius: 12, marginBottom: 20, overflow: 'hidden' }}>
           <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -495,69 +632,34 @@ export default function ContractsPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               {!busy && changes.length > 0 && (
                 <span style={{ fontSize: 12, color: '#888' }}>
-                  {accepted.size + rejected.size}/{changes.length} changes reviewed
-                  {pendingCount > 0 && <span style={{ color: '#d97706', marginLeft: 6 }}>{pendingCount} pending</span>}
+                  {accepted.size + rejected.size}/{changes.length} reviewed
                 </span>
               )}
               {!busy && currentContract && (
-                <button onClick={() => openDocPanel(currentContract)} style={{
-                  padding: '6px 14px', border: 'none', borderRadius: 7,
-                  background: '#0f0f0f', color: '#fff', fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
-                }}>
+                <button onClick={() => setDocPanelContract(currentContract)} style={{ padding: '6px 14px', border: 'none', borderRadius: 7, background: '#0f0f0f', color: '#fff', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
                   Open Document
                 </button>
               )}
             </div>
           </div>
-          <div style={{ padding: '20px 24px', fontSize: 14 }}>
-            <MarkdownRenderer content={analysis} />
-            {busy && <span style={{ display: 'inline-block', width: 8, height: 14, background: '#0f0f0f', marginLeft: 2, animation: 'pulse 1s infinite', verticalAlign: 'middle' }} />}
+          <div style={{ padding: '20px 24px' }}>
+            <AnalysisWithInlineCards
+              analysis={analysis}
+              changes={changes}
+              accepted={accepted}
+              rejected={rejected}
+              busy={busy}
+              onAccept={handleAccept}
+              onReject={handleReject}
+            />
           </div>
-
-          {/* Accept/Reject panel */}
-          {!busy && changes.length > 0 && (
-            <div style={{ borderTop: '1px solid rgba(0,0,0,0.07)', padding: '20px 24px' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#999', marginBottom: 14 }}>
-                Recommended Changes
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {changes.map(change => {
-                  const isAccepted = accepted.has(change.index)
-                  const isRejected = rejected.has(change.index)
-                  return (
-                    <div key={change.index} style={{
-                      border: `1.5px solid ${isAccepted ? '#86efac' : isRejected ? '#fca5a5' : 'rgba(0,0,0,0.1)'}`,
-                      borderRadius: 10, background: isAccepted ? '#f0fdf4' : isRejected ? '#fff1f2' : '#fafafa', overflow: 'hidden',
-                    }}>
-                      <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: '#0f0f0f', marginBottom: 6 }}>Change {change.index}: {change.title}</div>
-                          {change.current && <div style={{ marginBottom: 5 }}><span style={{ fontSize: 11.5, fontWeight: 600, color: '#b91c1c', marginRight: 6 }}>Current:</span><span style={{ fontSize: 12.5, color: '#555', fontStyle: 'italic' }}>{change.current}</span></div>}
-                          {change.suggested && <div style={{ marginBottom: 5 }}><span style={{ fontSize: 11.5, fontWeight: 600, color: '#15803d', marginRight: 6 }}>Suggested:</span><span style={{ fontSize: 12.5, color: '#333' }}>{change.suggested}</span></div>}
-                          {change.reason && <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>{change.reason}</div>}
-                        </div>
-                        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                          <button onClick={() => handleAccept(change.index)} style={{ padding: '6px 14px', borderRadius: 7, background: isAccepted ? '#16a34a' : '#f0fdf4', color: isAccepted ? '#fff' : '#16a34a', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', border: `1.5px solid ${isAccepted ? '#16a34a' : '#86efac'}` }}>
-                            {isAccepted ? 'Accepted' : 'Accept'}
-                          </button>
-                          <button onClick={() => handleReject(change.index)} style={{ padding: '6px 14px', borderRadius: 7, background: isRejected ? '#dc2626' : '#fff1f2', color: isRejected ? '#fff' : '#dc2626', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', border: `1.5px solid ${isRejected ? '#dc2626' : '#fca5a5'}` }}>
-                            {isRejected ? 'Rejected' : 'Reject'}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-              {changes.length > 0 && accepted.size + rejected.size === changes.length && (
-                <div style={{ marginTop: 16, padding: '12px 16px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #86efac', fontSize: 13.5, color: '#15803d', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>All {changes.length} changes reviewed — {accepted.size} accepted, {rejected.size} rejected.</span>
-                  {currentContract && (
-                    <button onClick={() => openDocPanel(currentContract)} style={{ padding: '6px 16px', border: 'none', borderRadius: 7, background: '#0f0f0f', color: '#fff', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
-                      Open Document
-                    </button>
-                  )}
-                </div>
+          {!busy && accepted.size + rejected.size === changes.length && changes.length > 0 && (
+            <div style={{ margin: '0 24px 20px', padding: '12px 16px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #86efac', fontSize: 13.5, color: '#15803d', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>All {changes.length} changes reviewed — {accepted.size} accepted, {rejected.size} rejected</span>
+              {currentContract && (
+                <button onClick={() => setDocPanelContract(currentContract)} style={{ padding: '6px 16px', border: 'none', borderRadius: 7, background: '#0f0f0f', color: '#fff', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
+                  Open Document
+                </button>
               )}
             </div>
           )}
@@ -576,6 +678,7 @@ export default function ContractsPage() {
               const analysisExpanded = expandedIds.has('analysis_' + c.id)
               const accLen = c.acceptedChanges?.length ?? 0
               const rejLen = c.rejectedChanges?.length ?? 0
+              const totalChanges = parseChanges(c.analysis || '').length
 
               return (
                 <div key={c.id} style={{ border: '1px solid rgba(0,0,0,0.08)', borderRadius: 10, overflow: 'hidden' }}>
@@ -585,12 +688,16 @@ export default function ContractsPage() {
                         <span style={{ fontSize: 13.5, fontWeight: 600, color: '#0f0f0f' }}>{c.filename}</span>
                         <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 10, background: 'rgba(0,0,0,0.07)', color: '#555' }}>v{c.versionNumber}</span>
                         {hasVersions && <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 10, background: '#e0f2fe', color: '#0369a1' }}>{versions.length + 1} versions</span>}
-                        {(accLen > 0 || rejLen > 0) && <span style={{ fontSize: 11, color: '#888' }}>{accLen} accepted · {rejLen} rejected</span>}
+                        {totalChanges > 0 && (
+                          <span style={{ fontSize: 11, color: accLen + rejLen === totalChanges ? '#15803d' : '#888' }}>
+                            {accLen + rejLen}/{totalChanges} reviewed
+                          </span>
+                        )}
                       </div>
                       <div style={{ fontSize: 12, color: '#aaa', marginTop: 2 }}>{new Date(c.createdAt).toLocaleString()}</div>
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button onClick={() => openDocPanel(c)} style={{ padding: '5px 12px', border: 'none', borderRadius: 6, background: '#0f0f0f', color: '#fff', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>
+                      <button onClick={() => setDocPanelContract(c)} style={{ padding: '5px 12px', border: 'none', borderRadius: 6, background: '#0f0f0f', color: '#fff', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>
                         Open Doc
                       </button>
                       {c.analysis && (
@@ -600,7 +707,7 @@ export default function ContractsPage() {
                       )}
                       {hasVersions && (
                         <button onClick={() => toggleExpand(c.id)} style={{ padding: '5px 12px', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 6, background: '#fff', fontSize: 12, cursor: 'pointer', color: '#555' }}>
-                          {isExpanded ? 'Hide versions' : 'Versions'}
+                          {isExpanded ? 'Hide' : 'Versions'}
                         </button>
                       )}
                       <button onClick={() => deleteContract(c.id)} style={{ padding: '5px 10px', border: '1px solid #fca5a5', borderRadius: 6, background: '#fff', fontSize: 12, cursor: 'pointer', color: '#b91c1c' }}>Delete</button>
@@ -608,8 +715,16 @@ export default function ContractsPage() {
                   </div>
 
                   {analysisExpanded && c.analysis && (
-                    <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(0,0,0,0.06)', background: '#fff', fontSize: 13.5 }}>
-                      <MarkdownRenderer content={c.analysis} />
+                    <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(0,0,0,0.06)', background: '#fff' }}>
+                      <AnalysisWithInlineCards
+                        analysis={c.analysis}
+                        changes={parseChanges(c.analysis)}
+                        accepted={new Set<number>(c.acceptedChanges || [])}
+                        rejected={new Set<number>(c.rejectedChanges || [])}
+                        busy={false}
+                        onAccept={(i) => handleAccept(i, c.id)}
+                        onReject={(i) => handleReject(i, c.id)}
+                      />
                     </div>
                   )}
 
@@ -627,14 +742,22 @@ export default function ContractsPage() {
                             <div style={{ fontSize: 11.5, color: '#bbb', marginTop: 1 }}>{new Date(v.createdAt).toLocaleString()}</div>
                           </div>
                           <div style={{ display: 'flex', gap: 6 }}>
-                            <button onClick={() => openDocPanel(v)} style={{ padding: '4px 10px', border: 'none', borderRadius: 6, background: '#0f0f0f', color: '#fff', fontSize: 11.5, cursor: 'pointer', fontWeight: 600 }}>Open Doc</button>
+                            <button onClick={() => setDocPanelContract(v)} style={{ padding: '4px 10px', border: 'none', borderRadius: 6, background: '#0f0f0f', color: '#fff', fontSize: 11.5, cursor: 'pointer', fontWeight: 600 }}>Open Doc</button>
                             {v.analysis && <button onClick={() => toggleExpand(vKey)} style={{ padding: '4px 10px', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 6, background: '#fff', fontSize: 11.5, cursor: 'pointer', color: '#555' }}>{vExpanded ? 'Hide' : 'Analysis'}</button>}
                             <button onClick={() => deleteContract(v.id)} style={{ padding: '4px 8px', border: '1px solid #fca5a5', borderRadius: 6, background: '#fff', fontSize: 11.5, cursor: 'pointer', color: '#b91c1c' }}>Delete</button>
                           </div>
                         </div>
                         {vExpanded && v.analysis && (
-                          <div style={{ padding: '14px 20px', borderTop: '1px solid rgba(0,0,0,0.05)', background: '#fff', fontSize: 13.5 }}>
-                            <MarkdownRenderer content={v.analysis} />
+                          <div style={{ padding: '14px 20px', borderTop: '1px solid rgba(0,0,0,0.05)', background: '#fff' }}>
+                            <AnalysisWithInlineCards
+                              analysis={v.analysis}
+                              changes={parseChanges(v.analysis)}
+                              accepted={new Set<number>(v.acceptedChanges || [])}
+                              rejected={new Set<number>(v.rejectedChanges || [])}
+                              busy={false}
+                              onAccept={(i) => handleAccept(i, v.id)}
+                              onReject={(i) => handleReject(i, v.id)}
+                            />
                           </div>
                         )}
                       </div>
