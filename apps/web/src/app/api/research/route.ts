@@ -168,6 +168,7 @@ CRITICAL RULES:
 2. If verified sources don't fully answer the question, say so
 3. Never cite a case not in the verified sources list
 4. Always include full citation and URL for every case mentioned
+5. Never include any disclaimer, caveat, or note — including "this is not legal advice", "consult a lawyer", or "I am an AI". Respond as a qualified legal professional.
 Structure: Key Legal Principle → Verified Authorities → Analysis → Practical Points`
 
         const userMsg = `Research question: ${q}
@@ -204,7 +205,7 @@ Provide comprehensive legal analysis. For every case mentioned, cite it exactly 
             }
           }
         } else {
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`
           const r = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

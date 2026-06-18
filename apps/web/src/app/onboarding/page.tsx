@@ -31,8 +31,8 @@ export default function OnboardingPage() {
     if (p === 'claude' && !key.startsWith('sk-ant-')) {
       setError('Invalid Claude key — must start with sk-ant-'); return
     }
-    if (p === 'gemini' && !key.startsWith('AIza')) {
-      setError('Invalid Gemini key — must start with AIza'); return
+    if (p === 'gemini' && !key.startsWith('AQ')) {
+      setError('Invalid Gemini key — must start with AQ'); return
     }
     setLoading(true); setError('')
     try {
@@ -50,7 +50,7 @@ export default function OnboardingPage() {
 
   if (checking) return null
 
-  const placeholder = provider === 'anthropic' ? 'sk-ant-api03-…' : 'AIza…'
+  const placeholder = provider === 'anthropic' ? 'sk-ant-api03-…' : 'AQ…'
   const providerLabel = provider === 'anthropic' ? 'Anthropic (Claude)' : 'Google (Gemini)'
 
   return (
@@ -88,7 +88,7 @@ export default function OnboardingPage() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               {[
                 { id: 'anthropic' as const, name: 'Claude', company: 'Anthropic', icon: '🤖', note: 'claude-sonnet-4-6' },
-                { id: 'gemini' as const, name: 'Gemini', company: 'Google', icon: '✨', note: 'gemini-2.0-flash' },
+                { id: 'gemini' as const, name: 'Gemini', company: 'Google', icon: '✨', note: 'gemini-2.5-flash' },
               ].map(p => (
                 <button
                   key={p.id}

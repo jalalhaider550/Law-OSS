@@ -11,8 +11,6 @@ const JURISDICTIONS = [
   { value: 'us',        label: 'United States' },
   { value: 'uk',        label: 'England & Wales' },
   { value: 'scotland',  label: 'Scotland' },
-  { value: 'australia', label: 'Australia' },
-  { value: 'canada',    label: 'Canada' },
 ]
 
 export default function ResearchPage() {
@@ -31,7 +29,7 @@ export default function ResearchPage() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) setToken(session.access_token)
     })
-    setHasApiKey(!!localStorage.getItem('law_oss_api_key'))
+    setHasApiKey(!!localStorage.getItem('law_oss_api_key_' + (localStorage.getItem('law_oss_uid') || 'default')))
   }, [])
 
   async function search() {
@@ -46,8 +44,8 @@ export default function ResearchPage() {
     setProgress('Searching verified case databases...')
 
     try {
-      const apiKey      = localStorage.getItem('law_oss_api_key') || ''
-      const apiProvider = localStorage.getItem('law_oss_provider') || 'claude'
+      const apiKey      = localStorage.getItem('law_oss_api_key_' + (localStorage.getItem('law_oss_uid') || 'default')) || ''
+      const apiProvider = localStorage.getItem('law_oss_provider_' + (localStorage.getItem('law_oss_uid') || 'default')) || 'claude'
       const url = `/api/research?q=${encodeURIComponent(query)}&jurisdiction=${encodeURIComponent(jurisdiction)}&apiKey=${encodeURIComponent(apiKey)}&apiProvider=${encodeURIComponent(apiProvider)}`
       const res = await fetch(url, {
           headers: {

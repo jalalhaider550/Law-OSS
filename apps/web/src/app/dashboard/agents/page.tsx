@@ -6,12 +6,184 @@ import MarkdownRenderer from '../../../components/MarkdownRenderer'
 
 type Msg = { role: 'user' | 'assistant'; content: string }
 type AttachedDoc = { name: string; text: string }
+type Risk = { title: string; severity: 'CRITICAL'|'HIGH'|'MEDIUM'|'LOW'; clause: string; risk: string; fix: string; accepted?: boolean; rejected?: boolean }
+
+const SEV: Record<string, { bg: string; border: string; badge: string; text: string; dot: string }> = {
+  CRITICAL: { bg: '#fff1f2', border: '#fecdd3', badge: '#fda4af', text: '#be123c', dot: '#f43f5e' },
+  HIGH:     { bg: '#fff7ed', border: '#fed7aa', badge: '#fdba74', text: '#c2410c', dot: '#f97316' },
+  MEDIUM:   { bg: '#fefce8', border: '#fde68a', badge: '#fde047', text: '#854d0e', dot: '#eab308' },
+  LOW:      { bg: '#f0fdf4', border: '#bbf7d0', badge: '#86efac', text: '#15803d', dot: '#22c55e' },
+}
+
+function AgentRiskCard({ risk, onAccept, onReject }: { risk: Risk; onAccept: () => void; onReject: () => void }) {
+  const [open, setOpen] = useState(true)
+  const s = SEV[risk.severity] || SEV.LOW
+  return (
+    <div style={{ border: `1.5px solid ${risk.accepted ? '#86efac' : risk.rejected ? '#fca5a5' : s.border}`, borderRadius: 10, background: risk.accepted ? '#f0fdf4' : risk.rejected ? '#fff1f2' : '#fff', marginBottom: 8, overflow: 'hidden' }}>
+      <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => setOpen(o => !o)}>
+        <div style={{ width: 7, height: 7, borderRadius: '50%', background: risk.accepted ? '#22c55e' : risk.rejected ? '#ef4444' : s.dot, flexShrink: 0 }} />
+        <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 12, background: risk.accepted ? '#dcfce7' : risk.rejected ? '#fee2e2' : s.badge + '66', color: risk.accepted ? '#15803d' : risk.rejected ? '#b91c1c' : s.text, letterSpacing: '0.05em', flexShrink: 0 }}>
+          {risk.accepted ? 'ACCEPTED' : risk.rejected ? 'REJECTED' : risk.severity}
+        </span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#0f0f0f', flex: 1 }}>{risk.title}</span>
+        <div style={{ display: 'flex', gap: 5, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+          <button onClick={onAccept} style={{ padding: '4px 11px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: risk.accepted ? '#16a34a' : '#fff', color: risk.accepted ? '#fff' : '#16a34a', border: `1.5px solid ${risk.accepted ? '#16a34a' : '#86efac'}` }}>
+            {risk.accepted ? '✓ Accepted' : 'Accept'}
+          </button>
+          <button onClick={onReject} style={{ padding: '4px 11px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: risk.rejected ? '#dc2626' : '#fff', color: risk.rejected ? '#fff' : '#dc2626', border: `1.5px solid ${risk.rejected ? '#dc2626' : '#fca5a5'}` }}>
+            {risk.rejected ? '✕ Rejected' : 'Reject'}
+          </button>
+        </div>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#aaa" strokeWidth="2.5" style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }}><polyline points="6 9 12 15 18 9" /></svg>
+      </div>
+      {open && (
+        <div style={{ padding: '0 14px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ padding: '8px 10px', background: s.bg, border: `1px solid ${s.border}`, borderRadius: 7 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: s.text, marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>⚠ Why risky</div>
+            <div style={{ fontSize: 12.5, color: '#333', lineHeight: 1.5 }}>{risk.risk}</div>
+          </div>
+          {risk.clause && risk.clause.toLowerCase() !== 'not present' && (
+            <div style={{ padding: '8px 10px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 7 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#b91c1c', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Current clause</div>
+              <div style={{ fontSize: 12, color: '#555', fontStyle: 'italic', lineHeight: 1.5 }}>{risk.clause}</div>
+            </div>
+          )}
+          {risk.fix && (
+            <div style={{ padding: '8px 10px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 7 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#15803d', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>✓ Suggested fix</div>
+              <div style={{ fontSize: 12, color: '#1a1a1a', lineHeight: 1.5 }}>{risk.fix}</div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function fuzzyReplace(text: string, clause: string, fix: string): { result: string; matched: boolean } {
+  if (text.includes(clause)) return { result: text.replace(clause, fix), matched: true }
+  const normalise = (s: string) => s.replace(/\s+/g, ' ').trim()
+  const normClause = normalise(clause)
+  if (normalise(text).includes(normClause)) {
+    const words = normClause.split(' ').map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    try {
+      const re = new RegExp(words.join('[\\s\\n\\r]+'))
+      if (re.test(text)) return { result: text.replace(re, fix), matched: true }
+    } catch {}
+  }
+  return { result: text, matched: false }
+}
+
+async function downloadUpdatedContract(docText: string, risks: Risk[], filename: string) {
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx')
+  let updated = docText
+  const appended: Risk[] = []
+  const notFound: Risk[] = []
+  for (const r of risks) {
+    if (!r.accepted) continue
+    if (!r.clause || r.clause.toLowerCase() === 'not present') { appended.push(r) }
+    else {
+      const { result, matched } = fuzzyReplace(updated, r.clause, r.fix)
+      if (matched) updated = result; else notFound.push(r)
+    }
+  }
+  const TIGHT = { before: 0, after: 0 }
+  const GAP   = { before: 0, after: 100 }
+  function textLine(raw: string): any {
+    const t = raw.trimStart()
+    if (t.startsWith('### ')) return new Paragraph({ text: t.slice(4), heading: HeadingLevel.HEADING_3, spacing: TIGHT })
+    if (t.startsWith('## '))  return new Paragraph({ text: t.slice(3),  heading: HeadingLevel.HEADING_2, spacing: TIGHT })
+    if (t.startsWith('# '))   return new Paragraph({ text: t.slice(2),  heading: HeadingLevel.HEADING_1, spacing: TIGHT })
+    const parts: any[] = []
+    const boldRe = /\*\*(.+?)\*\*/g
+    let last = 0; let m: RegExpExecArray | null
+    while ((m = boldRe.exec(raw)) !== null) {
+      if (m.index > last) parts.push(new TextRun(raw.slice(last, m.index)))
+      parts.push(new TextRun({ text: m[1], bold: true }))
+      last = m.index + m[0].length
+    }
+    if (last < raw.length) parts.push(new TextRun(raw.slice(last)))
+    return new Paragraph({ children: parts.length ? parts : [new TextRun(raw)], spacing: TIGHT })
+  }
+  const children: any[] = []
+  for (const line of updated.split('\n')) {
+    if (!line.trim()) { children.push(new Paragraph({ text: '', spacing: GAP })); continue }
+    children.push(textLine(line))
+  }
+  if (appended.length > 0) {
+    children.push(new Paragraph({ text: '', spacing: GAP }))
+    children.push(new Paragraph({ text: 'ADDITIONAL CLAUSES (RECOMMENDED)', heading: HeadingLevel.HEADING_2, spacing: TIGHT }))
+    for (const r of appended) {
+      children.push(new Paragraph({ text: r.title, heading: HeadingLevel.HEADING_3, spacing: TIGHT }))
+      children.push(new Paragraph({ children: [new TextRun(r.fix)], spacing: TIGHT }))
+    }
+  }
+  if (notFound.length > 0) {
+    children.push(new Paragraph({ text: '', spacing: GAP }))
+    children.push(new Paragraph({ text: 'MANUAL REVIEW REQUIRED', heading: HeadingLevel.HEADING_2, spacing: TIGHT }))
+    children.push(new Paragraph({ children: [new TextRun('These accepted fixes could not be located automatically — please apply manually:')], spacing: TIGHT }))
+    for (const r of notFound) {
+      children.push(new Paragraph({ text: r.title, heading: HeadingLevel.HEADING_3, spacing: TIGHT }))
+      children.push(new Paragraph({ children: [new TextRun({ text: 'Current: ', bold: true }), new TextRun(r.clause)], spacing: TIGHT }))
+      children.push(new Paragraph({ children: [new TextRun({ text: 'Replace with: ', bold: true }), new TextRun(r.fix)], spacing: TIGHT }))
+    }
+  }
+  const doc = new Document({ sections: [{ properties: {}, children }] })
+  const blob = await Packer.toBlob(doc)
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  const base = filename.replace(/\.[^.]+$/, '')
+  a.href = url; a.download = `${base}-updated.docx`; a.click()
+  URL.revokeObjectURL(url)
+}
+
+async function downloadAcceptedFixes(risks: Risk[]) {
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx')
+  const accepted = risks.filter(r => r.accepted)
+  const children: any[] = [
+    new Paragraph({ text: 'Accepted Contract Fixes', heading: HeadingLevel.HEADING_1 }),
+    new Paragraph({ text: `${accepted.length} fix${accepted.length !== 1 ? 'es' : ''} accepted — apply these changes to your contract`, children: [new TextRun({ text: `${accepted.length} fix${accepted.length !== 1 ? 'es' : ''} accepted — apply these changes to your contract`, color: '555555' })] }),
+    new Paragraph({ text: '' }),
+  ]
+  for (const r of accepted) {
+    children.push(new Paragraph({ text: r.title, heading: HeadingLevel.HEADING_2 }))
+    if (r.clause && r.clause.toLowerCase() !== 'not present') {
+      children.push(new Paragraph({ children: [new TextRun({ text: 'Current clause: ', bold: true }), new TextRun({ text: r.clause, italics: true })] }))
+    } else {
+      children.push(new Paragraph({ children: [new TextRun({ text: 'Status: ', bold: true }), new TextRun('Missing — add new clause')] }))
+    }
+    children.push(new Paragraph({ children: [new TextRun({ text: 'Replace with: ', bold: true }), new TextRun(r.fix)] }))
+    children.push(new Paragraph({ text: '' }))
+  }
+  const doc = new Document({ sections: [{ properties: {}, children }] })
+  const blob = await Packer.toBlob(doc)
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = 'accepted-contract-fixes.docx'; a.click()
+  URL.revokeObjectURL(url)
+}
+
+function tryParseRisks(text: string): Risk[] | null {
+  try {
+    const match = text.match(/\[[\s\S]*\]/)
+    if (!match) return null
+    const arr = JSON.parse(match[0])
+    if (!Array.isArray(arr) || arr.length === 0) return null
+    if (!arr[0]?.title || !arr[0]?.severity) return null
+    return arr.map((r: any) => ({
+      title: r.title || 'Untitled', severity: ['CRITICAL','HIGH','MEDIUM','LOW'].includes(r.severity) ? r.severity : 'MEDIUM',
+      clause: r.clause || '', risk: r.risk || '', fix: r.fix || '', accepted: false, rejected: false,
+    }))
+  } catch { return null }
+}
 type ClioMatter = { id: string; display_number: string; description: string; status: string; client_name: string }
 type SavedChat = { id: string; agentId: string; agentName: string; title: string; messages: Msg[]; savedAt: string }
 type Matter = { id: string; name: string; type: string; status: string; court?: string; attorney?: string; dueDate?: string; notes?: string; savedChats: SavedChat[] }
 
-function getMatters(): Matter[] { try { return JSON.parse(localStorage.getItem('law_oss_matters') || '[]') } catch { return [] } }
-function persistMatters(m: Matter[]) { localStorage.setItem('law_oss_matters', JSON.stringify(m)) }
+function userKey(base: string) { return `${base}_${localStorage.getItem('law_oss_uid') || 'default'}` }
+
+function getMatters(): Matter[] { try { return JSON.parse(localStorage.getItem(userKey('law_oss_matters')) || '[]') } catch { return [] } }
+function persistMatters(m: Matter[]) { localStorage.setItem(userKey('law_oss_matters'), JSON.stringify(m)) }
 
 function SaveToMatter({ messages, agentId, agentName }: { messages: Msg[]; agentId: string; agentName: string }) {
   const [open, setOpen] = useState(false)
@@ -80,9 +252,15 @@ async function extractTextFromFile(file: File): Promise<string> {
       const pageItems = (extracted.items || []) as any[]
       text += pageItems.map((item: any) => (item.str ?? '')).join(' ') + '\n'
     }
-    return text.slice(0, 30000)
+    return text // no truncation — full document
   }
-  throw new Error(`Unsupported file type. Please upload PDF, TXT, MD, CSV, or JSON.`)
+  if (name.endsWith('.docx') || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+    const mammoth = await import('mammoth')
+    const ab = await file.arrayBuffer()
+    const result = await mammoth.extractRawText({ arrayBuffer: ab })
+    return result.value // no truncation — full document
+  }
+  throw new Error(`Unsupported file type. Please upload PDF, DOCX, TXT, MD, CSV, or JSON.`)
 }
 
 async function downloadAsWord(content: string, filename = 'document.docx') {
@@ -133,8 +311,8 @@ function DocEditorModal({ content, onClose, agentName }: { content: string; onCl
   const filename = `${agentName.toLowerCase().replace(/\s+/g, '-')}-draft.docx`
   useEffect(() => { textareaRef.current?.focus() }, [])
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'stretch', justifyContent: 'center' }}>
-      <div style={{ position: 'relative', background: '#fff', display: 'flex', flexDirection: 'column', width: '100%', maxWidth: 860, margin: '20px', borderRadius: 12, boxShadow: '0 24px 80px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ position: 'relative', background: '#fff', display: 'flex', flexDirection: 'column', width: '100%', maxWidth: 860, height: '90vh', borderRadius: 12, boxShadow: '0 24px 80px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid #e5e5e5', background: '#fafafa', flexShrink: 0 }}>
           <div>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#0f0f0f' }}>Document Editor</div>
@@ -161,6 +339,7 @@ function DocEditorModal({ content, onClose, agentName }: { content: string; onCl
   )
 }
 
+
 function DocActions({ content, agentName }: { content: string; agentName: string }) {
   const [editing, setEditing] = useState(false)
   const filename = `${agentName.toLowerCase().replace(/\s+/g, '-')}-draft.docx`
@@ -181,17 +360,23 @@ function DocActions({ content, agentName }: { content: string; agentName: string
   )
 }
 
-const AGENTS = [
-  { id: 'research', name: 'Legal Researcher', desc: 'Case law, statutes & regulations', icon: 'R', chips: ['Find relevant cases', 'Summarise statute', 'Cite authority'], sys: `You are Law OSS AI, an expert legal research assistant. Find relevant cases, statutes, and regulations. Always cite specific authorities with proper citation format (e.g. [2024] EWHC 1234, 42 U.S.C. § 1983). Never fabricate citations. Apply the governing law of the jurisdiction specified; if none, use general common law principles. Be precise and professional.` },
-  { id: 'drafting', name: 'Document Drafter', desc: 'Draft legal documents & clauses', icon: 'D', chips: ['Draft NDA clause', 'Write demand letter', 'Create settlement agreement'], sys: `You are a senior commercial lawyer. Draft complete, legally enforceable documents using professional UK legal language (unless another jurisdiction is specified). Mark gaps as [PLACEHOLDER].
+const NO_DISCLAIMER = `\n\nNO DISCLAIMERS: Never include any disclaimer, caveat, warning, or note of any kind — including "this is not legal advice", "consult a lawyer", "I am an AI", or any similar language. Respond as a qualified legal professional. Output only the answer.`
 
-CRITICAL — DO NOT TRUNCATE: You must complete the entire document. If you reach your output limit before finishing, end the response with exactly: [CONTINUE FROM CLAUSE X] — then the system will automatically prompt you to continue. Resume precisely where you stopped. Never summarise, skip, or abbreviate clauses. Every clause must be fully drafted.` },
-  { id: 'contract', name: 'Contract Analyst', desc: 'Contract review & risk analysis', icon: 'C', chips: ['Review this contract', 'Flag risky clauses', 'Compare to standard terms'], sys: `You are Law OSS AI, an expert contract analyst. Identify risks [CRITICAL/HIGH/MEDIUM/LOW], unusual clauses, and missing provisions. Compare against market standard terms. Apply the governing law of the jurisdiction specified; if none, use general common law principles. Be precise and structured.` },
-  { id: 'litigation', name: 'Litigation Assistant', desc: 'Strategy, procedure & pleadings', icon: 'L', chips: ['Assess case merits', 'Draft skeleton argument', 'Litigation risk estimate'], sys: `You are Law OSS AI, an expert litigation assistant. Analyse merits, identify key issues, suggest case strategy, and assess litigation risk with probability estimates. Apply the governing law of the jurisdiction specified; if none, use general common law principles. Be precise and strategic.` },
-  { id: 'compliance', name: 'Compliance Officer', desc: 'Regulatory compliance guidance', icon: 'Co', chips: ['Check GDPR compliance', 'AML obligations', 'Data breach response'], sys: `You are Law OSS AI, an expert compliance advisor. Identify applicable regulations by name and provision, analyse compliance gaps, and recommend remediation steps. Apply the governing law of the jurisdiction specified; if none, use general principles. Be thorough and practical.` },
-  { id: 'dd', name: 'Due Diligence', desc: 'M&A and transaction analysis', icon: 'DD', chips: ['M&A red flags', 'Corporate structure review', 'IP ownership check'], sys: `You are Law OSS AI, an expert due diligence specialist. Systematically analyse corporate, financial, and legal risks in transactions. Format findings with priority levels [CRITICAL/HIGH/MEDIUM/LOW]. Apply the governing law of the jurisdiction specified; if none, use general principles.` },
-  { id: 'client', name: 'Client Comms', desc: 'Client letters & plain English', icon: 'Cl', chips: ['Explain in plain English', 'Draft client update', 'Write advice letter'], sys: `You are Law OSS AI, an expert in legal client communication. Draft clear, professional letters explaining legal concepts in plain language. Always include appropriate disclaimers. Apply the governing law of the jurisdiction specified; if none, use general principles. Use # for letter heading, ## for sections.` },
-  { id: 'billing', name: 'Billing & Narratives', desc: 'Time entries & billing narratives', icon: 'B', chips: ['Write billing narrative', 'Review time entry', 'Draft fee agreement'], sys: `You are Law OSS AI, an expert in legal billing. Review time entries, draft clear and defensible billing narratives, and identify potential write-offs. Apply law firm billing best practices. Be concise and professional.` },
+const AGENTS = [
+  { id: 'research', name: 'Legal Researcher', desc: 'Case law, statutes & regulations', icon: 'R', chips: ['Find relevant cases', 'Summarise statute', 'Cite authority'], sys: `You are Law OSS AI, an expert legal research assistant. Find relevant cases, statutes, and regulations. Always cite specific authorities with proper citation format (e.g. [2024] EWHC 1234, 42 U.S.C. § 1983). Never fabricate citations. Apply the governing law of the jurisdiction specified; if none, use general common law principles. Be precise and professional.${NO_DISCLAIMER}` },
+  { id: 'drafting', name: 'Document Drafter', desc: 'Draft legal documents & clauses', icon: 'D', chips: ['Draft NDA clause', 'Write demand letter', 'Create settlement agreement'], sys: `You are a senior commercial lawyer. Draft complete, legally enforceable documents using professional UK legal language (unless another jurisdiction is specified). Mark gaps as [PLACEHOLDER]. Do not use emojis, decorative symbols, or coloured text. Use plain professional text with numbered clauses.
+
+LENGTH: Minimum 1 page, maximum 40 pages. Simple documents (NDAs, letters) 1–5 pages. Standard agreements 5–15 pages. Complex agreements (shareholders, JV, finance) up to 40 pages. Use as many pages as the document requires — never truncate to save space.
+
+COMPLETION: You MUST produce the entire document in one continuous output. Include every clause the document type requires. The final thing you write must be a fully drafted signature/execution block with date lines, party name lines, and signature lines. The document is incomplete until the signature block appears. Never stop mid-clause or mid-sentence.${NO_DISCLAIMER}` },
+  { id: 'contract', name: 'Contract Analyst', desc: 'Contract review & risk analysis', icon: 'C', chips: ['Review this contract', 'Flag risky clauses', 'Compare to standard terms'], sys: `You are Law OSS AI, an expert contract analyst. Apply the governing law of the jurisdiction specified; if none, use general common law principles.
+
+When asked to review a contract, flag risky clauses, or identify risks: output ONLY a JSON array with no prose, no markdown, no explanation outside the JSON. Start with [ and end with ]. Each item: {"title":"short clause title","severity":"CRITICAL"|"HIGH"|"MEDIUM"|"LOW","clause":"exact problematic text or 'Not present'","risk":"one sentence why risky","fix":"suggested replacement or addition"}. Output 5–20 items covering every genuine risk.
+
+For all other questions (explanations, comparisons, strategy): respond normally in clear professional prose.${NO_DISCLAIMER}` },
+  { id: 'litigation', name: 'Litigation Assistant', desc: 'Strategy, procedure & pleadings', icon: 'L', chips: ['Assess case merits', 'Draft skeleton argument', 'Litigation risk estimate'], sys: `You are Law OSS AI, an expert litigation assistant. Analyse merits, identify key issues, suggest case strategy, and assess litigation risk with probability estimates. Apply the governing law of the jurisdiction specified; if none, use general common law principles. Be precise and strategic.${NO_DISCLAIMER}` },
+  { id: 'compliance', name: 'Compliance Officer', desc: 'Regulatory compliance guidance', icon: 'Co', chips: ['Check GDPR compliance', 'AML obligations', 'Data breach response'], sys: `You are Law OSS AI, an expert compliance advisor. Identify applicable regulations by name and provision, analyse compliance gaps, and recommend remediation steps. Apply the governing law of the jurisdiction specified; if none, use general principles. Be thorough and practical.${NO_DISCLAIMER}` },
+  { id: 'dd', name: 'Due Diligence', desc: 'M&A and transaction analysis', icon: 'DD', chips: ['M&A red flags', 'Corporate structure review', 'IP ownership check'], sys: `You are Law OSS AI, an expert due diligence specialist. Systematically analyse corporate, financial, and legal risks in transactions. Format findings with priority levels [CRITICAL/HIGH/MEDIUM/LOW]. Apply the governing law of the jurisdiction specified; if none, use general principles.${NO_DISCLAIMER}` },
 ]
 
 function getSystemPrompt(agentId: string): string {
@@ -201,14 +386,23 @@ function getSystemPrompt(agentId: string): string {
 async function streamAI(
   apiKey: string, provider: string, messages: Msg[], sys: string,
   onToken: (t: string) => void, onDone: () => void, onError: (e: string) => void,
+  maxTokens = 8000,
 ) {
   try {
     if (provider === 'gemini') {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?key=${apiKey}&alt=sse`
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?key=${apiKey}&alt=sse`
+      // Filter out empty messages and ensure no consecutive same-role turns
+      const geminiMsgs = messages
+        .filter(m => m.content.trim())
+        .map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }))
       const res = await fetch(url, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ system_instruction: { parts: [{ text: sys }] }, contents: messages.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })), generationConfig: { maxOutputTokens: 8000, temperature: 0.2 } }),
+        body: JSON.stringify({ system_instruction: { parts: [{ text: sys }] }, contents: geminiMsgs, generationConfig: { maxOutputTokens: maxTokens, temperature: 0.2 } }),
       })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as any
+        onError(err.error?.message || `Gemini error ${res.status}`); return
+      }
       const reader = res.body!.getReader(); const dec = new TextDecoder(); let buf = ''
       while (true) {
         const { done, value } = await reader.read(); if (done) break
@@ -224,7 +418,7 @@ async function streamAI(
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 8000, stream: true, system: sys, messages }),
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: maxTokens, stream: true, system: sys, messages }),
       })
       if (!res.ok) { const e = await res.json().catch(() => ({})) as any; onError(e.error?.message || `Error ${res.status}`); return }
       const reader = res.body!.getReader(); const dec = new TextDecoder(); let buf = ''
@@ -249,16 +443,15 @@ export default function AgentsPage() {
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
   const [noKey, setNoKey] = useState(false)
-  const [clioConnected, setClioConnected] = useState(false)
-  const [clioMatters, setClioMatters] = useState<ClioMatter[]>([])
-  const [clioMatterOpen, setClioMatterOpen] = useState(false)
-  const [selectedClioMatter, setSelectedClioMatter] = useState<ClioMatter | null>(null)
-  const [clioContext, setClioContext] = useState<string | null>(null)
-  const [clioLoadingContext, setClioLoadingContext] = useState(false)
   const [authToken, setAuthToken] = useState<string | null>(null)
   const [attachedDoc, setAttachedDoc] = useState<AttachedDoc | null>(null)
   const [uploadError, setUploadError] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [continuationRound, setContinuationRound] = useState(0)
+  const [dragOver, setDragOver] = useState(false)
+  const [msgRisks, setMsgRisks] = useState<Record<number, Risk[]>>({})
+  const [agentDocText, setAgentDocText] = useState('')
+  const [agentDocName, setAgentDocName] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const supabase = createClientComponentClient()
@@ -268,36 +461,12 @@ export default function AgentsPage() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) { window.location.href = '/login'; return }
-      setNoKey(!localStorage.getItem('law_oss_api_key'))
+      setNoKey(!localStorage.getItem(userKey('law_oss_api_key')))
       setAuthToken(session.access_token)
-      fetch(`${API}/api/clio/status`, { headers: { Authorization: `Bearer ${session.access_token}` } })
-        .then(r => r.json()).then(d => { if (d.connected) setClioConnected(true) }).catch(() => {})
     })
   }, [])
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
-
-  async function openClioMatters() {
-    setClioMatterOpen(o => !o)
-    if (!clioMatterOpen && clioMatters.length === 0 && authToken) {
-      fetch(`${API}/api/clio/matters`, { headers: { Authorization: `Bearer ${authToken}` } })
-        .then(r => r.json()).then(d => { if (d.matters) setClioMatters(d.matters) }).catch(() => {})
-    }
-  }
-
-  async function selectClioMatter(matter: ClioMatter) {
-    setSelectedClioMatter(matter)
-    setClioMatterOpen(false)
-    setClioContext(null)
-    if (!authToken) return
-    setClioLoadingContext(true)
-    try {
-      const r = await fetch(`${API}/api/clio/matters/${matter.id}/context`, { headers: { Authorization: `Bearer ${authToken}` } })
-      const d = await r.json()
-      setClioContext(d.context || null)
-    } catch {}
-    setClioLoadingContext(false)
-  }
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return
@@ -309,14 +478,16 @@ export default function AgentsPage() {
 
   async function send(text: string) {
     if (!text.trim() || streaming) return
-    const apiKey = localStorage.getItem('law_oss_api_key') || ''
-    const provider = localStorage.getItem('law_oss_provider') || 'claude'
+    const apiKey = localStorage.getItem(userKey('law_oss_api_key')) || ''
+    const provider = localStorage.getItem(userKey('law_oss_provider')) || 'claude'
     if (!apiKey) { setNoKey(true); return }
 
-    let baseMsg = attachedDoc ? `${text.trim()}\n\n[Attached: ${attachedDoc.name}]\n${attachedDoc.text}` : text.trim()
-    const msg = clioContext
-      ? `[CLIO MATTER CONTEXT]\n${clioContext}\n\n[USER QUERY]\n${baseMsg}`
-      : baseMsg
+    const msg = attachedDoc ? `${text.trim()}\n\n[Attached: ${attachedDoc.name}]\n${attachedDoc.text}` : text.trim()
+    // Store original doc text for contract agent so we can apply fixes to it later
+    if (agentId === 'contract' && attachedDoc) {
+      setAgentDocText(attachedDoc.text)
+      setAgentDocName(attachedDoc.name)
+    }
     setInput(''); setAttachedDoc(null); setUploadError('')
     const sys = getSystemPrompt(agentId)
     setStreaming(true)
@@ -332,12 +503,16 @@ export default function AgentsPage() {
       setStreaming(false)
     }
 
-    // Contract complete markers — if response contains any, stop continuing
-    const DONE_RE = /IN WITNESS WHEREOF|EXECUTED AS A DEED|SIGNATURE PAGE|EXECUTION BLOCK|\bSIGNED BY\b|\bSIGNATURE BLOCK\b|\bEND OF (CONTRACT|AGREEMENT|DOCUMENT)\b|\bSchedule [0-9]\b.*\n.*\n.*\n.*\n.*(?:\n.*){0,3}$/i
+    // Detect a fully completed document — signature/execution block is the definitive end
+    const DONE_RE = /IN WITNESS WHEREOF|EXECUTED AS A DEED|SIGNATURE PAGE|EXECUTION BLOCK|\bSIGNED BY\b|\bSIGNATURE BLOCK\b|\bDuly (Authorised|Executed)\b|Date:\s*[_\[.]{2,}|___+\s*(Signature|Name|Date|Title)|\/s\/\s*[A-Z]|\bFOR AND ON BEHALF\b|\bDuly authorised signatory\b|\bend of (this )?(agreement|contract|deed|document|schedule)\b/i
+
+    // Drafting agent gets 16000 tokens per call; others get 8000
+    const maxTok = agentId === 'drafting' ? 16000 : 8000
 
     let rounds = 0
     let keepGoing = true
-    while (keepGoing && rounds < 8) {
+    setContinuationRound(0)
+    while (keepGoing && rounds < 12) {
       keepGoing = false
       rounds++
       let chunk = ''
@@ -346,18 +521,39 @@ export default function AgentsPage() {
         const onTok = (t: string) => { chunk += t; appendToken(t) }
         const onDone = () => resolve()
         const onErr = (e: string) => { errored = true; onError(e); resolve() }
-        streamAI(apiKey, provider, history, sys, onTok, onDone, onErr)
+        streamAI(apiKey, provider, history, sys, onTok, onDone, onErr, maxTok)
       })
       if (errored) break
-      // Keep going until a completion marker appears (signature block, end of contract etc)
-      if (!DONE_RE.test(chunk)) {
+      // For drafting: continue if no completion marker found AND response was substantial
+      // (a short chunk means AI naturally finished; a long chunk means it hit the token limit)
+      const isDraftingIncomplete = agentId === 'drafting' && !DONE_RE.test(chunk) && chunk.trim().length > 300
+      if (isDraftingIncomplete) {
         keepGoing = true
-        history = [...history, { role: 'assistant', content: chunk }, { role: 'user', content: 'Continue exactly from where you left off. Do not repeat any text already written.' }]
+        setContinuationRound(rounds)
+        history = [
+          ...history,
+          { role: 'assistant', content: chunk },
+          { role: 'user', content: 'Continue drafting exactly from where you left off. Do not repeat any previously written text. Continue seamlessly from the last word written.' },
+        ]
         appendToken('\n')
       }
     }
 
+    setContinuationRound(0)
     setStreaming(false)
+
+    // For contract agent: parse risk JSON from final response and store per-message
+    if (agentId === 'contract') {
+      setMessages(prev => {
+        const lastIdx = prev.length - 1
+        const lastMsg = prev[lastIdx]
+        if (lastMsg?.role === 'assistant') {
+          const parsed = tryParseRisks(lastMsg.content)
+          if (parsed) setMsgRisks(r => ({ ...r, [lastIdx]: parsed }))
+        }
+        return prev
+      })
+    }
   }
 
   const activeAgent = AGENTS.find(a => a.id === agentId)!
@@ -367,7 +563,7 @@ export default function AgentsPage() {
       <div style={{ width: 220, borderRight: '1px solid rgba(0,0,0,0.08)', overflowY: 'auto', flexShrink: 0, background: '#fafafa' }}>
         <div style={{ padding: '14px 16px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#999' }}>Agents</div>
         {AGENTS.map(a => (
-          <button key={a.id} onClick={() => { setAgentId(a.id); setMessages([]) }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 16px', border: 'none', background: agentId === a.id ? '#fff' : 'transparent', borderLeft: agentId === a.id ? '3px solid #0f0f0f' : '3px solid transparent', cursor: 'pointer' }}>
+          <button key={a.id} onClick={() => { setAgentId(a.id); setMessages([]); setMsgRisks({}); setAgentDocText(''); setAgentDocName('') }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 16px', border: 'none', background: agentId === a.id ? '#fff' : 'transparent', borderLeft: agentId === a.id ? '3px solid #0f0f0f' : '3px solid transparent', cursor: 'pointer' }}>
             <div style={{ fontSize: 13.5, fontWeight: agentId === a.id ? 600 : 400, color: agentId === a.id ? '#0f0f0f' : '#333' }}>{a.name}</div>
             <div style={{ fontSize: 11.5, color: '#888', marginTop: 2, lineHeight: 1.4 }}>{a.desc}</div>
           </button>
@@ -403,31 +599,86 @@ export default function AgentsPage() {
           {messages.map((m, i) => {
             const isLastAssistant = m.role === 'assistant' && i === messages.length - 1
             const isDone = !streaming || !isLastAssistant
-            const showDocActions = m.role === 'assistant' && isDone && looksLikeDocument(m.content)
-            const showMsgActions = m.role === 'assistant' && isDone && m.content
+            const risks = msgRisks[i]
+            const showRiskCards = m.role === 'assistant' && isDone && !!risks && risks.length > 0
+            const showDocActions = m.role === 'assistant' && isDone && !showRiskCards && looksLikeDocument(m.content)
+            const showMsgActions = m.role === 'assistant' && isDone && m.content && !showRiskCards
             return (
               <div key={i}>
-                <div style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                  <div style={{ maxWidth: '72%', padding: '10px 14px', fontSize: 14, lineHeight: 1.65, borderRadius: m.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px', background: m.role === 'user' ? '#0f0f0f' : '#fff', color: m.role === 'user' ? '#fff' : '#0f0f0f', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                    {m.content ? (
-                      m.role === 'user'
-                        ? <span style={{ whiteSpace: 'pre-wrap' }}>{m.content}</span>
-                        : <MarkdownRenderer content={m.content} />
-                    ) : (streaming && isLastAssistant ? (
-                      <LogoLoader label="Thinking..." />
-                    ) : '')}
+                {showRiskCards ? (
+                  <div style={{ maxWidth: '90%' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+                      {risks.filter(r => r.severity === 'CRITICAL').length > 0 && <span style={{ color: '#be123c', marginRight: 10 }}>{risks.filter(r => r.severity === 'CRITICAL').length} CRITICAL</span>}
+                      {risks.filter(r => r.severity === 'HIGH').length > 0 && <span style={{ color: '#c2410c', marginRight: 10 }}>{risks.filter(r => r.severity === 'HIGH').length} HIGH</span>}
+                      {risks.length} risks identified
+                    </div>
+                    {risks.map((r, ri) => (
+                      <AgentRiskCard
+                        key={ri}
+                        risk={r}
+                        onAccept={() => setMsgRisks(prev => {
+                          const updated = prev[i].map((x, xi) => xi === ri ? { ...x, accepted: !x.accepted, rejected: false } : x)
+                          return { ...prev, [i]: updated }
+                        })}
+                        onReject={() => setMsgRisks(prev => {
+                          const updated = prev[i].map((x, xi) => xi === ri ? { ...x, rejected: !x.rejected, accepted: false } : x)
+                          return { ...prev, [i]: updated }
+                        })}
+                      />
+                    ))}
+                    {(() => {
+                      const acceptedCount = risks.filter(r => r.accepted).length
+                      const reviewedCount = risks.filter(r => r.accepted || r.rejected).length
+                      return (
+                        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {acceptedCount > 0 && (
+                            <button
+                              onClick={() => agentDocText
+                                ? downloadUpdatedContract(agentDocText, risks, agentDocName || 'contract.docx')
+                                : downloadAcceptedFixes(risks)
+                              }
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 16px', border: 'none', borderRadius: 8, background: '#16a34a', color: '#fff', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', alignSelf: 'flex-start' }}
+                            >
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                              {agentDocText ? `Download updated contract (${acceptedCount} fix${acceptedCount > 1 ? 'es' : ''})` : `Download accepted fixes (${acceptedCount})`}
+                            </button>
+                          )}
+                          {reviewedCount === risks.length && risks.length > 0 && (
+                            <div style={{ fontSize: 12, color: '#15803d', fontWeight: 600 }}>✓ All {risks.length} risks reviewed</div>
+                          )}
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <CopyButton content={m.content} />
+                            <SaveToMatter messages={messages.slice(0, i + 1)} agentId={agentId} agentName={activeAgent.name} />
+                          </div>
+                        </div>
+                      )
+                    })()}
                   </div>
-                </div>
-                {showDocActions && (
-                  <div style={{ paddingLeft: 4 }}>
-                    <DocActions content={m.content} agentName={activeAgent.name} />
-                  </div>
-                )}
-                {showMsgActions && (
-                  <div style={{ paddingLeft: 4, display: 'flex', gap: 6, marginTop: showDocActions ? 4 : 6, flexWrap: 'wrap' }}>
-                    <CopyButton content={m.content} />
-                    <SaveToMatter messages={messages.slice(0, i + 1)} agentId={agentId} agentName={activeAgent.name} />
-                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                      <div style={{ maxWidth: '72%', padding: '10px 14px', fontSize: 14, lineHeight: 1.65, borderRadius: m.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px', background: m.role === 'user' ? '#0f0f0f' : '#fff', color: m.role === 'user' ? '#fff' : '#0f0f0f', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                        {m.content ? (
+                          m.role === 'user'
+                            ? <span style={{ whiteSpace: 'pre-wrap' }}>{m.content}</span>
+                            : <MarkdownRenderer content={m.content} />
+                        ) : (streaming && isLastAssistant ? (
+                          <LogoLoader label={continuationRound > 0 ? `Completing document... (part ${continuationRound + 1})` : 'Thinking...'} />
+                        ) : '')}
+                      </div>
+                    </div>
+                    {showDocActions && (
+                      <div style={{ paddingLeft: 4 }}>
+                        <DocActions content={m.content} agentName={activeAgent.name} />
+                      </div>
+                    )}
+                    {showMsgActions && (
+                      <div style={{ paddingLeft: 4, display: 'flex', gap: 6, marginTop: showDocActions ? 4 : 6, flexWrap: 'wrap' }}>
+                        <CopyButton content={m.content} />
+                        <SaveToMatter messages={messages.slice(0, i + 1)} agentId={agentId} agentName={activeAgent.name} />
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )
@@ -436,41 +687,20 @@ export default function AgentsPage() {
         </div>
 
         <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
-        <div style={{ padding: '10px 20px 14px', background: '#fff', borderTop: '1px solid rgba(0,0,0,0.07)', flexShrink: 0 }}>
-          {clioConnected && (
-            <div style={{ marginBottom: 8, position: 'relative' }}>
-              {selectedClioMatter ? (
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 10px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, fontSize: 12.5 }}>
-                  <span style={{ color: '#1d4ed8' }}>
-                    {clioLoadingContext ? 'Loading context...' : `Clio: ${selectedClioMatter.display_number} — ${selectedClioMatter.client_name || selectedClioMatter.description || ''}`}
-                  </span>
-                  <button onClick={() => { setSelectedClioMatter(null); setClioContext(null) }} style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
-                </div>
-              ) : (
-                <div style={{ display: 'inline-block' }}>
-                  <button onClick={openClioMatters} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', border: '1.5px solid rgba(0,0,0,0.15)', borderRadius: 6, background: '#fff', color: '#374151', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
-                    Import Clio matter
-                  </button>
-                  {clioMatterOpen && (
-                    <div style={{ position: 'absolute', bottom: '110%', left: 0, background: '#fff', border: '1px solid #e5e5e5', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', minWidth: 280, zIndex: 100, overflow: 'hidden' }}>
-                      <div style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #f3f4f6' }}>Select a matter</div>
-                      {clioMatters.length === 0
-                        ? <div style={{ padding: '10px 12px', fontSize: 13, color: '#9ca3af' }}>Loading matters...</div>
-                        : clioMatters.map(m => (
-                          <button key={m.id} onClick={() => selectClioMatter(m)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, color: '#0f0f0f' }}
-                            onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
-                            <span style={{ fontWeight: 600 }}>{m.display_number}</span>
-                            {m.client_name && <span style={{ color: '#6b7280', marginLeft: 6 }}>{m.client_name}</span>}
-                            {m.status && <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 6, textTransform: 'capitalize' }}>{m.status}</span>}
-                          </button>
-                        ))
-                      }
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+        <div
+          style={{ padding: '10px 20px 14px', background: dragOver ? '#f0fdf4' : '#fff', borderTop: `1px solid ${dragOver ? '#86efac' : 'rgba(0,0,0,0.07)'}`, flexShrink: 0, transition: 'background 0.15s, border-color 0.15s' }}
+          onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+          onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false) }}
+          onDrop={async e => {
+            e.preventDefault(); setDragOver(false)
+            const file = e.dataTransfer.files[0]
+            if (!file) return
+            setUploading(true); setUploadError('')
+            try { const text = await extractTextFromFile(file); setAttachedDoc({ name: file.name, text }) }
+            catch (err: any) { setUploadError(err.message || 'Failed to read file') }
+            finally { setUploading(false) }
+          }}
+        >
           {attachedDoc && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', marginBottom: 8, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, fontSize: 12.5, flexWrap: 'wrap' }}>
               <span style={{ color: '#166534', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📎 {attachedDoc.name}</span>
@@ -503,7 +733,7 @@ export default function AgentsPage() {
             <div style={{ padding: '6px 10px', marginBottom: 8, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12.5, color: '#dc2626' }}>{uploadError}</div>
           )}
           <div style={{ display: 'flex', gap: 8, background: '#f8f8f8', border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10, padding: '6px 10px' }}>
-            <input ref={fileInputRef} type="file" accept=".pdf,.txt,.md,.csv,.json" onChange={handleFileSelect} style={{ display: 'none' }} />
+            <input ref={fileInputRef} type="file" accept=".pdf,.docx,.txt,.md,.csv,.json" onChange={handleFileSelect} style={{ display: 'none' }} />
             <button onClick={() => fileInputRef.current?.click()} disabled={uploading} title="Attach document (PDF, TXT, MD, CSV, JSON)" style={{ background: 'none', border: 'none', cursor: uploading ? 'not-allowed' : 'pointer', color: uploading ? '#ccc' : '#666', padding: '0 2px', alignSelf: 'flex-end', marginBottom: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, transition: 'color 0.15s' }}>
               {uploading
                 ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
@@ -518,7 +748,9 @@ export default function AgentsPage() {
             />
             <button onClick={() => send(input)} disabled={streaming || !input.trim()} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', alignSelf: 'flex-end', flexShrink: 0, background: streaming || !input.trim() ? 'rgba(0,0,0,0.1)' : '#0f0f0f', color: streaming || !input.trim() ? '#bbb' : '#fff', cursor: streaming || !input.trim() ? 'not-allowed' : 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>^</button>
           </div>
-          <div style={{ fontSize: 11, color: '#ccc', marginTop: 5, textAlign: 'center' }}>Not legal advice. Verify with a qualified lawyer. Supports PDF, TXT, MD, CSV, JSON.</div>
+          <div style={{ fontSize: 11, color: dragOver ? '#166534' : '#ccc', marginTop: 5, textAlign: 'center', transition: 'color 0.15s' }}>
+            {dragOver ? 'Drop file to attach' : 'Not legal advice. Verify with a qualified lawyer. Drag a file here or use + to attach PDF, DOCX, TXT, MD, CSV, JSON.'}
+          </div>
         </div>
       </div>
     </div>

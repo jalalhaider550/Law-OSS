@@ -1,58 +1,136 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import MarkdownRenderer from '../../../components/MarkdownRenderer'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://law-oss-api-production.up.railway.app'
+type Risk = {
+  title: string
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
+  clause: string
+  risk: string
+  fix: string
+  accepted?: boolean
+  rejected?: boolean
+}
 
-const CONTRACT_SYS = `You are Law OSS AI, an expert contract analyst.
-
-Analyse the contract and write your analysis in normal markdown prose covering:
-1. CONTRACT SUMMARY — parties, purpose, key dates, governing law
-2. KEY RISKS — describe each risk in plain prose
-3. UNUSUAL OR MISSING CLAUSES — flag non-standard or absent provisions
-4. OBLIGATIONS — main duties of each party
-
-After your full prose analysis, append a CHANGES section. For EVERY risk and every unusual/missing clause you mentioned, output one XML block in exactly this format with no extra whitespace or attributes:
-
-<change>
-<title>Short title of the issue</title>
-<severity>CRITICAL</severity>
-<current>Exact clause text from contract, or: Not present</current>
-<suggested>Your improved replacement text</suggested>
-<why>One sentence explanation</why>
-</change>
-
-Use severity: CRITICAL, HIGH, MEDIUM, or LOW.
-Output one <change> block per risk/issue. Do not skip any.
-Do not put anything between the closing tag of one block and the opening tag of the next.`
-
-type StoredContract = {
+type StoredReview = {
   id: string
   filename: string
   createdAt: string
-  analysis: string
+  risks: Risk[]
   docText?: string
-  parentId: string | null
-  versionNumber: number
-  acceptedChanges?: number[]
-  rejectedChanges?: number[]
 }
 
-type ParsedChange = {
-  index: number
-  title: string
-  severity: string
-  current: string
-  suggested: string
-  why: string
+function userKey(base: string) { return `${base}_${localStorage.getItem('law_oss_uid') || 'default'}` }
+
+function loadReviews(): StoredReview[] {
+  try { return JSON.parse(localStorage.getItem(userKey('law_oss_contracts_v2')) || '[]') } catch { return [] }
+}
+function saveReviews(list: StoredReview[]) {
+  localStorage.setItem(userKey('law_oss_contracts_v2'), JSON.stringify(list))
 }
 
-function loadContracts(): StoredContract[] {
-  try { return JSON.parse(localStorage.getItem('law_oss_contracts') || '[]') } catch { return [] }
+// Fuzzy match: normalise whitespace so PDF-extracted text (which collapses spaces) still matches
+function fuzzyReplace(text: string, clause: string, fix: string): { result: string; matched: boolean } {
+  // 1. Try exact match first
+  if (text.includes(clause)) {
+    return { result: text.replace(clause, fix), matched: true }
+  }
+  // 2. Normalise internal whitespace on both sides and try again
+  const normalise = (s: string) => s.replace(/\s+/g, ' ').trim()
+  const normClause = normalise(clause)
+  const normText   = normalise(text)
+  if (normText.includes(normClause)) {
+    // Rebuild by finding the run in the original that normalises to normClause
+    // Use regex that allows any whitespace between words
+    const words   = normClause.split(' ').map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    const pattern = words.join('[\\s\\n\\r]+')
+    try {
+      const re = new RegExp(pattern)
+      if (re.test(text)) {
+        return { result: text.replace(re, fix), matched: true }
+      }
+    } catch {}
+  }
+  return { result: text, matched: false }
 }
-function saveContracts(list: StoredContract[]) {
-  localStorage.setItem('law_oss_contracts', JSON.stringify(list))
+
+async function downloadUpdatedContract(docText: string, risks: Risk[], filename: string) {
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx')
+
+  // Apply accepted fixes — preserve every character of the original; only swap the clause text
+  let updated = docText
+  const appended: Risk[] = []
+  const notFound: Risk[] = []
+
+  for (const r of risks) {
+    if (!r.accepted) continue
+    if (!r.clause || r.clause.toLowerCase() === 'not present') {
+      appended.push(r)
+    } else {
+      const { result, matched } = fuzzyReplace(updated, r.clause, r.fix)
+      if (matched) {
+        updated = result
+      } else {
+        notFound.push(r)
+      }
+    }
+  }
+
+  // Zero-spacing paragraphs — blank lines get a small gap, content lines get none
+  const TIGHT = { before: 0, after: 0 }
+  const GAP   = { before: 0, after: 100 }
+
+  function textLine(raw: string): any {
+    // detect headings
+    const t = raw.trimStart()
+    if (t.startsWith('### ')) return new Paragraph({ text: t.slice(4), heading: HeadingLevel.HEADING_3, spacing: TIGHT })
+    if (t.startsWith('## '))  return new Paragraph({ text: t.slice(3),  heading: HeadingLevel.HEADING_2, spacing: TIGHT })
+    if (t.startsWith('# '))   return new Paragraph({ text: t.slice(2),  heading: HeadingLevel.HEADING_1, spacing: TIGHT })
+    // detect bold **...**
+    const parts: any[] = []
+    const boldRe = /\*\*(.+?)\*\*/g
+    let last = 0; let m: RegExpExecArray | null
+    while ((m = boldRe.exec(raw)) !== null) {
+      if (m.index > last) parts.push(new TextRun(raw.slice(last, m.index)))
+      parts.push(new TextRun({ text: m[1], bold: true }))
+      last = m.index + m[0].length
+    }
+    if (last < raw.length) parts.push(new TextRun(raw.slice(last)))
+    return new Paragraph({ children: parts.length ? parts : [new TextRun(raw)], spacing: TIGHT })
+  }
+
+  const children: any[] = []
+  for (const line of updated.split('\n')) {
+    if (!line.trim()) { children.push(new Paragraph({ text: '', spacing: GAP })); continue }
+    children.push(textLine(line))
+  }
+
+  if (appended.length > 0) {
+    children.push(new Paragraph({ text: '', spacing: GAP }))
+    children.push(new Paragraph({ text: 'ADDITIONAL CLAUSES (RECOMMENDED)', heading: HeadingLevel.HEADING_2, spacing: TIGHT }))
+    for (const r of appended) {
+      children.push(new Paragraph({ text: r.title, heading: HeadingLevel.HEADING_3, spacing: TIGHT }))
+      children.push(new Paragraph({ children: [new TextRun(r.fix)], spacing: TIGHT }))
+    }
+  }
+
+  if (notFound.length > 0) {
+    children.push(new Paragraph({ text: '', spacing: GAP }))
+    children.push(new Paragraph({ text: 'MANUAL REVIEW REQUIRED', heading: HeadingLevel.HEADING_2, spacing: TIGHT }))
+    children.push(new Paragraph({ children: [new TextRun('These accepted fixes could not be located automatically — please apply manually:')], spacing: TIGHT }))
+    for (const r of notFound) {
+      children.push(new Paragraph({ text: r.title, heading: HeadingLevel.HEADING_3, spacing: TIGHT }))
+      children.push(new Paragraph({ children: [new TextRun({ text: 'Current: ', bold: true }), new TextRun(r.clause)], spacing: TIGHT }))
+      children.push(new Paragraph({ children: [new TextRun({ text: 'Replace with: ', bold: true }), new TextRun(r.fix)], spacing: TIGHT }))
+    }
+  }
+
+  const doc = new Document({ sections: [{ properties: {}, children }] })
+  const blob = await Packer.toBlob(doc)
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  const base = filename.replace(/\.[^.]+$/, '')
+  a.href = url; a.download = `${base}-updated.docx`; a.click()
+  URL.revokeObjectURL(url)
 }
 
 async function extractText(file: File): Promise<string> {
@@ -68,9 +146,8 @@ async function extractText(file: File): Promise<string> {
     let text = ''
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i)
-      const extracted = await page.getTextContent()
-      const items = (extracted.items || []) as any[]
-      text += items.map((item: any) => item.str ?? '').join(' ') + '\n'
+      const items = ((await page.getTextContent()).items || []) as any[]
+      text += items.map((x: any) => x.str ?? '').join(' ') + '\n'
     }
     return text
   }
@@ -80,547 +157,463 @@ async function extractText(file: File): Promise<string> {
     const result = await mammoth.extractRawText({ arrayBuffer: ab })
     return result.value
   }
-  throw new Error('Unsupported file type. Please upload PDF, DOCX, TXT, or MD.')
+  throw new Error('Unsupported file type. Please upload PDF, DOCX, or TXT.')
 }
 
-async function streamContractAnalysis(
-  token: string, docText: string, filename: string,
-  onToken: (t: string) => void, onDone: () => void, onError: (e: string) => void,
-) {
-  try {
-    const res = await fetch(`${API_BASE}/api/agents/chat/stream`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({
-        messages: [{ role: 'user', content: `Analyse this contract:\n\n[FILE: ${filename}]\n\n${docText}` }],
-        systemPrompt: CONTRACT_SYS,
-        agentType: 'contract',
-      }),
-    })
-    if (!res.ok) { const e = await res.json().catch(() => ({})) as any; onError(e.error || `Error ${res.status}`); return }
-    const reader = res.body!.getReader(); const dec = new TextDecoder(); let buf = ''
-    while (true) {
-      const { done, value } = await reader.read(); if (done) break
-      buf += dec.decode(value, { stream: true })
-      const lines = buf.split('\n'); buf = lines.pop() || ''
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue
-        const raw = line.slice(6).trim(); if (!raw || raw === '[DONE]') { onDone(); continue }
-        try { const p = JSON.parse(raw); if (p.token) onToken(p.token); if (p.done) onDone() } catch {}
-      }
-    }
-    onDone()
-  } catch (e: any) { onError(e.message || 'Network error') }
+const SEV: Record<string, { bg: string; border: string; badge: string; text: string; dot: string }> = {
+  CRITICAL: { bg: '#fff1f2', border: '#fecdd3', badge: '#fda4af', text: '#be123c', dot: '#f43f5e' },
+  HIGH:     { bg: '#fff7ed', border: '#fed7aa', badge: '#fdba74', text: '#c2410c', dot: '#f97316' },
+  MEDIUM:   { bg: '#fefce8', border: '#fde68a', badge: '#fde047', text: '#854d0e', dot: '#eab308' },
+  LOW:      { bg: '#f0fdf4', border: '#bbf7d0', badge: '#86efac', text: '#15803d', dot: '#22c55e' },
 }
 
-// Parse <change> XML blocks — format Claude follows reliably
-function parseChanges(analysis: string): ParsedChange[] {
-  const changes: ParsedChange[] = []
-  // Match each <change>...</change> block
-  const blockRe = /<change>([\s\S]*?)<\/change>/gi
-  let m: RegExpExecArray | null
-  let idx = 1
-  while ((m = blockRe.exec(analysis)) !== null) {
-    const body = m[1]
-    const get = (tag: string) => {
-      const r = new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, 'i').exec(body)
-      return r ? r[1].trim() : ''
-    }
-    const title = get('title')
-    const severity = get('severity').toUpperCase()
-    const current = get('current')
-    const suggested = get('suggested')
-    const why = get('why')
-    if (title) changes.push({ index: idx++, title, severity: ['CRITICAL','HIGH','MEDIUM','LOW'].includes(severity) ? severity : 'MEDIUM', current, suggested, why })
-  }
-  return changes
-}
-
-// Apply accepted changes to doc
-function applyChangesToDoc(docText: string, changes: ParsedChange[], acceptedSet: Set<number>): string {
-  let result = docText
-  for (const c of changes) {
-    if (!acceptedSet.has(c.index)) continue
-    if (c.current && c.suggested && c.current.toLowerCase() !== 'not present' && c.current.length > 4) {
-      result = result.replace(c.current, c.suggested)
-    } else if (c.suggested && (!c.current || c.current.toLowerCase() === 'not present')) {
-      result += '\n\n' + c.suggested
-    }
-  }
-  return result
-}
-
-const SEV_STYLE: Record<string, { bg: string; color: string; dot: string }> = {
-  CRITICAL: { bg: '#fff1f2', color: '#be123c', dot: '#fda4af' },
-  HIGH:     { bg: '#fff7ed', color: '#c2410c', dot: '#fdba74' },
-  MEDIUM:   { bg: '#fefce8', color: '#854d0e', dot: '#fde047' },
-  LOW:      { bg: '#f0fdf4', color: '#15803d', dot: '#86efac' },
-}
-
-function SeverityBadge({ sev }: { sev: string }) {
-  const s = SEV_STYLE[sev] || SEV_STYLE.LOW
-  return (
-    <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: s.dot + '55', color: s.color, letterSpacing: '0.04em', flexShrink: 0 }}>
-      {sev}
-    </span>
-  )
-}
-
-function ChangeCard({ change, isAcc, isRej, onAccept, onReject }: {
-  change: ParsedChange
-  isAcc: boolean; isRej: boolean
+function RiskCard({
+  risk, index, onAccept, onReject,
+}: {
+  risk: Risk; index: number
   onAccept: () => void; onReject: () => void
 }) {
-  const sev = SEV_STYLE[change.severity] || SEV_STYLE.LOW
+  const [open, setOpen] = useState(true)
+  const s = SEV[risk.severity] || SEV.LOW
+  const accepted = !!risk.accepted
+  const rejected = !!risk.rejected
+
   return (
     <div style={{
-      border: `1.5px solid ${isAcc ? '#86efac' : isRej ? '#fca5a5' : sev.dot}`,
-      borderRadius: 10,
-      background: isAcc ? '#f0fdf4' : isRej ? '#fff1f2' : sev.bg,
-      marginBottom: 10, overflow: 'hidden',
+      border: `1.5px solid ${accepted ? '#86efac' : rejected ? '#fca5a5' : s.border}`,
+      borderRadius: 12,
+      background: accepted ? '#f0fdf4' : rejected ? '#fff1f2' : '#fff',
+      marginBottom: 10,
+      overflow: 'hidden',
+      transition: 'border-color 0.2s',
     }}>
-      <div style={{ padding: '11px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <SeverityBadge sev={change.severity} />
-        <span style={{ fontSize: 13.5, fontWeight: 700, color: '#0f0f0f', flex: 1 }}>{change.title}</span>
-        <div style={{ display: 'flex', gap: 7, flexShrink: 0 }}>
-          <button onClick={onAccept} style={{
-            padding: '5px 14px', borderRadius: 7, fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
-            background: isAcc ? '#16a34a' : '#fff',
-            color: isAcc ? '#fff' : '#16a34a',
-            border: `1.5px solid ${isAcc ? '#16a34a' : '#86efac'}`,
-          }}>
-            {isAcc ? 'Accepted' : 'Accept'}
+      {/* Header row */}
+      <div
+        style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
+        onClick={() => setOpen(o => !o)}
+      >
+        {/* Severity dot */}
+        <div style={{ width: 8, height: 8, borderRadius: '50%', background: accepted ? '#22c55e' : rejected ? '#ef4444' : s.dot, flexShrink: 0 }} />
+
+        {/* Severity badge */}
+        <span style={{
+          fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20,
+          background: accepted ? '#dcfce7' : rejected ? '#fee2e2' : s.badge + '66',
+          color: accepted ? '#15803d' : rejected ? '#b91c1c' : s.text,
+          letterSpacing: '0.05em', flexShrink: 0,
+        }}>
+          {accepted ? 'ACCEPTED' : rejected ? 'REJECTED' : risk.severity}
+        </span>
+
+        {/* Title */}
+        <span style={{ fontSize: 13.5, fontWeight: 700, color: '#0f0f0f', flex: 1 }}>{risk.title}</span>
+
+        {/* Accept / Reject */}
+        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+          <button
+            onClick={onAccept}
+            style={{
+              padding: '5px 14px', borderRadius: 7, fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+              background: accepted ? '#16a34a' : '#fff',
+              color: accepted ? '#fff' : '#16a34a',
+              border: `1.5px solid ${accepted ? '#16a34a' : '#86efac'}`,
+              transition: 'all 0.15s',
+            }}
+          >
+            {accepted ? '✓ Accepted' : 'Accept fix'}
           </button>
-          <button onClick={onReject} style={{
-            padding: '5px 14px', borderRadius: 7, fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
-            background: isRej ? '#dc2626' : '#fff',
-            color: isRej ? '#fff' : '#dc2626',
-            border: `1.5px solid ${isRej ? '#dc2626' : '#fca5a5'}`,
-          }}>
-            {isRej ? 'Rejected' : 'Reject'}
+          <button
+            onClick={onReject}
+            style={{
+              padding: '5px 14px', borderRadius: 7, fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+              background: rejected ? '#dc2626' : '#fff',
+              color: rejected ? '#fff' : '#dc2626',
+              border: `1.5px solid ${rejected ? '#dc2626' : '#fca5a5'}`,
+              transition: 'all 0.15s',
+            }}
+          >
+            {rejected ? '✕ Rejected' : 'Reject'}
           </button>
         </div>
+
+        {/* Chevron */}
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aaa" strokeWidth="2.5"
+          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }}>
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
       </div>
-      {(change.current || change.suggested || change.why) && (
-        <div style={{ padding: '0 14px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {change.current && change.current.toLowerCase() !== 'not present' && (
-            <div style={{ background: 'rgba(190,18,60,0.05)', border: '1px solid rgba(190,18,60,0.12)', borderRadius: 6, padding: '7px 10px' }}>
-              <div style={{ fontSize: 10.5, fontWeight: 700, color: '#be123c', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Current clause</div>
-              <div style={{ fontSize: 12.5, color: '#555', fontStyle: 'italic', lineHeight: 1.55 }}>{change.current}</div>
+
+      {/* Expanded detail */}
+      {open && (
+        <div style={{ padding: '0 16px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {/* Why it's risky */}
+          <div style={{ padding: '9px 12px', background: `${s.bg}`, border: `1px solid ${s.border}`, borderRadius: 8 }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: s.text, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              ⚠ Why this is risky
+            </div>
+            <div style={{ fontSize: 13, color: '#333', lineHeight: 1.55 }}>{risk.risk}</div>
+          </div>
+
+          {/* Current clause */}
+          {risk.clause && risk.clause.toLowerCase() !== 'not present' && (
+            <div style={{ padding: '9px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8 }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: '#b91c1c', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Current clause
+              </div>
+              <div style={{ fontSize: 12.5, color: '#555', fontStyle: 'italic', lineHeight: 1.6 }}>{risk.clause}</div>
             </div>
           )}
-          {change.suggested && (
-            <div style={{ background: 'rgba(21,128,61,0.05)', border: '1px solid rgba(21,128,61,0.12)', borderRadius: 6, padding: '7px 10px' }}>
-              <div style={{ fontSize: 10.5, fontWeight: 700, color: '#15803d', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Suggested fix</div>
-              <div style={{ fontSize: 12.5, color: '#1a1a1a', lineHeight: 1.55 }}>{change.suggested}</div>
-            </div>
+          {risk.clause && risk.clause.toLowerCase() === 'not present' && (
+            <div style={{ fontSize: 12.5, color: '#aaa', fontStyle: 'italic' }}>This clause is missing from the contract.</div>
           )}
-          {change.why && (
-            <div style={{ fontSize: 12, color: '#888', lineHeight: 1.5 }}>{change.why}</div>
+
+          {/* Suggested fix */}
+          {risk.fix && (
+            <div style={{ padding: '9px 12px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8 }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: '#15803d', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                ✓ Suggested fix
+              </div>
+              <div style={{ fontSize: 12.5, color: '#1a1a1a', lineHeight: 1.6 }}>{risk.fix}</div>
+            </div>
           )}
         </div>
       )}
     </div>
   )
-}
-
-// Centered Word-doc modal overlay
-function DocModal({ contract, changes, accepted, onClose, onSave }: {
-  contract: StoredContract
-  changes: ParsedChange[]
-  accepted: Set<number>
-  onClose: () => void
-  onSave: (text: string) => void
-}) {
-  const baseText = (contract.docText || '(No document text — re-upload to enable editing.)').replace(/<change>[\s\S]*?<\/change>/gi, '').trim()
-  const [content, setContent] = useState(() => applyChangesToDoc(baseText, changes, accepted))
-  const [saved, setSaved] = useState(false)
-
-  useEffect(() => {
-    setContent(applyChangesToDoc(baseText, changes, accepted))
-  }, [accepted.size])
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 500, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '32px 24px', overflow: 'auto' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ background: '#f0f0f0', borderRadius: 4, width: '100%', maxWidth: 860, boxShadow: '0 20px 60px rgba(0,0,0,0.4)', display: 'flex', flexDirection: 'column', minHeight: '80vh' }}>
-        {/* Toolbar */}
-        <div style={{ background: '#2b2b2b', padding: '8px 18px', display: 'flex', alignItems: 'center', gap: 12, borderRadius: '4px 4px 0 0', flexShrink: 0 }}>
-          <span style={{ fontSize: 13.5, fontWeight: 600, color: '#fff', flex: 1 }}>{contract.filename}</span>
-          {accepted.size > 0 && (
-            <span style={{ fontSize: 11.5, padding: '3px 9px', borderRadius: 10, background: 'rgba(134,239,172,0.2)', color: '#86efac' }}>
-              {accepted.size} fix{accepted.size !== 1 ? 'es' : ''} applied
-            </span>
-          )}
-          <button onClick={() => { onSave(content); setSaved(true); setTimeout(() => setSaved(false), 2000) }}
-            style={{ padding: '5px 16px', background: saved ? '#16a34a' : '#fff', color: saved ? '#fff' : '#111', border: 'none', borderRadius: 6, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
-            {saved ? 'Saved' : 'Save'}
-          </button>
-          <button onClick={onClose} style={{ padding: '5px 12px', background: 'rgba(255,255,255,0.12)', color: '#ccc', border: 'none', borderRadius: 6, fontSize: 12.5, cursor: 'pointer' }}>
-            Close
-          </button>
-        </div>
-        {/* Page */}
-        <div style={{ flex: 1, padding: '32px', overflow: 'auto' }}>
-          <div style={{ background: '#fff', boxShadow: '0 2px 12px rgba(0,0,0,0.2)', margin: '0 auto', padding: '72px 80px', minHeight: 900 }}>
-            <textarea
-              value={content}
-              onChange={e => setContent(e.target.value)}
-              style={{ width: '100%', minHeight: 800, border: 'none', outline: 'none', resize: 'none', fontFamily: '"Times New Roman", Times, serif', fontSize: 14, lineHeight: 1.9, color: '#111', background: 'transparent' }}
-              spellCheck
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function findRelated(filename: string, stored: StoredContract[]): StoredContract | null {
-  const base = filename.replace(/[-_\s]v\d+(\.\w+)?$/, '').replace(/\.\w+$/, '').toLowerCase().trim()
-  return stored.find(c => {
-    const b = c.filename.replace(/[-_\s]v\d+(\.\w+)?$/, '').replace(/\.\w+$/, '').toLowerCase().trim()
-    return b === base && !c.parentId
-  }) || null
 }
 
 export default function ContractsPage() {
-  const [stored, setStored] = useState<StoredContract[]>([])
+  const [stored, setStored] = useState<StoredReview[]>([])
   const [busy, setBusy] = useState(false)
-  const [progress, setProgress] = useState('')
-  const [analysis, setAnalysis] = useState('')
-  const [selectedFilename, setSelectedFilename] = useState('')
+  const [stage, setStage] = useState('')  // 'reading' | 'reviewing' | ''
+  const [risks, setRisks] = useState<Risk[]>([])
+  const [filename, setFilename] = useState('')
+  const [currentId, setCurrentId] = useState<string | null>(null)
+  const [docText, setDocText] = useState('')
   const [error, setError] = useState('')
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
-  const [versionPrompt, setVersionPrompt] = useState<{ file: File; parent: StoredContract } | null>(null)
-  const [accepted, setAccepted] = useState<Set<number>>(new Set())
-  const [rejected, setRejected] = useState<Set<number>>(new Set())
-  const [currentContractId, setCurrentContractId] = useState<string | null>(null)
-  const [docModal, setDocModal] = useState<StoredContract | null>(null)
+  const [showHistory, setShowHistory] = useState(false)
+  const [generating, setGenerating] = useState(false)
 
   const fileRef = useRef<HTMLInputElement>(null)
-  const supabase = createClientComponentClient()
 
-  useEffect(() => { setStored(loadContracts()) }, [])
+  useEffect(() => { setStored(loadReviews()) }, [])
 
-  async function handleUpload(file: File, parentId: string | null = null) {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) { setError('Please sign in first.'); return }
+  function persistRisks(id: string, updated: Risk[]) {
+    const all = loadReviews()
+    const next = all.map(r => r.id === id ? { ...r, risks: updated } : r)
+    saveReviews(next)
+    setStored(next)
+  }
 
-    setError(''); setBusy(true); setAnalysis(''); setSelectedFilename(file.name)
-    setAccepted(new Set()); setRejected(new Set()); setCurrentContractId(null)
-    setProgress('Reading document...')
+  function handleAccept(idx: number) {
+    const updated = risks.map((r, i) => i === idx ? { ...r, accepted: !r.accepted, rejected: false } : r)
+    setRisks(updated)
+    if (currentId) persistRisks(currentId, updated)
+  }
 
-    let docText = ''
-    try { docText = await extractText(file) }
-    catch (e: any) { setError(e.message); setBusy(false); setProgress(''); return }
+  function handleReject(idx: number) {
+    const updated = risks.map((r, i) => i === idx ? { ...r, rejected: !r.rejected, accepted: false } : r)
+    setRisks(updated)
+    if (currentId) persistRisks(currentId, updated)
+  }
 
-    setProgress(`Analysing contract (${Math.round(docText.length / 1000)}k chars)...`)
+  async function handleFile(file: File) {
+    const apiKey = localStorage.getItem(userKey('law_oss_api_key')) || ''
+    const apiProvider = localStorage.getItem(userKey('law_oss_provider')) || 'claude'
+    if (!apiKey) { setError('No API key configured. Add one in Settings.'); return }
 
-    let fullAnalysis = ''; let doneCalled = false
-    const onToken = (t: string) => { fullAnalysis += t; setAnalysis(p => p + t) }
-    const onDone = () => {
-      if (doneCalled) return; doneCalled = true
-      setBusy(false); setProgress('')
-      const current = loadContracts()
-      let versionNumber = 1
-      if (parentId) {
-        const siblings = current.filter(c => c.parentId === parentId || c.id === parentId)
-        versionNumber = siblings.length + 1
+    setError(''); setBusy(true); setRisks([]); setCurrentId(null); setFilename(file.name); setDocText('')
+    setStage('reading')
+
+    let extracted = ''
+    try { extracted = await extractText(file) }
+    catch (e: any) { setError(e.message); setBusy(false); setStage(''); return }
+
+    setDocText(extracted)
+    setStage('reviewing')
+
+    const SYSTEM = `You are a contract risk analyst. Review the contract and identify every risky, unusual, one-sided, or missing clause.
+
+Output ONLY a valid JSON array. No prose, no markdown fences, no explanation. Start with [ and end with ].
+
+Each item must be:
+{
+  "title": "Short clause title",
+  "severity": "CRITICAL" | "HIGH" | "MEDIUM" | "LOW",
+  "clause": "The exact verbatim text from the contract, or 'Not present' if missing",
+  "risk": "One sentence explaining why this is risky",
+  "fix": "Suggested replacement or addition text"
+}
+
+Flag 5–20 genuine risks.`
+
+    const userMsg = `CONTRACT: ${file.name}\n\n${extracted}`
+
+    try {
+      let fullText = ''
+
+      if (apiProvider === 'gemini') {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: SYSTEM }] },
+            contents: [{ role: 'user', parts: [{ text: userMsg }] }],
+            generationConfig: { maxOutputTokens: 8000, temperature: 0.1 },
+          }),
+        })
+        const d = await res.json() as any
+        if (d.error) { setError(d.error.message || 'Gemini error'); setBusy(false); setStage(''); return }
+        fullText = d.candidates?.[0]?.content?.parts?.[0]?.text || '[]'
+      } else {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true',
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 8000,
+            stream: true,
+            system: SYSTEM,
+            messages: [{ role: 'user', content: userMsg }],
+          }),
+        })
+        if (!res.ok) {
+          const e = await res.json().catch(() => ({})) as any
+          setError(e.error?.message || `Error ${res.status}`)
+          setBusy(false); setStage(''); return
+        }
+        const reader = res.body!.getReader(); const dec = new TextDecoder(); let buf = ''
+        while (true) {
+          const { done, value } = await reader.read(); if (done) break
+          buf += dec.decode(value, { stream: true })
+          const lines = buf.split('\n'); buf = lines.pop() || ''
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue
+            const raw = line.slice(6).trim(); if (!raw || raw === '[DONE]') continue
+            try {
+              const p = JSON.parse(raw)
+              if (p.type === 'content_block_delta' && p.delta?.text) fullText += p.delta.text
+            } catch {}
+          }
+        }
       }
+
+      // Parse JSON array
+      let parsed: Risk[] = []
+      try {
+        const match = fullText.match(/\[[\s\S]*\]/)
+        if (match) {
+          parsed = (JSON.parse(match[0]) as any[]).map(r => ({
+            title: r.title || 'Untitled risk',
+            severity: (['CRITICAL','HIGH','MEDIUM','LOW'] as const).includes(r.severity) ? r.severity : 'MEDIUM',
+            clause: r.clause || '',
+            risk: r.risk || '',
+            fix: r.fix || '',
+            accepted: false,
+            rejected: false,
+          }))
+        }
+      } catch { parsed = [] }
+
+      if (parsed.length === 0) {
+        setError('Could not parse risk analysis. Please try again.')
+        setBusy(false); setStage(''); return
+      }
+
+      setRisks(parsed)
       const id = Math.random().toString(36).slice(2)
-      const newC: StoredContract = { id, filename: file.name, createdAt: new Date().toISOString(), analysis: fullAnalysis, docText, parentId, versionNumber, acceptedChanges: [], rejectedChanges: [] }
-      setCurrentContractId(id)
-      const updated = [newC, ...current]; saveContracts(updated); setStored(updated)
-    }
-    const onError = (e: string) => { setError(e); setBusy(false); setProgress('') }
-    await streamContractAnalysis(session.access_token, docText, file.name, onToken, onDone, onError)
-  }
-
-  async function initiateUpload(file: File) {
-    const current = loadContracts(); const related = findRelated(file.name, current)
-    if (related) setVersionPrompt({ file, parent: related }); else await handleUpload(file, null)
-  }
-
-  function persistDecision(accSet: Set<number>, rejSet: Set<number>, cid = currentContractId) {
-    if (!cid) return
-    const current = loadContracts()
-    const updated = current.map(c => c.id === cid ? { ...c, acceptedChanges: [...accSet], rejectedChanges: [...rejSet] } : c)
-    saveContracts(updated); setStored(updated)
-    // keep docModal fresh
-    if (docModal?.id === cid) {
-      const fresh = updated.find(c => c.id === cid); if (fresh) setDocModal(fresh)
+      setCurrentId(id)
+      const review: StoredReview = { id, filename: file.name, createdAt: new Date().toISOString(), risks: parsed, docText: extracted }
+      const all = loadReviews()
+      const next = [review, ...all]; saveReviews(next); setStored(next)
+      setBusy(false); setStage('')
+    } catch (e: any) {
+      setError(e.message || 'Review failed')
+      setBusy(false); setStage('')
     }
   }
 
-  function handleAccept(changeIndex: number, cid?: string) {
-    if (cid) {
-      const c = stored.find(s => s.id === cid)!
-      const na = new Set<number>(c.acceptedChanges || []); na.add(changeIndex)
-      const nr = new Set<number>(c.rejectedChanges || []); nr.delete(changeIndex)
-      persistDecision(na, nr, cid)
-    } else {
-      const na = new Set(accepted); na.add(changeIndex)
-      const nr = new Set(rejected); nr.delete(changeIndex)
-      setAccepted(na); setRejected(nr); persistDecision(na, nr)
-    }
+  function loadReview(review: StoredReview) {
+    setRisks(review.risks || [])
+    setFilename(review.filename)
+    setCurrentId(review.id)
+    setDocText(review.docText || '')
+    setShowHistory(false)
+    setError('')
   }
 
-  function handleReject(changeIndex: number, cid?: string) {
-    if (cid) {
-      const c = stored.find(s => s.id === cid)!
-      const nr = new Set<number>(c.rejectedChanges || []); nr.add(changeIndex)
-      const na = new Set<number>(c.acceptedChanges || []); na.delete(changeIndex)
-      persistDecision(na, nr, cid)
-    } else {
-      const nr = new Set(rejected); nr.add(changeIndex)
-      const na = new Set(accepted); na.delete(changeIndex)
-      setRejected(nr); setAccepted(na); persistDecision(na, nr)
-    }
+  function deleteReview(id: string) {
+    const next = loadReviews().filter(r => r.id !== id)
+    saveReviews(next); setStored(next)
+    if (currentId === id) { setRisks([]); setCurrentId(null) }
   }
 
-  function openDoc(contract: StoredContract) { setDocModal(contract) }
-
-  function toggleExpand(id: string) {
-    setExpandedIds(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
-  }
-
-  function deleteContract(id: string) {
-    if (!window.confirm('Delete this contract analysis?')) return
-    const updated = loadContracts().filter(c => c.id !== id && c.parentId !== id)
-    saveContracts(updated); setStored(updated)
-    if (docModal?.id === id) setDocModal(null)
-  }
-
-  const topLevel = stored.filter(c => !c.parentId)
-  const changes = analysis ? parseChanges(analysis) : []
-  const currentContract = currentContractId ? stored.find(c => c.id === currentContractId) : null
-
-  // Derive doc modal changes & accepted
-  const modalChanges = docModal ? parseChanges(docModal.analysis || '') : []
-  const modalAccepted = new Set<number>(docModal?.acceptedChanges || [])
+  const accepted = risks.filter(r => r.accepted).length
+  const rejected = risks.filter(r => r.rejected).length
+  const reviewed = accepted + rejected
+  const criticalCount = risks.filter(r => r.severity === 'CRITICAL').length
+  const highCount = risks.filter(r => r.severity === 'HIGH').length
 
   return (
-    <div style={{ maxWidth: 860, margin: '0 auto', padding: '24px' }}>
-      {/* Doc modal */}
-      {docModal && (
-        <DocModal
-          contract={docModal}
-          changes={modalChanges}
-          accepted={modalAccepted}
-          onClose={() => setDocModal(null)}
-          onSave={(text) => {
-            const all = loadContracts()
-            const updated = all.map(c => c.id === docModal.id ? { ...c, docText: text } : c)
-            saveContracts(updated); setStored(updated)
-          }}
-        />
-      )}
+    <div style={{ maxWidth: 800, margin: '0 auto', padding: '24px' }}>
 
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#0f0f0f', margin: 0 }}>Contract Review</h1>
-        <p style={{ fontSize: 13.5, color: '#888', margin: '4px 0 0' }}>Upload PDF or Word (.docx) — full document, accept or reject each fix, then open the edited doc.</p>
+      {/* Header */}
+      <div style={{ marginBottom: 20, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#0f0f0f', margin: 0 }}>Contract Review</h1>
+          <p style={{ fontSize: 13.5, color: '#888', margin: '4px 0 0' }}>
+            Upload a contract — AI flags every risky clause, you accept or reject each fix.
+          </p>
+        </div>
+        {stored.length > 0 && (
+          <button
+            onClick={() => setShowHistory(h => !h)}
+            style={{ padding: '7px 14px', border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 8, background: '#fff', fontSize: 13, color: '#555', cursor: 'pointer', fontWeight: 500 }}
+          >
+            {showHistory ? 'Hide history' : `History (${stored.length})`}
+          </button>
+        )}
       </div>
 
-      {versionPrompt && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: 12, padding: '28px', maxWidth: 420, width: '90%', boxShadow: '0 8px 40px rgba(0,0,0,0.18)' }}>
-            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 10 }}>New version?</div>
-            <div style={{ fontSize: 13.5, color: '#555', marginBottom: 22 }}>Similar contract <strong>{versionPrompt.parent.filename}</strong> already exists.</div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={async () => { const { file, parent } = versionPrompt; setVersionPrompt(null); await handleUpload(file, parent.id) }}
-                style={{ flex: 1, padding: '10px', border: 'none', borderRadius: 8, background: '#0f0f0f', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Yes, new version</button>
-              <button onClick={async () => { const file = versionPrompt.file; setVersionPrompt(null); await handleUpload(file, null) }}
-                style={{ flex: 1, padding: '10px', border: '1.5px solid rgba(0,0,0,0.15)', borderRadius: 8, background: '#fff', color: '#0f0f0f', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>No, separate</button>
+      {/* History panel */}
+      {showHistory && stored.length > 0 && (
+        <div style={{ marginBottom: 20, border: '1px solid rgba(0,0,0,0.1)', borderRadius: 10, overflow: 'hidden' }}>
+          {stored.map(r => (
+            <div key={r.id} style={{ padding: '10px 16px', borderBottom: '1px solid rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: 10, background: '#fafafa' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 600, color: '#0f0f0f' }}>{r.filename}</div>
+                <div style={{ fontSize: 11.5, color: '#aaa' }}>{new Date(r.createdAt).toLocaleString()} · {r.risks.length} risks</div>
+              </div>
+              <button onClick={() => loadReview(r)} style={{ padding: '4px 12px', border: 'none', borderRadius: 6, background: '#0f0f0f', color: '#fff', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>Load</button>
+              <button onClick={() => deleteReview(r.id)} style={{ padding: '4px 10px', border: '1px solid #fca5a5', borderRadius: 6, background: '#fff', fontSize: 12, cursor: 'pointer', color: '#b91c1c' }}>Delete</button>
             </div>
-          </div>
+          ))}
         </div>
       )}
 
       {/* Drop zone */}
-      <div onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) initiateUpload(f) }}
+      <div
+        onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f && !busy) handleFile(f) }}
         onDragOver={e => e.preventDefault()}
         onClick={() => !busy && fileRef.current?.click()}
-        style={{ border: '2px dashed rgba(0,0,0,0.18)', borderRadius: 12, padding: '40px 24px', textAlign: 'center', cursor: busy ? 'not-allowed' : 'pointer', background: busy ? '#f5f5f5' : '#fafafa', marginBottom: 20 }}>
+        style={{
+          border: `2px dashed ${busy ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.18)'}`,
+          borderRadius: 12, padding: '32px 24px', textAlign: 'center',
+          cursor: busy ? 'not-allowed' : 'pointer',
+          background: busy ? '#f5f5f5' : '#fafafa',
+          marginBottom: 20, transition: 'all 0.2s',
+        }}
+      >
         <input ref={fileRef} type="file" accept=".pdf,.docx,.txt,.md" style={{ display: 'none' }}
-          onChange={e => { const f = e.target.files?.[0]; if (f) initiateUpload(f); e.target.value = '' }} />
+          onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
+
         {busy ? (
-          <>
-            <div style={{ fontSize: 14, color: '#555', fontWeight: 500 }}>{progress}</div>
-            <div style={{ fontSize: 12, color: '#aaa', marginTop: 4 }}>This may take a moment for large documents</div>
-          </>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 6 }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2" strokeLinecap="round"
+                style={{ animation: 'spin 1s linear infinite' }}>
+                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+              </svg>
+              <span style={{ fontSize: 14, fontWeight: 600, color: '#555' }}>
+                {stage === 'reading' ? 'Reading document...' : 'Reviewing contract for risks...'}
+              </span>
+            </div>
+            <div style={{ fontSize: 12, color: '#aaa' }}>
+              {stage === 'reviewing' ? 'Analysing every clause — this takes 15–30 seconds' : ''}
+            </div>
+          </div>
         ) : (
-          <>
-            <div style={{ fontSize: 14, color: '#555', fontWeight: 500 }}>Drag a contract here, or click to select</div>
-            <div style={{ fontSize: 12, color: '#aaa', marginTop: 4 }}>PDF, Word (.docx), TXT — full document, no size limit</div>
-          </>
+          <div>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>📄</div>
+            <div style={{ fontSize: 14, color: '#555', fontWeight: 600 }}>Drop your contract here, or click to upload</div>
+            <div style={{ fontSize: 12, color: '#aaa', marginTop: 4 }}>PDF, Word (.docx), TXT</div>
+          </div>
         )}
       </div>
 
+      <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
+
+      {/* Error */}
       {error && (
-        <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, fontSize: 13.5, color: '#b91c1c', marginBottom: 16 }}>{error}</div>
-      )}
-
-      {/* Live analysis card */}
-      {(analysis || (busy && progress.includes('Analysing'))) && (
-        <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.1)', borderRadius: 12, marginBottom: 20, overflow: 'hidden' }}>
-          {/* Header */}
-          <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 14, fontWeight: 600, color: '#0f0f0f' }}>{selectedFilename}</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              {!busy && changes.length > 0 && (
-                <span style={{ fontSize: 12, color: '#888' }}>
-                  {accepted.size + rejected.size} / {changes.length} reviewed
-                </span>
-              )}
-              {!busy && currentContract && (
-                <button onClick={() => openDoc(currentContract)} style={{ padding: '6px 16px', border: 'none', borderRadius: 7, background: '#0f0f0f', color: '#fff', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
-                  Open Document
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Analysis text — strip raw XML change blocks from prose */}
-          <div style={{ padding: '20px 24px', fontSize: 14 }}>
-            <MarkdownRenderer content={analysis.replace(/<change>[\s\S]*?<\/change>/gi, '').trim()} />
-            {busy && <span style={{ display: 'inline-block', width: 8, height: 14, background: '#0f0f0f', marginLeft: 2, animation: 'pulse 1s infinite', verticalAlign: 'middle' }} />}
-          </div>
-
-          {/* Risk / change cards — shown once streaming finishes */}
-          {!busy && changes.length > 0 && (
-            <div style={{ padding: '0 24px 24px' }}>
-              <div style={{ borderTop: '1px solid rgba(0,0,0,0.07)', paddingTop: 20, marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#999' }}>
-                  {changes.length} Risk{changes.length !== 1 ? 's' : ''} — Accept or Reject Each Fix
-                </div>
-                <div style={{ fontSize: 12, color: '#888' }}>
-                  {accepted.size} accepted · {rejected.size} rejected
-                </div>
-              </div>
-              {changes.map(c => (
-                <ChangeCard
-                  key={c.index}
-                  change={c}
-                  isAcc={accepted.has(c.index)}
-                  isRej={rejected.has(c.index)}
-                  onAccept={() => handleAccept(c.index)}
-                  onReject={() => handleReject(c.index)}
-                />
-              ))}
-              {accepted.size + rejected.size === changes.length && (
-                <div style={{ marginTop: 14, padding: '12px 16px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #86efac', fontSize: 13.5, color: '#15803d', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>All done — {accepted.size} accepted, {rejected.size} rejected</span>
-                  {currentContract && (
-                    <button onClick={() => openDoc(currentContract)} style={{ padding: '6px 16px', border: 'none', borderRadius: 7, background: '#0f0f0f', color: '#fff', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
-                      Open Document
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+        <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, fontSize: 13.5, color: '#b91c1c', marginBottom: 16 }}>
+          {error}
         </div>
       )}
 
-      {/* History */}
-      {topLevel.length > 0 && (
+      {/* Results */}
+      {risks.length > 0 && (
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#999', marginBottom: 10 }}>Contract History</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {topLevel.map(c => {
-              const versions = stored.filter(s => s.parentId === c.id)
-              const cChanges = parseChanges(c.analysis || '')
-              const cAcc = new Set<number>(c.acceptedChanges || [])
-              const cRej = new Set<number>(c.rejectedChanges || [])
-              const analysisExpanded = expandedIds.has('a_' + c.id)
-              const versionsExpanded = expandedIds.has('v_' + c.id)
-
-              return (
-                <div key={c.id} style={{ border: '1px solid rgba(0,0,0,0.08)', borderRadius: 10, overflow: 'hidden' }}>
-                  <div style={{ padding: '12px 16px', background: '#f8f8f8', display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 13.5, fontWeight: 600, color: '#0f0f0f' }}>{c.filename}</span>
-                        <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 10, background: 'rgba(0,0,0,0.07)', color: '#555' }}>v{c.versionNumber}</span>
-                        {versions.length > 0 && <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 10, background: '#e0f2fe', color: '#0369a1' }}>{versions.length + 1} versions</span>}
-                        {cChanges.length > 0 && (
-                          <span style={{ fontSize: 11, color: cAcc.size + cRej.size === cChanges.length ? '#15803d' : '#aaa' }}>
-                            {cAcc.size + cRej.size}/{cChanges.length} reviewed
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: 12, color: '#aaa', marginTop: 2 }}>{new Date(c.createdAt).toLocaleString()}</div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                      <button onClick={() => openDoc(c)} style={{ padding: '5px 12px', border: 'none', borderRadius: 6, background: '#0f0f0f', color: '#fff', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>
-                        Open Doc
-                      </button>
-                      {c.analysis && <button onClick={() => toggleExpand('a_' + c.id)} style={{ padding: '5px 12px', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 6, background: '#fff', fontSize: 12, cursor: 'pointer', color: '#555' }}>
-                        {analysisExpanded ? 'Hide' : 'Analysis'}
-                      </button>}
-                      {versions.length > 0 && <button onClick={() => toggleExpand('v_' + c.id)} style={{ padding: '5px 12px', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 6, background: '#fff', fontSize: 12, cursor: 'pointer', color: '#555' }}>
-                        {versionsExpanded ? 'Hide' : 'Versions'}
-                      </button>}
-                      <button onClick={() => deleteContract(c.id)} style={{ padding: '5px 10px', border: '1px solid #fca5a5', borderRadius: 6, background: '#fff', fontSize: 12, cursor: 'pointer', color: '#b91c1c' }}>Delete</button>
-                    </div>
-                  </div>
-
-                  {analysisExpanded && (
-                    <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(0,0,0,0.06)', background: '#fff' }}>
-                      <MarkdownRenderer content={c.analysis.replace(/<change>[\s\S]*?<\/change>/gi, '').trim()} />
-                      {cChanges.length > 0 && (
-                        <div style={{ marginTop: 20, borderTop: '1px solid rgba(0,0,0,0.06)', paddingTop: 16 }}>
-                          <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#999', marginBottom: 12 }}>
-                            {cChanges.length} Risks / Fixes
-                          </div>
-                          {cChanges.map(ch => (
-                            <ChangeCard key={ch.index} change={ch} isAcc={cAcc.has(ch.index)} isRej={cRej.has(ch.index)}
-                              onAccept={() => handleAccept(ch.index, c.id)} onReject={() => handleReject(ch.index, c.id)} />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {versionsExpanded && versions.map(v => {
-                    const vAnalysisExpanded = expandedIds.has('a_' + v.id)
-                    const vChanges = parseChanges(v.analysis || '')
-                    const vAcc = new Set<number>(v.acceptedChanges || [])
-                    const vRej = new Set<number>(v.rejectedChanges || [])
-                    return (
-                      <div key={v.id} style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
-                        <div style={{ padding: '10px 16px 10px 32px', background: '#fafafa', display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 13, color: '#333' }}>{v.filename} <span style={{ fontSize: 11, color: '#aaa' }}>v{v.versionNumber}</span></div>
-                            <div style={{ fontSize: 11.5, color: '#bbb', marginTop: 1 }}>{new Date(v.createdAt).toLocaleString()}</div>
-                          </div>
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            <button onClick={() => openDoc(v)} style={{ padding: '4px 10px', border: 'none', borderRadius: 6, background: '#0f0f0f', color: '#fff', fontSize: 11.5, cursor: 'pointer', fontWeight: 600 }}>Open Doc</button>
-                            {v.analysis && <button onClick={() => toggleExpand('a_' + v.id)} style={{ padding: '4px 10px', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 6, background: '#fff', fontSize: 11.5, cursor: 'pointer', color: '#555' }}>{vAnalysisExpanded ? 'Hide' : 'Analysis'}</button>}
-                            <button onClick={() => deleteContract(v.id)} style={{ padding: '4px 8px', border: '1px solid #fca5a5', borderRadius: 6, background: '#fff', fontSize: 11.5, cursor: 'pointer', color: '#b91c1c' }}>Delete</button>
-                          </div>
-                        </div>
-                        {vAnalysisExpanded && v.analysis && (
-                          <div style={{ padding: '14px 20px', borderTop: '1px solid rgba(0,0,0,0.05)', background: '#fff' }}>
-                            <MarkdownRenderer content={v.analysis.replace(/<change>[\s\S]*?<\/change>/gi, '').trim()} />
-                            {vChanges.length > 0 && (
-                              <div style={{ marginTop: 16, borderTop: '1px solid rgba(0,0,0,0.06)', paddingTop: 14 }}>
-                                {vChanges.map(ch => (
-                                  <ChangeCard key={ch.index} change={ch} isAcc={vAcc.has(ch.index)} isRej={vRej.has(ch.index)}
-                                    onAccept={() => handleAccept(ch.index, v.id)} onReject={() => handleReject(ch.index, v.id)} />
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )
-            })}
+          {/* Summary bar */}
+          <div style={{ marginBottom: 16, padding: '12px 16px', background: '#fff', border: '1px solid rgba(0,0,0,0.09)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: '#0f0f0f' }}>{filename}</div>
+            <div style={{ display: 'flex', gap: 10, flex: 1, flexWrap: 'wrap' }}>
+              {criticalCount > 0 && <span style={{ fontSize: 12, padding: '2px 9px', borderRadius: 12, background: '#fda4af66', color: '#be123c', fontWeight: 700 }}>{criticalCount} CRITICAL</span>}
+              {highCount > 0 && <span style={{ fontSize: 12, padding: '2px 9px', borderRadius: 12, background: '#fdba7466', color: '#c2410c', fontWeight: 700 }}>{highCount} HIGH</span>}
+              <span style={{ fontSize: 12, color: '#888' }}>{risks.length} total risks</span>
+            </div>
+            <div style={{ fontSize: 12.5, color: reviewed === risks.length ? '#15803d' : '#888', fontWeight: reviewed === risks.length ? 700 : 400 }}>
+              {reviewed}/{risks.length} reviewed
+            </div>
+            {accepted > 0 && docText && (
+              <button
+                onClick={async () => { setGenerating(true); await downloadUpdatedContract(docText, risks, filename); setGenerating(false) }}
+                disabled={generating}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', border: 'none', borderRadius: 8, background: generating ? '#e5e5e5' : '#0f0f0f', color: generating ? '#999' : '#fff', fontSize: 12.5, fontWeight: 600, cursor: generating ? 'not-allowed' : 'pointer' }}
+              >
+                {generating ? (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ animation: 'spin 1s linear infinite' }}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                ) : (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                )}
+                {generating ? 'Generating...' : `Download updated contract (${accepted} fix${accepted > 1 ? 'es' : ''})`}
+              </button>
+            )}
           </div>
+
+          {/* Risk cards */}
+          {risks.map((r, i) => (
+            <RiskCard
+              key={i}
+              risk={r}
+              index={i}
+              onAccept={() => handleAccept(i)}
+              onReject={() => handleReject(i)}
+            />
+          ))}
+
+          {/* All done banner */}
+          {reviewed === risks.length && risks.length > 0 && (
+            <div style={{ marginTop: 16, padding: '14px 20px', background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#15803d' }}>Review complete</div>
+                <div style={{ fontSize: 13, color: '#166534', marginTop: 2 }}>{accepted} fixes accepted · {rejected} rejected</div>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {accepted > 0 && docText && (
+                  <button
+                    onClick={async () => { setGenerating(true); await downloadUpdatedContract(docText, risks, filename); setGenerating(false) }}
+                    disabled={generating}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px', border: 'none', borderRadius: 8, background: '#16a34a', color: '#fff', fontSize: 13, fontWeight: 600, cursor: generating ? 'not-allowed' : 'pointer' }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    {generating ? 'Generating...' : 'Download updated contract'}
+                  </button>
+                )}
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  style={{ padding: '8px 18px', border: '1.5px solid rgba(0,0,0,0.15)', borderRadius: 8, background: '#fff', color: '#0f0f0f', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Upload another
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

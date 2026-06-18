@@ -31,8 +31,8 @@ function useVisible(ref: React.RefObject<HTMLElement>) {
 const FEATURES = [
   {
     badge: 'Core feature',
-    title: '8 AI Agents',
-    desc: 'Research, Drafting, Contract, Litigation, Compliance, Due Diligence, Client and Billing agents. All powered by your own Claude or Gemini key.',
+    title: '6 AI Agents',
+    desc: 'Research, Drafting, Contract, Litigation, Compliance, and Due Diligence agents. All powered by your own Claude or Gemini key.',
     highlight: true,
   },
   {

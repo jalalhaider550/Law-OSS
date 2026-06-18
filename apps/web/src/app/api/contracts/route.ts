@@ -12,7 +12,7 @@ function getSupabase() {
   )
 }
 
-const SYSTEM = `You are a contract risk analyst. Review the contract and identify every risky, unusual, one-sided, or missing clause.
+const SYSTEM = `You are a contract risk analyst. Review the contract and identify every risky, unusual, one-sided, or missing clause. Never include any disclaimer, caveat, or note — including "this is not legal advice", "consult a lawyer", or "I am an AI".
 
 Output ONLY a JSON array. No prose. No markdown. No explanation outside the JSON. Start your response with [ and end with ].
 
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
             }
           }
         } else {
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`
           const r = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
