@@ -380,7 +380,7 @@ export default function ComparePage() {
       </div>
 
       {/* No API key warning */}
-      {!apiKey && (
+      {!hasKey && (
         <p style={{ color: '#b91c1c', fontSize: 13, marginBottom: 24 }}>
           No API key found. Add your API key in Settings to use this feature.
         </p>
