@@ -124,13 +124,6 @@ export default function LandingPage() {
     return () => window.removeEventListener('resize', check)
   }, [])
 
-  // Sign out session when tab is closed (session-only auth)
-  useEffect(() => {
-    const supabase = createClientComponentClient()
-    const handleUnload = () => { supabase.auth.signOut() }
-    window.addEventListener('beforeunload', handleUnload)
-    return () => window.removeEventListener('beforeunload', handleUnload)
-  }, [])
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
