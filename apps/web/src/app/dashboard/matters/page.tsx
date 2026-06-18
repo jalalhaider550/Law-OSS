@@ -109,8 +109,9 @@ function DocActions({ content, agentName }: { content: string; agentName: string
 const MATTER_TYPES = ['litigation', 'contract', 'corporate', 'ip', 'employment', 'real-estate', 'criminal', 'family', 'other']
 
 let _uid = ''
+const _tabId = Math.random().toString(36).slice(2)
 function setUid(id: string) { _uid = id; localStorage.setItem('law_oss_uid', id) }
-function userKey(base: string) { return `${base}_${_uid || localStorage.getItem('law_oss_uid') || 'default'}` }
+function userKey(base: string) { return `${base}_${_uid || _tabId}` }
 
 const LS_KEY = 'law_oss_matters'
 

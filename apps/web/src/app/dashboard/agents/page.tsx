@@ -181,8 +181,9 @@ type SavedChat = { id: string; agentId: string; agentName: string; title: string
 type Matter = { id: string; matterNumber?: number; name: string; type: string; status: string; court?: string; attorney?: string; dueDate?: string; notes?: string; savedChats: SavedChat[] }
 
 let _uid = ''
+const _tabId = Math.random().toString(36).slice(2)
 function setUid(id: string) { _uid = id; localStorage.setItem('law_oss_uid', id) }
-function userKey(base: string) { return `${base}_${_uid || localStorage.getItem('law_oss_uid') || 'default'}` }
+function userKey(base: string) { return `${base}_${_uid || _tabId}` }
 
 function getMatters(): Matter[] { try { return JSON.parse(localStorage.getItem(userKey('law_oss_matters')) || '[]') } catch { return [] } }
 function persistMatters(m: Matter[]) { localStorage.setItem(userKey('law_oss_matters'), JSON.stringify(m)) }

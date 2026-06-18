@@ -5,7 +5,11 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
-function userKey(base: string) { return `${base}_${localStorage.getItem('law_oss_uid') || 'default'}` }
+// _uid is set immediately on session load — random fallback ensures no cross-account bleed
+let _uid = ''
+const _tabId = Math.random().toString(36).slice(2)
+function setUid(id: string) { _uid = id; localStorage.setItem('law_oss_uid', id) }
+function userKey(base: string) { return `${base}_${_uid || _tabId}` }
 
 const COUNTRIES = [
   'United Kingdom', 'United States', 'Australia', 'Canada', 'Ireland',
@@ -66,7 +70,7 @@ export default function SettingsPage() {
       setAuthToken(session.access_token)
       setUserEmail(session.user.email || '')
       // Namespace all localStorage keys by user ID so accounts never share data
-      localStorage.setItem('law_oss_uid', session.user.id)
+      setUid(session.user.id)
       const meta = session.user.user_metadata || {}
       setFullName(meta.full_name || meta.name || '')
       setLawFirmName(meta.law_firm || '')

@@ -13,6 +13,10 @@ const JURISDICTIONS = [
   { value: 'scotland',  label: 'Scotland' },
 ]
 
+let _uid = ''
+const _tabId = Math.random().toString(36).slice(2)
+function userKey(base: string) { return `${base}_${_uid || _tabId}` }
+
 export default function ResearchPage() {
   const [token,         setToken]         = useState<string | null>(null)
   const [hasApiKey,     setHasApiKey]     = useState(false)
@@ -27,9 +31,13 @@ export default function ResearchPage() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setToken(session.access_token)
+      if (session) {
+        _uid = session.user.id
+        localStorage.setItem('law_oss_uid', session.user.id)
+        setToken(session.access_token)
+        setHasApiKey(!!localStorage.getItem(userKey('law_oss_api_key')))
+      }
     })
-    setHasApiKey(!!localStorage.getItem('law_oss_api_key_' + (localStorage.getItem('law_oss_uid') || 'default')))
   }, [])
 
   async function search() {
@@ -44,8 +52,8 @@ export default function ResearchPage() {
     setProgress('Searching verified case databases...')
 
     try {
-      const apiKey      = localStorage.getItem('law_oss_api_key_' + (localStorage.getItem('law_oss_uid') || 'default')) || ''
-      const apiProvider = localStorage.getItem('law_oss_provider_' + (localStorage.getItem('law_oss_uid') || 'default')) || 'claude'
+      const apiKey      = localStorage.getItem(userKey('law_oss_api_key')) || ''
+      const apiProvider = localStorage.getItem(userKey('law_oss_provider')) || 'claude'
       const url = `/api/research?q=${encodeURIComponent(query)}&jurisdiction=${encodeURIComponent(jurisdiction)}&apiKey=${encodeURIComponent(apiKey)}&apiProvider=${encodeURIComponent(apiProvider)}`
       const res = await fetch(url, {
           headers: {

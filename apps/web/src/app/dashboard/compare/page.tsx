@@ -1,5 +1,10 @@
 'use client'
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+
+let _uid = ''
+const _tabId = Math.random().toString(36).slice(2)
+function userKey(base: string) { return `${base}_${_uid || _tabId}` }
 
 const CATEGORIES = [
   'Parties',
@@ -129,6 +134,18 @@ export default function ComparePage() {
   const [contracts, setContracts] = useState<ContractFile[]>([])
   const [analysing, setAnalysing] = useState(false)
   const [done, setDone] = useState(false)
+  const [hasKey, setHasKey] = useState(false)
+  const supabase = createClientComponentClient()
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        _uid = session.user.id
+        localStorage.setItem('law_oss_uid', session.user.id)
+        setHasKey(!!localStorage.getItem(userKey('law_oss_api_key')))
+      }
+    })
+  }, [])
   const dragRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -165,8 +182,8 @@ export default function ComparePage() {
   }
 
   const handleAnalyse = async () => {
-    const apiKey = localStorage.getItem('law_oss_api_key_' + (localStorage.getItem('law_oss_uid') || 'default')) ?? ''
-    const provider = localStorage.getItem('law_oss_provider_' + (localStorage.getItem('law_oss_uid') || 'default')) ?? 'claude'
+    const apiKey = localStorage.getItem(userKey('law_oss_api_key')) ?? ''
+    const provider = localStorage.getItem(userKey('law_oss_provider')) ?? 'claude'
     if (!apiKey) return
     setAnalysing(true)
     setDone(false)
@@ -200,8 +217,7 @@ export default function ComparePage() {
     setAnalysing(false)
   }
 
-  const apiKey = typeof window !== 'undefined' ? localStorage.getItem('law_oss_api_key_' + (localStorage.getItem('law_oss_uid') || 'default')) : null
-  const canAnalyse = contracts.length >= 2 && !!apiKey && !analysing
+  const canAnalyse = contracts.length >= 2 && hasKey && !analysing
 
   const statusLabel: Record<ContractFile['status'], string> = {
     idle: '',
