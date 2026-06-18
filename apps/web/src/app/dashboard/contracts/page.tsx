@@ -1,5 +1,6 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 type Risk = {
   title: string
@@ -295,8 +296,15 @@ export default function ContractsPage() {
   const [generating, setGenerating] = useState(false)
 
   const fileRef = useRef<HTMLInputElement>(null)
+  const supabase = createClientComponentClient()
 
-  useEffect(() => { setStored(loadReviews()) }, [])
+  useEffect(() => {
+    // Set uid FIRST so userKey() returns the correct namespaced key
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) localStorage.setItem('law_oss_uid', session.user.id)
+      setStored(loadReviews())
+    })
+  }, [])
 
   function persistRisks(id: string, updated: Risk[]) {
     const all = loadReviews()

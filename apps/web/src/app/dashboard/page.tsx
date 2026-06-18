@@ -284,6 +284,8 @@ export default function DashboardPage() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) return
+      // Set uid FIRST so userKey() returns the correct namespaced key
+      localStorage.setItem('law_oss_uid', session.user.id)
       const meta = session.user.user_metadata || {}
       setUserName(meta.full_name || meta.name || session.user.email?.split('@')[0] || '')
       setHasKey(!!localStorage.getItem(userKey('law_oss_api_key')))

@@ -461,6 +461,8 @@ export default function AgentsPage() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) { window.location.href = '/login'; return }
+      // Set uid FIRST so userKey() returns the correct namespaced key
+      localStorage.setItem('law_oss_uid', session.user.id)
       setNoKey(!localStorage.getItem(userKey('law_oss_api_key')))
       setAuthToken(session.access_token)
     })

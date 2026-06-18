@@ -568,8 +568,12 @@ export default function MattersPage() {
   const supabase = createClientComponentClient()
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => { if (!session) window.location.href = '/login' })
-    setMatters(loadMatters())
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) { window.location.href = '/login'; return }
+      // Set uid FIRST so userKey() returns the correct namespaced key
+      localStorage.setItem('law_oss_uid', session.user.id)
+      setMatters(loadMatters())
+    })
   }, [])
 
   function addMatter(m: Matter) {
