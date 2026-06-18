@@ -1,8 +1,9 @@
 'use client'
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import Link from 'next/link'
+import Image from 'next/image'
 
 const inp: React.CSSProperties = {
   width: '100%', height: 40, border: '1.5px solid rgba(0,0,0,0.14)',
@@ -10,17 +11,18 @@ const inp: React.CSSProperties = {
   background: '#f8f8f8', color: '#0f0f0f',
 }
 
-export default function LoginPage() {
+function LoginForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [checking, setChecking] = useState(true)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const confirmed = searchParams.get('confirmed') === '1'
   const supabase = createClientComponentClient()
 
   useEffect(() => {
-    // Always sign out on login page visit — forces fresh credentials every time
     supabase.auth.signOut().finally(() => setChecking(false))
   }, [])
 
@@ -47,10 +49,7 @@ export default function LoginPage() {
       }}>
         <div style={{ background: '#0f0f0f', padding: '28px 32px 24px', color: '#fff' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
-            <div style={{
-              width: 32, height: 32, background: 'rgba(255,255,255,0.15)', borderRadius: 8,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
-            }}>⚖</div>
+            <Image src="/logo.png" alt="Law OSS" width={32} height={32} style={{ objectFit: 'contain' }} unoptimized />
             <span style={{ fontWeight: 700, fontSize: 16 }}>Law OSS</span>
           </div>
           <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Welcome back</div>
@@ -58,6 +57,20 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleSubmit} style={{ padding: '28px 32px 32px' }}>
+
+          {/* Email confirmed banner */}
+          {confirmed && (
+            <div style={{
+              background: '#f0fdf4', border: '1px solid #86efac',
+              borderRadius: 8, padding: '11px 14px', fontSize: 13.5,
+              color: '#15803d', fontWeight: 500, marginBottom: 20,
+              display: 'flex', alignItems: 'center', gap: 8,
+            }}>
+              <span style={{ fontSize: 16 }}>✓</span>
+              Email confirmed! You can now sign in.
+            </div>
+          )}
+
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6, color: '#555' }}>
               Email address
@@ -97,5 +110,13 @@ export default function LoginPage() {
         </form>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   )
 }
