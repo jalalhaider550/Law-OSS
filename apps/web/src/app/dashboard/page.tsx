@@ -7,9 +7,11 @@ import MarkdownRenderer from '../../components/MarkdownRenderer'
 type Msg = { role: 'user' | 'assistant'; content: string }
 type AttachedDoc = { name: string; text: string }
 type SavedChat = { id: string; agentId: string; agentName: string; title: string; messages: Msg[]; savedAt: string }
-type Matter = { id: string; name: string; type: string; status: string; savedChats: SavedChat[] }
+type Matter = { id: string; matterNumber?: number; name: string; type: string; status: string; savedChats: SavedChat[] }
 
-function userKey(base: string) { return `${base}_${localStorage.getItem('law_oss_uid') || 'default'}` }
+let _uid = ''
+function setUid(id: string) { _uid = id; localStorage.setItem('law_oss_uid', id) }
+function userKey(base: string) { return `${base}_${_uid || localStorage.getItem('law_oss_uid') || 'default'}` }
 
 function getMatters(): Matter[] { try { return JSON.parse(localStorage.getItem(userKey('law_oss_matters')) || '[]') } catch { return [] } }
 function persistMatters(m: Matter[]) { localStorage.setItem(userKey('law_oss_matters'), JSON.stringify(m)) }
@@ -44,31 +46,84 @@ async function extractTextFromFile(file: File): Promise<string> {
 function SaveToMatter({ messages, agentId, agentName }: { messages: Msg[]; agentId: string; agentName: string }) {
   const [open, setOpen] = useState(false)
   const [toast, setToast] = useState('')
-  const matters = getMatters()
-  function save(matter: Matter) {
+  const [creating, setCreating] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [matters, setMatters] = useState<Matter[]>([])
+
+  useEffect(() => { setMatters(getMatters()) }, [open])
+
+  function saveToMatter(matter: Matter) {
+    const all = getMatters()
     const firstUser = messages.find(m => m.role === 'user')?.content || 'Untitled'
     const chat: SavedChat = { id: Date.now().toString(), agentId, agentName, title: firstUser.slice(0, 60), messages, savedAt: new Date().toISOString() }
-    const updated = matters.map(m => m.id === matter.id ? { ...m, savedChats: [...(m.savedChats || []), chat] } : m)
+    const updated = all.map(m => m.id === matter.id ? { ...m, savedChats: [...(m.savedChats || []), chat] } : m)
     persistMatters(updated)
-    setOpen(false); setToast(`Saved to ${matter.name}`)
+    setOpen(false); setCreating(false); setNewName('')
+    setToast(`Saved to "${matter.name}"`)
     setTimeout(() => setToast(''), 2500)
   }
-  if (matters.length === 0) return null
+
+  function createAndSave() {
+    const name = newName.trim()
+    if (!name) return
+    const all = getMatters()
+    const nextNum = all.length > 0 ? Math.max(...all.map(x => x.matterNumber ?? 0)) + 1 : 1
+    const newMatter: Matter = { id: Date.now().toString(), matterNumber: nextNum, name, type: 'general', status: 'active', savedChats: [] }
+    persistMatters([newMatter, ...all])
+    saveToMatter(newMatter)
+  }
+
   return (
     <div style={{ position: 'relative', display: 'inline-block' }}>
-      <button onClick={() => setOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', border: '1.5px solid rgba(0,0,0,0.15)', borderRadius: 6, background: '#fff', color: '#374151', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
+      <button onClick={() => { setOpen(o => !o); setCreating(false); setNewName('') }} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', border: '1.5px solid rgba(0,0,0,0.15)', borderRadius: 6, background: '#fff', color: '#374151', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
         Save to Matter
       </button>
       {open && (
-        <div style={{ position: 'absolute', bottom: '110%', left: 0, background: '#fff', border: '1px solid #e5e5e5', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', minWidth: 200, zIndex: 100, overflow: 'hidden' }}>
-          <div style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #f3f4f6' }}>Choose a matter</div>
-          {matters.map(m => (
-            <button key={m.id} onClick={() => save(m)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, color: '#0f0f0f' }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
-              {m.name} <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 4, textTransform: 'capitalize' }}>{m.status}</span>
-            </button>
-          ))}
+        <div style={{ position: 'absolute', bottom: '110%', left: 0, background: '#fff', border: '1px solid #e5e5e5', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', minWidth: 220, zIndex: 100, overflow: 'hidden' }}>
+          {matters.length > 0 && !creating && (
+            <>
+              <div style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #f3f4f6' }}>Choose a matter</div>
+              {matters.map(m => (
+                <button key={m.id} onClick={() => saveToMatter(m)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, color: '#0f0f0f' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                  {m.matterNumber ? <span style={{ fontSize: 11, color: '#9ca3af', marginRight: 5 }}>#{String(m.matterNumber).padStart(3,'0')}</span> : null}
+                  {m.name} <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 4, textTransform: 'capitalize' }}>{m.status}</span>
+                </button>
+              ))}
+              <div style={{ borderTop: '1px solid #f3f4f6' }}>
+                <button onClick={() => setCreating(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', textAlign: 'left', padding: '9px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, color: '#6b7280' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#f9fafb')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                  <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> Create new matter
+                </button>
+              </div>
+            </>
+          )}
+          {(creating || matters.length === 0) && (
+            <div style={{ padding: '12px' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 8 }}>
+                {matters.length === 0 ? 'No matters yet — create one to save this chat' : 'New matter name'}
+              </div>
+              <input
+                autoFocus
+                value={newName}
+                onChange={e => setNewName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') createAndSave(); if (e.key === 'Escape') { setCreating(false); if (matters.length === 0) setOpen(false) } }}
+                placeholder="e.g. Smith v Jones"
+                style={{ width: '100%', padding: '7px 10px', border: '1.5px solid #d1d5db', borderRadius: 6, fontSize: 13, outline: 'none', boxSizing: 'border-box', marginBottom: 8 }}
+              />
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={createAndSave} disabled={!newName.trim()} style={{ flex: 1, padding: '6px 0', background: newName.trim() ? '#0f0f0f' : '#e5e5e5', color: newName.trim() ? '#fff' : '#aaa', border: 'none', borderRadius: 6, fontSize: 12.5, fontWeight: 600, cursor: newName.trim() ? 'pointer' : 'not-allowed' }}>
+                  Create &amp; Save
+                </button>
+                {matters.length > 0 && (
+                  <button onClick={() => setCreating(false)} style={{ padding: '6px 12px', background: '#fff', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 12.5, color: '#555', cursor: 'pointer' }}>
+                    Back
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
       {toast && <div style={{ position: 'fixed', bottom: 24, right: 24, background: '#0f0f0f', color: '#fff', padding: '10px 18px', borderRadius: 8, fontSize: 13.5, fontWeight: 500, zIndex: 9999, boxShadow: '0 4px 16px rgba(0,0,0,0.25)' }}>{toast}</div>}
@@ -285,7 +340,7 @@ export default function DashboardPage() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) return
       // Set uid FIRST so userKey() returns the correct namespaced key
-      localStorage.setItem('law_oss_uid', session.user.id)
+      setUid(session.user.id)
       const meta = session.user.user_metadata || {}
       setUserName(meta.full_name || meta.name || session.user.email?.split('@')[0] || '')
       setHasKey(!!localStorage.getItem(userKey('law_oss_api_key')))

@@ -108,7 +108,9 @@ function DocActions({ content, agentName }: { content: string; agentName: string
 
 const MATTER_TYPES = ['litigation', 'contract', 'corporate', 'ip', 'employment', 'real-estate', 'criminal', 'family', 'other']
 
-function userKey(base: string) { return `${base}_${localStorage.getItem('law_oss_uid') || 'default'}` }
+let _uid = ''
+function setUid(id: string) { _uid = id; localStorage.setItem('law_oss_uid', id) }
+function userKey(base: string) { return `${base}_${_uid || localStorage.getItem('law_oss_uid') || 'default'}` }
 
 const LS_KEY = 'law_oss_matters'
 
@@ -571,7 +573,7 @@ export default function MattersPage() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) { window.location.href = '/login'; return }
       // Set uid FIRST so userKey() returns the correct namespaced key
-      localStorage.setItem('law_oss_uid', session.user.id)
+      setUid(session.user.id)
       setMatters(loadMatters())
     })
   }, [])

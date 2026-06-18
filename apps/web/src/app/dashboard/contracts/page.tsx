@@ -20,7 +20,9 @@ type StoredReview = {
   docText?: string
 }
 
-function userKey(base: string) { return `${base}_${localStorage.getItem('law_oss_uid') || 'default'}` }
+let _uid = ''
+function setUid(id: string) { _uid = id; localStorage.setItem('law_oss_uid', id) }
+function userKey(base: string) { return `${base}_${_uid || localStorage.getItem('law_oss_uid') || 'default'}` }
 
 function loadReviews(): StoredReview[] {
   try { return JSON.parse(localStorage.getItem(userKey('law_oss_contracts_v2')) || '[]') } catch { return [] }
@@ -301,7 +303,7 @@ export default function ContractsPage() {
   useEffect(() => {
     // Set uid FIRST so userKey() returns the correct namespaced key
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) localStorage.setItem('law_oss_uid', session.user.id)
+      if (session) setUid(session.user.id)
       setStored(loadReviews())
     })
   }, [])
