@@ -12,3 +12,4 @@ coverage/
 **/.claude-flow/
 .buildinfo
 apps/api/vendor/
+.vercel
