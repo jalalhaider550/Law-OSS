@@ -4,11 +4,13 @@ import Image from 'next/image'
 import dynamic from 'next/dynamic'
 import { useRef, useState, useEffect, useCallback } from 'react'
 
-const KnowledgeGraph = dynamic(() => import('../components/KnowledgeGraph'), { ssr: false, loading: () => null })
-const CitationConstellation = dynamic(() => import('../components/CitationConstellation'), { ssr: false, loading: () => null })
-const TimelineTunnel = dynamic(() => import('../components/TimelineTunnel'), { ssr: false, loading: () => null })
-const ExplodedContract = dynamic(() => import('../components/ExplodedContract'), { ssr: false, loading: () => null })
-const TransparentEngine = dynamic(() => import('../components/TransparentEngine'), { ssr: false, loading: () => null })
+const PrecedentEngine    = dynamic(() => import('../components/PrecedentEngine'),    { ssr: false, loading: () => null })
+const LitigationWarRoom  = dynamic(() => import('../components/LitigationWarRoom'),  { ssr: false, loading: () => null })
+const CorporateUniverse  = dynamic(() => import('../components/CorporateUniverse'),  { ssr: false, loading: () => null })
+const RegulatoryImpact   = dynamic(() => import('../components/RegulatoryImpact'),   { ssr: false, loading: () => null })
+const ContractNegotiation = dynamic(() => import('../components/ContractNegotiation'), { ssr: false, loading: () => null })
+const LegalKnowledgeCity = dynamic(() => import('../components/LegalKnowledgeCity'), { ssr: false, loading: () => null })
+const OperatingSystem    = dynamic(() => import('../components/OperatingSystem'),    { ssr: false, loading: () => null })
 const LazyCanvas = dynamic(() => import('../components/LazyCanvas'), { ssr: false })
 
 function useFadeIn() {
@@ -303,7 +305,7 @@ export default function LandingPage() {
               pointerEvents: 'none', zIndex: 0,
             }} />
             <div style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%' }}>
-              <LazyCanvas height={isMobile ? 320 : 560}><KnowledgeGraph /></LazyCanvas>
+              <LazyCanvas height={isMobile ? 320 : 560}><PrecedentEngine /></LazyCanvas>
             </div>
           </div>
         </div>
@@ -324,100 +326,48 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* ── SECTION 1: LEGAL RESEARCH (white) ───────────────────────────────── */}
+      {/* ── SECTION 1: PRECEDENT ENGINE (white) ─────────────────────────────── */}
       <div id="research" ref={research.ref} style={{ ...research.style, background: '#FFFFFF', padding: sectionPad(isMobile) }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', ...twoCol }}>
           <div>
-            <p style={labelStyle()}>Legal Research</p>
-            <h2 style={h2Style(isMobile)}>Real legal research.<br />Real citations.</h2>
-            <p style={{ ...bodyStyle(), marginBottom: 36 }}>
-              The Research Agent retrieves authoritative legal sources and returns referenced answers supported by verifiable authorities. Every citation links back to the original source.
+            <p style={labelStyle()}>Legal Authority</p>
+            <h2 style={h2Style(isMobile)}>Law is a living hierarchy.<br />Not a search result.</h2>
+            <p style={{ ...bodyStyle(), marginBottom: 24 }}>
+              Every case exists within a chain of authority. The Precedent Engine maps the court hierarchy, traces citations between cases and shows how judicial treatment has evolved. Click any court to understand its jurisdiction.
             </p>
-            {/* Terminal snippet card */}
-            <div style={{
-              background: '#0F0F0F', borderRadius: 10, padding: '18px 22px',
-              fontFamily: '"SF Mono", "Fira Code", monospace', fontSize: 13,
-              color: '#fff', maxWidth: 380,
-            }}>
-              <div style={{ color: '#666', marginBottom: 10, fontSize: 11 }}>research-agent · running</div>
-              <div style={{ color: 'rgba(255,255,255,0.5)' }}>{'>'} Searching CourtListener...
-                <span style={{ color: '#fff', marginLeft: 6 }}>✓</span>
-              </div>
-              <div style={{ color: 'rgba(255,255,255,0.5)', marginTop: 6 }}>{'>'} 247 cases found
-                <span style={{ color: '#fff', marginLeft: 6 }}>·</span>
-                <span style={{ color: 'rgba(255,255,255,0.35)', marginLeft: 6 }}>12 authorities</span>
-              </div>
-              <div style={{ color: 'rgba(255,255,255,0.5)', marginTop: 6 }}>{'>'} Generating cited answer
-                <span style={{ display: 'inline-block', width: 8, height: 13, background: '#fff', marginLeft: 6, verticalAlign: 'text-bottom', animation: 'blink 1s step-end infinite' }} />
-              </div>
-            </div>
+            <p style={{ fontSize: 13, color: '#aaa', lineHeight: 1.6 }}>Supreme Court → Court of Appeal → High Court → Tribunals. Hover a node to see its role. Click to read the legal detail.</p>
           </div>
-          <LazyCanvas height={480}><CitationConstellation /></LazyCanvas>
+          <LazyCanvas height={isMobile ? 360 : 520}><PrecedentEngine /></LazyCanvas>
         </div>
       </div>
 
-      {/* ── SECTION 2: CONTRACT REVIEW (#F5F5F5) ────────────────────────────── */}
-      <div id="contracts" ref={contract.ref} style={{ ...contract.style, background: '#F5F5F5', padding: sectionPad(isMobile) }}>
+      {/* ── SECTION 2: LITIGATION WAR ROOM (#F5F5F5) ────────────────────────── */}
+      <div id="litigation" ref={contract.ref} style={{ ...contract.style, background: '#0a0a0a', padding: sectionPad(isMobile) }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', ...twoCol }}>
+          <LazyCanvas height={isMobile ? 360 : 520}><LitigationWarRoom /></LazyCanvas>
           <div>
-            <p style={labelStyle()}>Contract Review</p>
-            <h2 style={h2Style(isMobile)}>Upload a contract.<br />Get a risk report in seconds.</h2>
-            <p style={{ ...bodyStyle(), marginBottom: 36 }}>
-              The Contract Review Agent analyses your entire document and identifies risky clauses, drafting weaknesses, missing protections and negotiation opportunities. Accept or reject each fix with one click.
+            <p style={labelStyle('#666')}>Litigation Intelligence</p>
+            <h2 style={h2Style(isMobile, true)}>See inside a barrister&#39;s brain.</h2>
+            <p style={{ ...bodyStyle(true), marginBottom: 24 }}>
+              The Litigation War Room maps every element of your case — witnesses, contracts, emails, evidence, filings — and shows how they connect. Strong evidence glows. Weak evidence is flagged. The entire case theory becomes visible.
             </p>
-            {/* Risk badge grid */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {[
-                { label: 'CRITICAL', bg: '#0F0F0F', color: '#fff' },
-                { label: 'HIGH', bg: 'rgba(0,0,0,0.12)', color: '#0F0F0F' },
-                { label: 'MEDIUM', bg: 'rgba(0,0,0,0.06)', color: '#0F0F0F' },
-                { label: 'LOW', bg: 'rgba(0,0,0,0.03)', color: '#666666' },
-              ].map(badge => (
-                <div key={badge.label} style={{
-                  padding: '6px 14px', borderRadius: 6,
-                  background: badge.bg, color: badge.color,
-                  fontSize: 11, fontWeight: 700, letterSpacing: 1.5,
-                  border: '1px solid rgba(0,0,0,0.08)',
-                }}>
-                  {badge.label}
-                </div>
-              ))}
-            </div>
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', lineHeight: 1.6 }}>The dispute is at the centre. Everything orbits it. Click any satellite to read the legal analysis.</p>
           </div>
-          <LazyCanvas height={480}><ExplodedContract /></LazyCanvas>
         </div>
       </div>
 
-      {/* ── SECTION 3: MATTERS (white) ──────────────────────────────────────── */}
-      <div id="matters" ref={matters.ref} style={{ ...matters.style, background: '#FFFFFF', padding: sectionPad(isMobile) }}>
+      {/* ── SECTION 3: CORPORATE UNIVERSE (white) ───────────────────────────── */}
+      <div id="due-diligence" ref={matters.ref} style={{ ...matters.style, background: '#FFFFFF', padding: sectionPad(isMobile) }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', ...twoCol }}>
-          <LazyCanvas height={480}><TimelineTunnel /></LazyCanvas>
           <div>
-            <p style={labelStyle()}>Matter Management</p>
-            <h2 style={h2Style(isMobile)}>Every matter. Every conversation. One place.</h2>
-            <p style={{ ...bodyStyle(), marginBottom: 36 }}>
-              Create matters, organise documents, save AI conversations and continue work where you left off. Everything stored privately — never on our servers.
+            <p style={labelStyle()}>Due Diligence</p>
+            <h2 style={h2Style(isMobile)}>Ownership chains.<br />Visually discovered.</h2>
+            <p style={{ ...bodyStyle(), marginBottom: 24 }}>
+              The Corporate Universe maps holding companies, subsidiaries, directors, shareholders and risk nodes. Beneficial ownership chains unfold visually. Red nodes flag AML concerns, open enquiries and undisclosed interests.
             </p>
-            {/* Mini timeline widget */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 0, maxWidth: 360 }}>
-              {[
-                { dot: true, label: 'Created' },
-                { dot: false, label: '' },
-                { dot: true, label: 'In Progress' },
-                { dot: false, label: '' },
-                { dot: true, label: 'Resolved' },
-              ].map((item, i) => (
-                item.dot ? (
-                  <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                    <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#0F0F0F', flexShrink: 0 }} />
-                    <span style={{ fontSize: 11, fontWeight: 600, color: '#666666', whiteSpace: 'nowrap' }}>{item.label}</span>
-                  </div>
-                ) : (
-                  <div key={i} style={{ flex: 1, borderTop: '1px solid #0F0F0F', marginBottom: 20, minWidth: 40 }} />
-                )
-              ))}
-            </div>
+            <p style={{ fontSize: 13, color: '#aaa', lineHeight: 1.6 }}>Click any node to read the due diligence detail. Red nodes are risk items requiring enhanced investigation.</p>
           </div>
+          <LazyCanvas height={isMobile ? 360 : 520}><CorporateUniverse /></LazyCanvas>
         </div>
       </div>
 
@@ -469,17 +419,47 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* ── SECTION 5: OPEN SOURCE (white) ──────────────────────────────────── */}
-      <div id="open-source" ref={openSource.ref} style={{ ...openSource.style, background: '#FFFFFF', padding: sectionPad(isMobile) }}>
+      {/* ── SECTION 5: REGULATORY IMPACT (white) ────────────────────────────── */}
+      <div id="compliance" ref={openSource.ref} style={{ ...openSource.style, background: '#FFFFFF', padding: sectionPad(isMobile) }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', ...twoCol }}>
-          <LazyCanvas height={480}><TransparentEngine /></LazyCanvas>
+          <LazyCanvas height={isMobile ? 360 : 520}><RegulatoryImpact /></LazyCanvas>
           <div>
-            <p style={labelStyle()}>Open Source</p>
-            <h2 style={h2Style(isMobile)}>You own it. We don&#39;t.</h2>
-            <p style={{ ...bodyStyle(), marginBottom: 36 }}>
-              Law OSS is fully open source. Your API key goes directly to the AI provider — we never see it. Your documents never touch our servers. Run it in your browser or self-host it for your firm.
+            <p style={labelStyle()}>Regulatory Compliance</p>
+            <h2 style={h2Style(isMobile)}>One regulation.<br />Hundreds of obligations.</h2>
+            <p style={{ ...bodyStyle(), marginBottom: 24 }}>
+              The Regulatory Impact Engine decomposes any regulation into its constituent obligations, penalties, affected departments and required policies. GDPR, FCA rules, AML, HMRC — every regulatory framework made navigable. Click any node to read the specific obligation.
             </p>
-            <a href={GH} target="_blank" rel="noopener noreferrer" style={outlineBtn()}>View Source on GitHub</a>
+            <p style={{ fontSize: 13, color: '#aaa', lineHeight: 1.6 }}>Click the GDPR centre node. Then click any satellite to read Article-level detail.</p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── SECTION 6: CONTRACT NEGOTIATION (#0a0a0a) ───────────────────────── */}
+      <div id="contracts" style={{ background: '#F5F5F5', padding: sectionPad(isMobile) }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', ...twoCol }}>
+          <div>
+            <p style={labelStyle()}>Contract Negotiation</p>
+            <h2 style={h2Style(isMobile)}>The contract as a live<br />negotiation battlefield.</h2>
+            <p style={{ ...bodyStyle(), marginBottom: 24 }}>
+              Two parties. One document. The Contract Negotiation Engine shows where power lies in every clause — limitation of liability, payment terms, IP ownership, termination, governing law. Clauses shift toward the dominant party. Click any clause to read the legal position.
+            </p>
+            <p style={{ fontSize: 13, color: '#aaa', lineHeight: 1.6 }}>Party A (white) on the left. Party B (blue) on the right. Clause position shows negotiating advantage.</p>
+          </div>
+          <LazyCanvas height={isMobile ? 360 : 520}><ContractNegotiation /></LazyCanvas>
+        </div>
+      </div>
+
+      {/* ── SECTION 7: LEGAL KNOWLEDGE CITY (#0a0a0a) ──────────────────────── */}
+      <div id="open-source" style={{ background: '#0a0a0a', padding: sectionPad(isMobile) }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', ...twoCol }}>
+          <LazyCanvas height={isMobile ? 360 : 520}><LegalKnowledgeCity /></LazyCanvas>
+          <div>
+            <p style={labelStyle('#444')}>The Knowledge City</p>
+            <h2 style={h2Style(isMobile, true)}>Cases are buildings.<br />Statutes are roads.</h2>
+            <p style={{ ...bodyStyle(true), marginBottom: 24 }}>
+              Every landmark case is a building. Every statute is a road. Every regulation is infrastructure. The Legal Knowledge City is a living, 3D map of the common law — from Entick v Carrington in 1765 to R (Miller) in 2017. Click any building to read the case.
+            </p>
+            <a href={GH} target="_blank" rel="noopener noreferrer" style={outlineBtn(true)}>View Source on GitHub</a>
           </div>
         </div>
       </div>
@@ -557,31 +537,76 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* ── FINAL CTA (#0F0F0F — only dark section) ─────────────────────────── */}
+      {/* ── HOSTED vs SELF-HOSTED ───────────────────────────────────────────── */}
+      <div style={{ background: '#F5F5F5', padding: sectionPad(isMobile) }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+          <p style={labelStyle()}>Deployment</p>
+          <h2 style={h2Style(isMobile)}>Hosted, or self-hosted.</h2>
+          <p style={{ ...bodyStyle(), maxWidth: 560, marginBottom: 48 }}>
+            Get started instantly on lawoss.com, or clone the repo and run it on your own infrastructure.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20 }}>
+            <div style={{ background: '#0F0F0F', borderRadius: 16, padding: '40px', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: 24, right: 24, fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase' }}>Recommended</div>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', marginBottom: 16 }}>Hosted</div>
+              <h3 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 600, color: '#fff', marginBottom: 16, letterSpacing: -0.5 }}>lawoss.com</h3>
+              <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.55)', lineHeight: 1.65, marginBottom: 32 }}>
+                Sign up and start working immediately. No setup, no infrastructure, no maintenance. We handle everything.
+              </p>
+              <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 40px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {['Instant access — no setup required', 'Automatic updates', 'Free to use', 'Your keys go directly to the AI provider'].map((item, i) => (
+                  <li key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'rgba(255,255,255,0.7)' }}>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="rgba(255,255,255,0.3)" strokeWidth="1.2"/><path d="M5 8l2 2 4-4" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <Link href="/signup" style={{ display: 'inline-flex', alignItems: 'center', padding: '0 24px', height: 46, background: '#fff', borderRadius: 8, fontSize: 14, fontWeight: 600, color: '#0F0F0F', textDecoration: 'none' }}>
+                Get Started Free →
+              </Link>
+            </div>
+            <div style={{ background: '#fff', borderRadius: 16, padding: '40px', border: '1px solid rgba(0,0,0,0.08)', position: 'relative' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, color: '#999', textTransform: 'uppercase', marginBottom: 16 }}>Self-Hosted</div>
+              <h3 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 600, color: '#0F0F0F', marginBottom: 16, letterSpacing: -0.5 }}>Your infrastructure</h3>
+              <p style={{ fontSize: 15, color: '#666', lineHeight: 1.65, marginBottom: 32 }}>
+                Clone the repo and deploy on your own servers or intranet. Full control over your data, your models, your environment.
+              </p>
+              <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 40px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {['Complete data sovereignty', 'Run air-gapped if needed', 'Customise agents and prompts', 'Open source — MIT licence'].map((item, i) => (
+                  <li key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#555' }}>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="rgba(0,0,0,0.2)" strokeWidth="1.2"/><path d="M5 8l2 2 4-4" stroke="#0F0F0F" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <a href={GH} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', padding: '0 24px', height: 46, border: '1.5px solid #0F0F0F', borderRadius: 8, fontSize: 14, fontWeight: 600, color: '#0F0F0F', textDecoration: 'none' }}>
+                View on GitHub →
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── OPERATING SYSTEM — The merge visual ─────────────────────────────── */}
       <div ref={finalCta.ref} style={{
         ...finalCta.style,
         background: '#0F0F0F', padding: sectionPad(isMobile), textAlign: 'center',
         position: 'relative', overflow: 'hidden',
       }}>
-        {/* Scan line animation */}
-        <div style={{
-          position: 'absolute', left: 0, right: 0, height: 1,
-          background: '#fff', opacity: 0.05,
-          animation: 'scan 4s linear infinite',
-          pointerEvents: 'none',
-        }} />
-        <div style={{ maxWidth: 640, margin: '0 auto', position: 'relative', zIndex: 1 }}>
-          <h2 style={{ fontSize: isMobile ? 28 : 42, fontWeight: 600, letterSpacing: -1.2, color: '#fff', marginBottom: 18, lineHeight: 1.1 }}>
-            The legal AI platform that works for you, not against you.
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <p style={labelStyle('#444')}>The Operating System</p>
+          <h2 style={{ fontSize: isMobile ? 28 : 48, fontWeight: 600, letterSpacing: -1.5, color: '#fff', marginBottom: 18, lineHeight: 1.05 }}>
+            The industry fragmented legal work.<br />Law OSS reconnects it.
           </h2>
-          <p style={{ fontSize: 17, color: 'rgba(255,255,255,0.5)', marginBottom: 40, lineHeight: 1.6 }}>
-            Free forever. Open source. No subscriptions.
+          <p style={{ fontSize: 17, color: 'rgba(255,255,255,0.45)', marginBottom: 48, lineHeight: 1.6, maxWidth: 560, margin: '0 auto 48px' }}>
+            Research, Contracts, Matters, Compliance, Due Diligence and Litigation — six separate worlds. Watch them merge into one operating system.
           </p>
-          <div style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 28 }}>
+          <LazyCanvas height={isMobile ? 320 : 480}><OperatingSystem /></LazyCanvas>
+          <div style={{ marginTop: 48, display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 28 }}>
             <Link href="/signup" style={{ ...blackBtn, background: '#fff', color: '#0F0F0F' }}>Get Started Free</Link>
             <a href={GH} target="_blank" rel="noopener noreferrer" style={outlineBtn(true)}>View on GitHub</a>
           </div>
-          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
+          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>
             Currently in beta. Do not upload highly sensitive or privileged documents.
           </p>
         </div>
