@@ -12,7 +12,7 @@ Law OSS is a free, open-source alternative to Harvey and Legora. Sign up, add yo
 
 | Agent | What it does |
 |-------|--------------|
-| Research | Finds case law and statutes with citations verified against CourtListener, BAILII and The National Archives |
+| Research | Finds case law and statutes with citations verified against CourtListener and The National Archives |
 | Drafting | Drafts letters, agreements, motions and clauses — outputs a formatted Word document |
 | Contract | Reviews contracts clause by clause, flags risk, suggests redlines |
 | Litigation | Builds case strategy and litigation chronology |
