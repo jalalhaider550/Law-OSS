@@ -57,6 +57,19 @@ app.use('/api/api-keys', apiKeyRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api/clio', clioRoutes)
 
+app.post('/api/contact', async (req: any, res: any) => {
+  const { name, email, message } = req.body
+  if (!name || !email || !message) return res.status(400).json({ error: 'All fields required' })
+  try {
+    const { createClient } = await import('@supabase/supabase-js')
+    const sb = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    await sb.from('contact_messages').insert({ name, email, message })
+    res.json({ sent: true })
+  } catch {
+    res.status(500).json({ error: 'Could not send' })
+  }
+})
+
 app.use(errorHandler)
 
 const server = app.listen(PORT, () => {
@@ -66,6 +79,7 @@ const server = app.listen(PORT, () => {
   Local:   http://localhost:${PORT}
   Health:  http://localhost:${PORT}/health
   Env:     ${process.env.NODE_ENV || 'development'}
+  Build:   ${new Date().toISOString().slice(0,10)}
   `)
 })
 server.timeout = 300000

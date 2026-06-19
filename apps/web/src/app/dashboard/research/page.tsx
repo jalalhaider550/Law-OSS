@@ -1,16 +1,160 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import LogoLoader from '../../../components/LogoLoader'
 import MarkdownRenderer from '../../../components/MarkdownRenderer'
 
 const API = ''  // use Next.js API routes (same origin)
 
+// ── Word export ──────────────────────────────────────────────────────────────
+async function downloadAsWord(content: string, filename = 'research.docx') {
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx')
+  const children: any[] = []
+  for (const line of content.split('\n')) {
+    const t = line.trim()
+    if (!t) { children.push(new Paragraph({ text: '' })); continue }
+    if (t.startsWith('### ')) { children.push(new Paragraph({ text: t.slice(4), heading: HeadingLevel.HEADING_3 })); continue }
+    if (t.startsWith('## '))  { children.push(new Paragraph({ text: t.slice(3), heading: HeadingLevel.HEADING_2 })); continue }
+    if (t.startsWith('# '))   { children.push(new Paragraph({ text: t.slice(2), heading: HeadingLevel.HEADING_1 })); continue }
+    const parts: any[] = []
+    const boldRe = /\*\*(.+?)\*\*/g; let last = 0; let m: RegExpExecArray | null
+    while ((m = boldRe.exec(t)) !== null) {
+      if (m.index > last) parts.push(new TextRun(t.slice(last, m.index)))
+      parts.push(new TextRun({ text: m[1], bold: true }))
+      last = m.index + m[0].length
+    }
+    if (last < t.length) parts.push(new TextRun(t.slice(last)))
+    children.push(new Paragraph({ children: parts.length ? parts : [new TextRun(t)] }))
+  }
+  const doc = new Document({ sections: [{ properties: {}, children }] })
+  const blob = await Packer.toBlob(doc)
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
+}
+
+// ── Add to Matter ─────────────────────────────────────────────────────────────
+function AddToMatterButton({ content, title, uid }: { content: string; title: string; uid: string }) {
+  const [open, setOpen] = useState(false)
+  const [matters, setMatters] = useState<any[]>([])
+  const [saved, setSaved] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  function loadMatters() {
+    const key = `law_oss_matters_${uid}`
+    try { return JSON.parse(localStorage.getItem(key) || '[]') } catch { return [] }
+  }
+  function saveMatters(m: any[]) {
+    localStorage.setItem(`law_oss_matters_${uid}`, JSON.stringify(m))
+  }
+
+  function handleOpen() {
+    setMatters(loadMatters())
+    setOpen(true)
+    setSaved(false)
+  }
+
+  function addToMatter(matterId: string) {
+    const all = loadMatters()
+    const chat = {
+      id: Date.now().toString(),
+      agentId: 'research',
+      agentName: 'Research',
+      title,
+      messages: [{ role: 'assistant', content }],
+      savedAt: new Date().toISOString(),
+    }
+    const updated = all.map((m: any) =>
+      m.id === matterId ? { ...m, savedChats: [chat, ...(m.savedChats || [])] } : m
+    )
+    saveMatters(updated)
+    setSaved(true)
+    setTimeout(() => setOpen(false), 900)
+  }
+
+  return (
+    <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
+      <button
+        onClick={handleOpen}
+        style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 13px', border: '1.5px solid rgba(0,0,0,0.15)', borderRadius: 6, background: '#fff', color: '#0f0f0f', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        Add to Matter
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', top: '110%', left: 0, zIndex: 200, background: '#fff', border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.13)', minWidth: 220, overflow: 'hidden' }}>
+          {saved ? (
+            <div style={{ padding: '14px 16px', fontSize: 13, color: '#15803d', fontWeight: 600 }}>Saved to matter</div>
+          ) : matters.length === 0 ? (
+            <div style={{ padding: '14px 16px', fontSize: 13, color: '#888' }}>No matters yet. <a href="/dashboard/matters" style={{ color: '#0f0f0f', fontWeight: 600 }}>Create one</a>.</div>
+          ) : (
+            <>
+              <div style={{ padding: '9px 14px 6px', fontSize: 11, fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: 1 }}>Select matter</div>
+              {matters.map((m: any) => (
+                <div key={m.id} onClick={() => addToMatter(m.id)} style={{ padding: '9px 14px', fontSize: 13, cursor: 'pointer', borderTop: '1px solid rgba(0,0,0,0.06)', color: '#0f0f0f' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+                  onMouseLeave={e => (e.currentTarget.style.background = '')}
+                >
+                  <div style={{ fontWeight: 600 }}>{m.name}</div>
+                  <div style={{ fontSize: 11, color: '#aaa' }}>{m.type} · {m.status}</div>
+                </div>
+              ))}
+            </>
+          )}
+          <div style={{ padding: '8px 14px', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+            <button onClick={() => setOpen(false)} style={{ fontSize: 12, color: '#aaa', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Cancel</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 const JURISDICTIONS = [
-  { value: 'global',    label: 'All jurisdictions' },
-  { value: 'us',        label: 'United States' },
-  { value: 'uk',        label: 'England & Wales' },
-  { value: 'scotland',  label: 'Scotland' },
+  { value: 'global',          label: 'All jurisdictions' },
+  // United States — Federal
+  { value: 'us',              label: '🇺🇸 United States (All Federal)' },
+  { value: 'scotus',          label: '   ↳ Supreme Court (SCOTUS)' },
+  { value: 'federal',         label: '   ↳ All Circuit Courts' },
+  { value: '1st circuit',     label: '   ↳ 1st Circuit' },
+  { value: '2nd circuit',     label: '   ↳ 2nd Circuit (NY)' },
+  { value: '3rd circuit',     label: '   ↳ 3rd Circuit (DE/NJ/PA)' },
+  { value: '4th circuit',     label: '   ↳ 4th Circuit (VA/NC)' },
+  { value: '5th circuit',     label: '   ↳ 5th Circuit (TX/LA/MS)' },
+  { value: '6th circuit',     label: '   ↳ 6th Circuit (OH/MI/KY/TN)' },
+  { value: '7th circuit',     label: '   ↳ 7th Circuit (IL/IN/WI)' },
+  { value: '8th circuit',     label: '   ↳ 8th Circuit (MN/MO/IA)' },
+  { value: '9th circuit',     label: '   ↳ 9th Circuit (CA/WA/OR/AZ/NV)' },
+  { value: '10th circuit',    label: '   ↳ 10th Circuit (CO)' },
+  { value: '11th circuit',    label: '   ↳ 11th Circuit (FL/GA)' },
+  { value: 'dc circuit',      label: '   ↳ DC Circuit' },
+  // United States — Key State Courts
+  { value: 'new york',        label: '   ↳ New York' },
+  { value: 'california',      label: '   ↳ California' },
+  { value: 'delaware',        label: '   ↳ Delaware' },
+  { value: 'texas',           label: '   ↳ Texas' },
+  { value: 'florida',         label: '   ↳ Florida' },
+  { value: 'illinois',        label: '   ↳ Illinois' },
+  { value: 'virginia',        label: '   ↳ Virginia' },
+  { value: 'pennsylvania',    label: '   ↳ Pennsylvania' },
+  { value: 'georgia',         label: '   ↳ Georgia' },
+  { value: 'massachusetts',   label: '   ↳ Massachusetts' },
+  { value: 'washington',      label: '   ↳ Washington' },
+  { value: 'colorado',        label: '   ↳ Colorado' },
+  { value: 'nevada',          label: '   ↳ Nevada' },
+  { value: 'arizona',         label: '   ↳ Arizona' },
+  { value: 'oregon',          label: '   ↳ Oregon' },
+  { value: 'minnesota',       label: '   ↳ Minnesota' },
+  { value: 'missouri',        label: '   ↳ Missouri' },
+  // United Kingdom
+  { value: 'uk',              label: '🇬🇧 United Kingdom (All)' },
+  { value: 'england',         label: '   ↳ England & Wales' },
+  { value: 'uksc',            label: '   ↳ UK Supreme Court' },
+  { value: 'court of appeal', label: '   ↳ Court of Appeal' },
+  { value: 'high court',      label: '   ↳ High Court' },
+  { value: 'upper tribunal',  label: '   ↳ Upper Tribunal' },
+  { value: 'scotland',        label: '   ↳ Scotland' },
+  { value: 'northern ireland',label: '   ↳ Northern Ireland' },
 ]
 
 let _uid = ''
@@ -27,6 +171,8 @@ export default function ResearchPage() {
   const [aiAnalysis,    setAiAnalysis]    = useState('')
   const [progress,      setProgress]      = useState('')
   const [error,         setError]         = useState('')
+  const [uid,           setUid]           = useState('')
+  const [dlBusy,        setDlBusy]        = useState(false)
   const supabase = createClientComponentClient()
 
   useEffect(() => {
@@ -35,6 +181,7 @@ export default function ResearchPage() {
         _uid = session.user.id
         localStorage.setItem('law_oss_uid', session.user.id)
         setToken(session.access_token)
+        setUid(session.user.id)
         setHasApiKey(!!localStorage.getItem(userKey('law_oss_api_key')))
       }
     })
@@ -218,8 +365,28 @@ export default function ResearchPage() {
       {/* AI analysis */}
       {aiAnalysis && (
         <div style={{ background: '#fff', border: '1px solid #e8e8e8', borderRadius: 10, padding: 20 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#999', marginBottom: 12 }}>
-            AI Analysis — Verified sources only
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#999' }}>
+              AI Analysis — Verified sources only
+            </div>
+            {!loading && (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button
+                  onClick={async () => {
+                    setDlBusy(true)
+                    const fname = `research-${query.slice(0, 30).replace(/[^a-z0-9]/gi, '-')}.docx`
+                    await downloadAsWord(aiAnalysis, fname)
+                    setDlBusy(false)
+                  }}
+                  disabled={dlBusy}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 13px', border: 'none', borderRadius: 6, background: '#0f0f0f', color: '#fff', fontSize: 12.5, fontWeight: 600, cursor: dlBusy ? 'not-allowed' : 'pointer' }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  {dlBusy ? 'Downloading...' : 'Download Word'}
+                </button>
+                {uid && <AddToMatterButton content={aiAnalysis} title={`Research: ${query.slice(0, 60)}`} uid={uid} />}
+              </div>
+            )}
           </div>
           <div style={{ fontSize: 14 }}>
             <MarkdownRenderer content={aiAnalysis} />

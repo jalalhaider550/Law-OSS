@@ -7,9 +7,9 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@law-oss/db": "*",
-    "@law-oss/ai": "*",
-    "@law-oss/types": "*",
+    "@law-oss/db": "file:./vendor/db",
+    "@law-oss/ai": "file:./vendor/ai",
+    "@law-oss/types": "file:./vendor/types",
     "@supabase/supabase-js": "^2.0.0",
     "@anthropic-ai/sdk": "^0.24.0",
     "aes-js": "^3.1.2",

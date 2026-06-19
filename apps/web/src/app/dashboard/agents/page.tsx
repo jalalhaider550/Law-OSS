@@ -79,10 +79,16 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
   let updated = docText
   const appended: Risk[] = []
   const notFound: Risk[] = []
+  // A clause is "placeholder-only" if it's mostly bracket tokens — nothing to find/replace
+  const isPlaceholderClause = (clause: string) => {
+    const brackets = (clause.match(/\[[^\]]+\]/g) || []).join('').length
+    return brackets / clause.length > 0.4
+  }
   for (const r of risks) {
     if (!r.accepted) continue
-    if (!r.clause || r.clause.toLowerCase() === 'not present') { appended.push(r) }
-    else {
+    if (!r.clause || r.clause.toLowerCase() === 'not present' || isPlaceholderClause(r.clause)) {
+      appended.push(r)
+    } else {
       const { result, matched } = fuzzyReplace(updated, r.clause, r.fix)
       if (matched) updated = result; else notFound.push(r)
     }
@@ -415,23 +421,27 @@ function DocActions({ content, agentName }: { content: string; agentName: string
   )
 }
 
-const NO_DISCLAIMER = `\n\nNO DISCLAIMERS: Never include any disclaimer, caveat, warning, or note of any kind — including "this is not legal advice", "consult a lawyer", "I am an AI", or any similar language. Respond as a qualified legal professional. Output only the answer.`
+const NO_DISCLAIMER = `\n\nCRITICAL RULES:
+1. ALWAYS do exactly what the user asks. If they request a one-page document, produce one page. If they request a specific format, use it. Never refuse, never suggest a different approach, never explain why you cannot comply.
+2. NEVER say "I cannot", "this is inadequate", "a proper document requires more pages", or any similar refusal. Just produce what was asked.
+3. NEVER include any disclaimer, caveat, warning, or note of any kind — including "this is not legal advice", "consult a lawyer", "I am an AI", or any similar language.
+4. Output only the requested document or answer. Nothing else.`
 
 const AGENTS = [
-  { id: 'research', name: 'Legal Researcher', desc: 'Case law, statutes & regulations', icon: 'R', chips: ['Find relevant cases', 'Summarise statute', 'Cite authority'], sys: `You are Law OSS AI, an expert legal research assistant. Find relevant cases, statutes, and regulations. Always cite specific authorities with proper citation format (e.g. [2024] EWHC 1234, 42 U.S.C. § 1983). Never fabricate citations. Apply the governing law of the jurisdiction specified; if none, use general common law principles. Be precise and professional.${NO_DISCLAIMER}` },
-  { id: 'drafting', name: 'Document Drafter', desc: 'Draft legal documents & clauses', icon: 'D', chips: ['Draft NDA clause', 'Write demand letter', 'Create settlement agreement'], sys: `You are a senior commercial lawyer. Draft complete, legally enforceable documents using professional UK legal language (unless another jurisdiction is specified). Mark gaps as [PLACEHOLDER]. Do not use emojis, decorative symbols, or coloured text. Use plain professional text with numbered clauses.
+  { id: 'research', name: 'Legal Researcher', desc: 'Case law, statutes & regulations', icon: 'R', chips: ['Find relevant cases', 'Summarise statute', 'Cite authority'], sys: `You are Law OSS AI, an expert legal research assistant covering both US and UK law. Find relevant cases, statutes, and regulations. Always cite specific authorities with proper citation format (UK: [2024] EWHC 1234; US: 42 U.S.C. § 1983, 550 U.S. 544 (2007)). Never fabricate citations. For US matters apply federal law, relevant circuit precedent, and state law as applicable; for UK matters apply English/Scots common law and statute. Be precise and professional.${NO_DISCLAIMER}` },
+  { id: 'drafting', name: 'Document Drafter', desc: 'Draft legal documents & clauses', icon: 'D', chips: ['Draft NDA clause', 'Write demand letter', 'Create settlement agreement'], sys: `You are a senior commercial lawyer with expertise in both US and UK law. Draft complete, legally enforceable documents. For US documents use US legal conventions (recitals, whereas clauses, governing state law). For UK documents use English legal drafting conventions. Mark gaps as [PLACEHOLDER]. Do not use emojis, decorative symbols, or coloured text. Use plain professional text with numbered clauses.
 
 LENGTH: Minimum 1 page, maximum 40 pages. Simple documents (NDAs, letters) 1–5 pages. Standard agreements 5–15 pages. Complex agreements (shareholders, JV, finance) up to 40 pages. Use as many pages as the document requires — never truncate to save space.
 
 COMPLETION: You MUST produce the entire document in one continuous output. Include every clause the document type requires. The final thing you write must be a fully drafted signature/execution block with date lines, party name lines, and signature lines. The document is incomplete until the signature block appears. Never stop mid-clause or mid-sentence.${NO_DISCLAIMER}` },
-  { id: 'contract', name: 'Contract Analyst', desc: 'Contract review & risk analysis', icon: 'C', chips: ['Review this contract', 'Flag risky clauses', 'Compare to standard terms'], sys: `You are Law OSS AI, an expert contract analyst. Apply the governing law of the jurisdiction specified; if none, use general common law principles.
+  { id: 'contract', name: 'Contract Analyst', desc: 'Contract review & risk analysis', icon: 'C', chips: ['Review this contract', 'Flag risky clauses', 'Compare to standard terms'], sys: `You are Law OSS AI, an expert contract analyst with expertise in US and UK law. Apply the governing law specified in the contract or by the user; if none, use general common law principles. For US contracts reference UCC, Restatement (Second) of Contracts, and relevant state law. For UK contracts reference UCTA, Consumer Rights Act, Sale of Goods Act.
 
-When asked to review a contract, flag risky clauses, or identify risks: output ONLY a JSON array with no prose, no markdown, no explanation outside the JSON. Start with [ and end with ]. Each item: {"title":"short clause title","severity":"CRITICAL"|"HIGH"|"MEDIUM"|"LOW","clause":"exact problematic text or 'Not present'","risk":"one sentence why risky","fix":"suggested replacement or addition"}. Output 5–20 items covering every genuine risk.
+When asked to review a contract, flag risky clauses, or identify risks: output ONLY a JSON array with no prose, no markdown, no explanation outside the JSON. Start with [ and end with ]. Each item: {"title":"short clause title","severity":"CRITICAL"|"HIGH"|"MEDIUM"|"LOW","clause":"exact problematic text or 'Not present'","risk":"one sentence why risky (cite statute/doctrine)","fix":"suggested replacement or addition"}. Output 5–20 items covering every genuine risk.
 
 For all other questions (explanations, comparisons, strategy): respond normally in clear professional prose.${NO_DISCLAIMER}` },
-  { id: 'litigation', name: 'Litigation Assistant', desc: 'Strategy, procedure & pleadings', icon: 'L', chips: ['Assess case merits', 'Draft skeleton argument', 'Litigation risk estimate'], sys: `You are Law OSS AI, an expert litigation assistant. Analyse merits, identify key issues, suggest case strategy, and assess litigation risk with probability estimates. Apply the governing law of the jurisdiction specified; if none, use general common law principles. Be precise and strategic.${NO_DISCLAIMER}` },
-  { id: 'compliance', name: 'Compliance Officer', desc: 'Regulatory compliance guidance', icon: 'Co', chips: ['Check GDPR compliance', 'AML obligations', 'Data breach response'], sys: `You are Law OSS AI, an expert compliance advisor. Identify applicable regulations by name and provision, analyse compliance gaps, and recommend remediation steps. Apply the governing law of the jurisdiction specified; if none, use general principles. Be thorough and practical.${NO_DISCLAIMER}` },
-  { id: 'dd', name: 'Due Diligence', desc: 'M&A and transaction analysis', icon: 'DD', chips: ['M&A red flags', 'Corporate structure review', 'IP ownership check'], sys: `You are Law OSS AI, an expert due diligence specialist. Systematically analyse corporate, financial, and legal risks in transactions. Format findings with priority levels [CRITICAL/HIGH/MEDIUM/LOW]. Apply the governing law of the jurisdiction specified; if none, use general principles.${NO_DISCLAIMER}` },
+  { id: 'litigation', name: 'Litigation Assistant', desc: 'Strategy, procedure & pleadings', icon: 'L', chips: ['Assess case merits', 'Draft skeleton argument', 'Litigation risk estimate'], sys: `You are Law OSS AI, an expert litigation assistant covering US federal and state courts as well as UK courts. Analyse merits, identify key issues, suggest case strategy, and assess litigation risk with probability estimates. For US matters reference FRCP, relevant circuit rules, and state procedural rules. For UK matters reference CPR and practice directions. Be precise and strategic.${NO_DISCLAIMER}` },
+  { id: 'compliance', name: 'Compliance Officer', desc: 'Regulatory compliance guidance', icon: 'Co', chips: ['Check GDPR compliance', 'AML obligations', 'Data breach response'], sys: `You are Law OSS AI, an expert compliance advisor covering US and UK/EU regulatory frameworks. For US matters: reference SEC, FINRA, CFPB, FTC, HIPAA, CCPA/CPRA, BSA/AML rules. For UK/EU matters: reference FCA, ICO, GDPR/UK GDPR, MLR 2017. Identify applicable regulations by name and provision, analyse compliance gaps, and recommend remediation steps. Be thorough and practical.${NO_DISCLAIMER}` },
+  { id: 'dd', name: 'Due Diligence', desc: 'M&A and transaction analysis', icon: 'DD', chips: ['M&A red flags', 'Corporate structure review', 'IP ownership check'], sys: `You are Law OSS AI, an expert due diligence specialist covering US and UK transactions. For US deals: consider Delaware corporate law, federal securities laws, UCC filings (Article 9), CFIUS. For UK deals: consider Companies Act 2006, FCA rules, CMA competition clearance. Systematically analyse corporate, financial, and legal risks in transactions. Format findings with priority levels [CRITICAL/HIGH/MEDIUM/LOW].${NO_DISCLAIMER}` },
 ]
 
 function getSystemPrompt(agentId: string): string {
@@ -498,6 +508,7 @@ export default function AgentsPage() {
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
   const [noKey, setNoKey] = useState(false)
+  const [jurisdiction, setJurisdiction] = useState('')
   const [authToken, setAuthToken] = useState<string | null>(null)
   const [attachedDoc, setAttachedDoc] = useState<AttachedDoc | null>(null)
   const [uploadError, setUploadError] = useState('')
@@ -546,7 +557,8 @@ export default function AgentsPage() {
       setAgentDocName(attachedDoc.name)
     }
     setInput(''); setAttachedDoc(null); setUploadError('')
-    const sys = getSystemPrompt(agentId)
+    const basePrompt = getSystemPrompt(agentId)
+    const sys = jurisdiction ? `${basePrompt}\n\nJURISDICTION: ${jurisdiction}. Apply the law of this jurisdiction throughout. Cite relevant statutes, cases, and authorities specific to this jurisdiction.` : basePrompt
     setStreaming(true)
 
     let history: Msg[] = [...messages, { role: 'user', content: msg }]
@@ -804,6 +816,37 @@ export default function AgentsPage() {
               style={{ flex: 1, background: 'none', border: 'none', outline: 'none', resize: 'none', fontSize: 14, color: '#0f0f0f', lineHeight: 1.5, maxHeight: 100, overflowY: 'auto' }}
             />
             <button onClick={() => send(input)} disabled={streaming || !input.trim()} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', alignSelf: 'flex-end', flexShrink: 0, background: streaming || !input.trim() ? 'rgba(0,0,0,0.1)' : '#0f0f0f', color: streaming || !input.trim() ? '#bbb' : '#fff', cursor: streaming || !input.trim() ? 'not-allowed' : 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>^</button>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+            <span style={{ fontSize: 11, color: '#999', flexShrink: 0 }}>Jurisdiction:</span>
+            <select value={jurisdiction} onChange={e => setJurisdiction(e.target.value)}
+              style={{ fontSize: 11, color: '#555', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 6, padding: '2px 6px', background: '#fafafa', cursor: 'pointer', flex: 1, maxWidth: 260 }}>
+              <option value="">Auto-detect from question</option>
+              <optgroup label="🇺🇸 United States">
+                <option value="US Federal (All Circuits)">Federal — All Circuits</option>
+                <option value="US Supreme Court (SCOTUS)">Supreme Court (SCOTUS)</option>
+                <option value="2nd Circuit (New York)">2nd Circuit (New York)</option>
+                <option value="3rd Circuit (Delaware/NJ/PA)">3rd Circuit (DE/NJ/PA)</option>
+                <option value="5th Circuit (Texas/LA/MS)">5th Circuit (TX/LA/MS)</option>
+                <option value="9th Circuit (California/WA/OR)">9th Circuit (CA/WA/OR)</option>
+                <option value="11th Circuit (Florida/Georgia)">11th Circuit (FL/GA)</option>
+                <option value="New York">New York</option>
+                <option value="California">California</option>
+                <option value="Delaware">Delaware</option>
+                <option value="Texas">Texas</option>
+                <option value="Florida">Florida</option>
+                <option value="Illinois">Illinois</option>
+              </optgroup>
+              <optgroup label="🇬🇧 United Kingdom">
+                <option value="England and Wales">England &amp; Wales</option>
+                <option value="UK Supreme Court">UK Supreme Court</option>
+                <option value="England and Wales — Court of Appeal">Court of Appeal</option>
+                <option value="England and Wales — High Court">High Court</option>
+                <option value="England and Wales — Upper Tribunal">Upper Tribunal</option>
+                <option value="Scotland">Scotland</option>
+                <option value="Northern Ireland">Northern Ireland</option>
+              </optgroup>
+            </select>
           </div>
           <div style={{ fontSize: 11, color: dragOver ? '#166534' : '#ccc', marginTop: 5, textAlign: 'center', transition: 'color 0.15s' }}>
             {dragOver ? 'Drop file to attach' : 'Not legal advice. Verify with a qualified lawyer. Drag a file here or use + to attach PDF, DOCX, TXT, MD, CSV, JSON.'}

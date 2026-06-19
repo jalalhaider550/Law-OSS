@@ -14,11 +14,11 @@
     "build": "turbo run build",
     "deploy": "bash scripts/deploy.sh",
     "setup": "bash scripts/setup.sh",
-    "db:push": "dotenv -e .env -- sh -c 'cd packages/db && npx prisma db push'",
-    "db:migrate": "dotenv -e .env -- sh -c 'cd packages/db && npx prisma migrate dev'",
-    "db:migrate:prod": "dotenv -e .env -- sh -c 'cd packages/db && npx prisma migrate deploy'",
-    "db:studio": "dotenv -e .env -- sh -c 'cd packages/db && npx prisma studio'",
-    "db:generate": "dotenv -e .env -- sh -c 'cd packages/db && npx prisma generate'"
+    "db:push": "cd packages/db && npx prisma db push",
+    "db:migrate": "cd packages/db && npx prisma migrate dev",
+    "db:migrate:prod": "cd packages/db && npx prisma migrate deploy",
+    "db:studio": "cd packages/db && npx prisma studio",
+    "db:generate": "cd packages/db && npx prisma generate"
   },
   "devDependencies": {
     "dotenv-cli": "^7.0.0",

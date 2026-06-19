@@ -2,6 +2,68 @@
 import { useState, useRef, useEffect } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
+// ── Add to Matter ─────────────────────────────────────────────────────────────
+function AddToMatterButton({ content, title, uid }: { content: string; title: string; uid: string }) {
+  const [open, setOpen] = useState(false)
+  const [matters, setMatters] = useState<any[]>([])
+  const [saved, setSaved] = useState(false)
+
+  function loadMatters() {
+    try { return JSON.parse(localStorage.getItem(`law_oss_matters_${uid}`) || '[]') } catch { return [] }
+  }
+  function saveMatters(m: any[]) { localStorage.setItem(`law_oss_matters_${uid}`, JSON.stringify(m)) }
+
+  function handleOpen() { setMatters(loadMatters()); setOpen(true); setSaved(false) }
+
+  function addToMatter(matterId: string) {
+    const all = loadMatters()
+    const chat = {
+      id: Date.now().toString(),
+      agentId: 'contracts',
+      agentName: 'Contract Review',
+      title,
+      messages: [{ role: 'assistant', content }],
+      savedAt: new Date().toISOString(),
+    }
+    saveMatters(all.map((m: any) => m.id === matterId ? { ...m, savedChats: [chat, ...(m.savedChats || [])] } : m))
+    setSaved(true)
+    setTimeout(() => setOpen(false), 900)
+  }
+
+  return (
+    <div style={{ position: 'relative', display: 'inline-block' }}>
+      <button onClick={handleOpen} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 13px', border: '1.5px solid rgba(0,0,0,0.15)', borderRadius: 7, background: '#fff', color: '#0f0f0f', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        Add to Matter
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', top: '110%', right: 0, zIndex: 200, background: '#fff', border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.13)', minWidth: 220, overflow: 'hidden' }}>
+          {saved ? (
+            <div style={{ padding: '14px 16px', fontSize: 13, color: '#15803d', fontWeight: 600 }}>Saved to matter</div>
+          ) : matters.length === 0 ? (
+            <div style={{ padding: '14px 16px', fontSize: 13, color: '#888' }}>No matters yet. <a href="/dashboard/matters" style={{ color: '#0f0f0f', fontWeight: 600 }}>Create one</a>.</div>
+          ) : (
+            <>
+              <div style={{ padding: '9px 14px 6px', fontSize: 11, fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: 1 }}>Select matter</div>
+              {matters.map((m: any) => (
+                <div key={m.id} onClick={() => addToMatter(m.id)} style={{ padding: '9px 14px', fontSize: 13, cursor: 'pointer', borderTop: '1px solid rgba(0,0,0,0.06)', color: '#0f0f0f' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+                  onMouseLeave={e => (e.currentTarget.style.background = '')}>
+                  <div style={{ fontWeight: 600 }}>{m.name}</div>
+                  <div style={{ fontSize: 11, color: '#aaa' }}>{m.type} · {m.status}</div>
+                </div>
+              ))}
+            </>
+          )}
+          <div style={{ padding: '8px 14px', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+            <button onClick={() => setOpen(false)} style={{ fontSize: 12, color: '#aaa', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Cancel</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 type Risk = {
   title: string
   severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
@@ -34,26 +96,74 @@ function saveReviews(list: StoredReview[]) {
 
 // Fuzzy match: normalise whitespace so PDF-extracted text (which collapses spaces) still matches
 function fuzzyReplace(text: string, clause: string, fix: string): { result: string; matched: boolean } {
-  // 1. Try exact match first
+  const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const normalise = (s: string) => s.replace(/\s+/g, ' ').trim()
+
+  // 1. Exact match
   if (text.includes(clause)) {
     return { result: text.replace(clause, fix), matched: true }
   }
-  // 2. Normalise internal whitespace on both sides and try again
-  const normalise = (s: string) => s.replace(/\s+/g, ' ').trim()
+
+  // 1b. Strip trailing ellipsis the AI sometimes appends, then match the prefix
+  //     and extend the match to the end of that sentence in the document
+  const stripped = clause.replace(/\.{3,}$/, '').replace(/…$/, '').trim()
+  if (stripped.length > 20 && stripped !== clause && text.includes(stripped)) {
+    const idx = text.indexOf(stripped)
+    const after = text.slice(idx + stripped.length)
+    const sentenceEnd = after.search(/[.!?](\s|$)/)
+    const tailLen = sentenceEnd >= 0 ? sentenceEnd + 1 : 0
+    return { result: text.slice(0, idx) + fix + text.slice(idx + stripped.length + tailLen), matched: true }
+  }
+
+  // 2. Whitespace-normalised regex (any whitespace between each word)
   const normClause = normalise(clause)
-  const normText   = normalise(text)
-  if (normText.includes(normClause)) {
-    // Rebuild by finding the run in the original that normalises to normClause
-    // Use regex that allows any whitespace between words
-    const words   = normClause.split(' ').map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-    const pattern = words.join('[\\s\\n\\r]+')
+  const words = normClause.split(' ').filter(Boolean)
+  if (words.length > 0) {
+    const pattern = words.map(escape).join('[\\s\\n\\r]+')
     try {
-      const re = new RegExp(pattern)
+      const re = new RegExp(pattern, 'i')
       if (re.test(text)) {
         return { result: text.replace(re, fix), matched: true }
       }
     } catch {}
   }
+
+  // 3. Try matching on just the first significant sentence of the clause
+  const firstSentence = clause.split(/[.!?]\s+/)[0]?.trim()
+  if (firstSentence && firstSentence.length > 20) {
+    const fsWords = normalise(firstSentence).split(' ').filter(Boolean)
+    const fsPattern = fsWords.map(escape).join('[\\s\\n\\r]+')
+    try {
+      const fsRe = new RegExp(fsPattern, 'i')
+      if (fsRe.test(text)) {
+        // Replace the whole sentence block that contains the match
+        return { result: text.replace(fsRe, fix), matched: true }
+      }
+    } catch {}
+  }
+
+  // 4. Sliding window: try any 8-word phrase from the clause against the text
+  if (words.length >= 8) {
+    for (let i = 0; i <= words.length - 8; i++) {
+      const chunk = words.slice(i, i + 8)
+      const chunkPattern = chunk.map(escape).join('[\\s\\n\\r]+')
+      try {
+        const chunkRe = new RegExp(chunkPattern, 'i')
+        if (chunkRe.test(text)) {
+          // Found anchor — now try to replace from that anchor as far as possible
+          const fullPattern = words.map(escape).join('[\\s\\n\\r,;.]*(?:[\\w\\s,;.]*[\\s\\n\\r,;.]*)?')
+          try {
+            const fullRe = new RegExp(fullPattern, 'i')
+            if (fullRe.test(text)) {
+              return { result: text.replace(fullRe, fix), matched: true }
+            }
+          } catch {}
+          return { result: text.replace(chunkRe, fix), matched: true }
+        }
+      } catch {}
+    }
+  }
+
   return { result: text, matched: false }
 }
 
@@ -65,9 +175,13 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
   const appended: Risk[] = []
   const notFound: Risk[] = []
 
+  const isPlaceholderClause = (clause: string) => {
+    const brackets = (clause.match(/\[[^\]]+\]/g) || []).join('').length
+    return brackets / clause.length > 0.4
+  }
   for (const r of risks) {
     if (!r.accepted) continue
-    if (!r.clause || r.clause.toLowerCase() === 'not present') {
+    if (!r.clause || r.clause.toLowerCase() === 'not present' || isPlaceholderClause(r.clause)) {
       appended.push(r)
     } else {
       const { result, matched } = fuzzyReplace(updated, r.clause, r.fix)
@@ -108,25 +222,7 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
     children.push(textLine(line))
   }
 
-  if (appended.length > 0) {
-    children.push(new Paragraph({ text: '', spacing: GAP }))
-    children.push(new Paragraph({ text: 'ADDITIONAL CLAUSES (RECOMMENDED)', heading: HeadingLevel.HEADING_2, spacing: TIGHT }))
-    for (const r of appended) {
-      children.push(new Paragraph({ text: r.title, heading: HeadingLevel.HEADING_3, spacing: TIGHT }))
-      children.push(new Paragraph({ children: [new TextRun(r.fix)], spacing: TIGHT }))
-    }
-  }
-
-  if (notFound.length > 0) {
-    children.push(new Paragraph({ text: '', spacing: GAP }))
-    children.push(new Paragraph({ text: 'MANUAL REVIEW REQUIRED', heading: HeadingLevel.HEADING_2, spacing: TIGHT }))
-    children.push(new Paragraph({ children: [new TextRun('These accepted fixes could not be located automatically — please apply manually:')], spacing: TIGHT }))
-    for (const r of notFound) {
-      children.push(new Paragraph({ text: r.title, heading: HeadingLevel.HEADING_3, spacing: TIGHT }))
-      children.push(new Paragraph({ children: [new TextRun({ text: 'Current: ', bold: true }), new TextRun(r.clause)], spacing: TIGHT }))
-      children.push(new Paragraph({ children: [new TextRun({ text: 'Replace with: ', bold: true }), new TextRun(r.fix)], spacing: TIGHT }))
-    }
-  }
+  // appended and notFound clauses are silently skipped — document stays clean
 
   const doc = new Document({ sections: [{ properties: {}, children }] })
   const blob = await Packer.toBlob(doc)
@@ -158,8 +254,21 @@ async function extractText(file: File): Promise<string> {
   if (name.endsWith('.docx') || file.type.includes('wordprocessingml')) {
     const mammoth = await import('mammoth')
     const ab = await file.arrayBuffer()
-    const result = await mammoth.extractRawText({ arrayBuffer: ab })
-    return result.value
+    const { value: html } = await mammoth.convertToHtml({ arrayBuffer: ab })
+    // Convert HTML to markdown-style text preserving bold and headings
+    return html
+      .replace(/<h1[^>]*>(.*?)<\/h1>/gi, (_, t) => `# ${t.replace(/<[^>]+>/g, '')}\n`)
+      .replace(/<h2[^>]*>(.*?)<\/h2>/gi, (_, t) => `## ${t.replace(/<[^>]+>/g, '')}\n`)
+      .replace(/<h3[^>]*>(.*?)<\/h3>/gi, (_, t) => `### ${t.replace(/<[^>]+>/g, '')}\n`)
+      .replace(/<strong[^>]*>(.*?)<\/strong>/gi, (_, t) => `**${t}**`)
+      .replace(/<b[^>]*>(.*?)<\/b>/gi, (_, t) => `**${t}**`)
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n')
+      .replace(/<\/li>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
   }
   throw new Error('Unsupported file type. Please upload PDF, DOCX, or TXT.')
 }
@@ -297,6 +406,7 @@ export default function ContractsPage() {
   const [error, setError] = useState('')
   const [showHistory, setShowHistory] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [uid, setUidState] = useState('')
 
   const fileRef = useRef<HTMLInputElement>(null)
   const supabase = createClientComponentClient()
@@ -304,7 +414,7 @@ export default function ContractsPage() {
   useEffect(() => {
     // Set uid FIRST so userKey() returns the correct namespaced key
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setUid(session.user.id)
+      if (session) { setUid(session.user.id); setUidState(session.user.id) }
       setStored(loadReviews())
     })
   }, [])
@@ -343,7 +453,13 @@ export default function ContractsPage() {
     setDocText(extracted)
     setStage('reviewing')
 
-    const SYSTEM = `You are a contract risk analyst. Review the contract and identify every risky, unusual, one-sided, or missing clause.
+    const SYSTEM = `You are a contract risk analyst with expertise in both US and UK/English law. Review the contract and identify every risky, unusual, one-sided, or missing clause.
+
+Apply the following legal frameworks as appropriate:
+- US contracts: UCC Article 2 (goods), Restatement (Second) of Contracts, federal law, and relevant state law (NY, CA, DE, TX, FL common defaults)
+- UK/English contracts: Sale of Goods Act, Consumer Rights Act, Unfair Contract Terms Act (UCTA), common law
+- International: CISG where applicable, choice-of-law provisions
+- Flag jurisdiction-specific risks (e.g. non-compete enforceability varies by US state; penalty clauses void in England & Wales)
 
 Output ONLY a valid JSON array. No prose, no markdown fences, no explanation. Start with [ and end with ].
 
@@ -351,10 +467,12 @@ Each item must be:
 {
   "title": "Short clause title",
   "severity": "CRITICAL" | "HIGH" | "MEDIUM" | "LOW",
-  "clause": "The exact verbatim text from the contract, or 'Not present' if missing",
-  "risk": "One sentence explaining why this is risky",
+  "clause": "Copy the clause CHARACTER-FOR-CHARACTER, exactly as it appears in the contract text provided. Do NOT paraphrase, summarise, shorten, or reconstruct. If the clause does not exist in the document, use 'Not present'.",
+  "risk": "One sentence explaining why this is risky (cite applicable statute or common law doctrine if relevant)",
   "fix": "Suggested replacement or addition text"
 }
+
+CRITICAL: The "clause" field must be a verbatim copy-paste from the contract. The system will search for this exact string to perform replacements — any deviation will cause the replacement to fail.
 
 Flag 5–20 genuine risks.`
 
@@ -584,6 +702,13 @@ Flag 5–20 genuine risks.`
                 )}
                 {generating ? 'Generating...' : `Download updated contract (${accepted} fix${accepted > 1 ? 'es' : ''})`}
               </button>
+            )}
+            {uid && risks.length > 0 && (
+              <AddToMatterButton
+                uid={uid}
+                title={`Contract Review: ${filename}`}
+                content={`# Contract Review — ${filename}\n\n${risks.map(r => `## ${r.severity}: ${r.title}\n**Risk:** ${r.risk}\n**Clause:** ${r.clause}\n**Fix:** ${r.fix}\n**Status:** ${r.accepted ? 'Accepted' : r.rejected ? 'Rejected' : 'Pending'}`).join('\n\n')}`}
+              />
             )}
           </div>
 

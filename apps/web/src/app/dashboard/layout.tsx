@@ -43,6 +43,13 @@ const Icons = {
       <path d="M3.5 5.5h3M3.5 8h3M3.5 10.5h3M9.5 5.5h3M9.5 8h3M9.5 10.5h3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" opacity=".7"/>
     </svg>
   ),
+  projects: (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <rect x="1" y="4" width="14" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+      <path d="M1 7h14" stroke="currentColor" strokeWidth="1.2" opacity=".5"/>
+      <path d="M4 4V2.5A1.5 1.5 0 0 1 5.5 1h5A1.5 1.5 0 0 1 12 2.5V4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+    </svg>
+  ),
   settings: (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
       <circle cx="8" cy="8" r="2.2" stroke="currentColor" strokeWidth="1.4"/>
@@ -71,6 +78,7 @@ const Icons = {
 
 const NAV = [
   { href: '/dashboard',            label: 'Dashboard', icon: 'dashboard' },
+  { href: '/dashboard/projects',   label: 'Projects',  icon: 'projects' },
   { href: '/dashboard/agents',     label: 'AI Agents', icon: 'agents' },
   { href: '/dashboard/contracts',  label: 'Contracts', icon: 'contracts' },
   { href: '/dashboard/compare',    label: 'Compare',   icon: 'compare' },

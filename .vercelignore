@@ -1,0 +1,8 @@
+node_modules
+.next
+.turbo
+coverage
+*.log
+apps/web/.next
+apps/web/node_modules
+packages/*/node_modules

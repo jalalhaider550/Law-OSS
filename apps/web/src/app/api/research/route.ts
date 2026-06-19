@@ -17,12 +17,47 @@ function getSupabase() {
 const CL_BASE = 'https://www.courtlistener.com/api/rest/v4'
 
 const COURT_MAP: Record<string, string[]> = {
+  // Federal all
   federal: ['scotus', 'ca1', 'ca2', 'ca3', 'ca4', 'ca5', 'ca6', 'ca7', 'ca8', 'ca9', 'ca10', 'ca11', 'cafc', 'cadc'],
-  us: ['scotus', 'ca1', 'ca2', 'ca3', 'ca4', 'ca5', 'ca6', 'ca7', 'ca8', 'ca9', 'ca10', 'ca11'],
+  us:      ['scotus', 'ca1', 'ca2', 'ca3', 'ca4', 'ca5', 'ca6', 'ca7', 'ca8', 'ca9', 'ca10', 'ca11', 'cafc', 'cadc'],
+  // SCOTUS only
+  scotus: ['scotus'],
+  'supreme court': ['scotus'],
+  // Circuits
+  'first circuit': ['ca1'], '1st circuit': ['ca1'],
+  'second circuit': ['ca2'], '2nd circuit': ['ca2'],
+  'third circuit': ['ca3'], '3rd circuit': ['ca3'],
+  'fourth circuit': ['ca4'], '4th circuit': ['ca4'],
+  'fifth circuit': ['ca5'], '5th circuit': ['ca5'],
+  'sixth circuit': ['ca6'], '6th circuit': ['ca6'],
+  'seventh circuit': ['ca7'], '7th circuit': ['ca7'],
+  'eighth circuit': ['ca8'], '8th circuit': ['ca8'],
+  'ninth circuit': ['ca9'], '9th circuit': ['ca9'],
+  'tenth circuit': ['ca10'], '10th circuit': ['ca10'],
+  'eleventh circuit': ['ca11'], '11th circuit': ['ca11'],
+  'dc circuit': ['cadc'],
+  // States
   california: ['ca9', 'cacd', 'caed', 'cand', 'casd'],
   'new york': ['ca2', 'nyed', 'nynd', 'nysd', 'nywd'],
   delaware: ['ca3', 'ded'],
   texas: ['ca5', 'txed', 'txnd', 'txsd', 'txwd'],
+  florida: ['ca11', 'flmd', 'flnd', 'flsd'],
+  illinois: ['ca7', 'ilcd', 'ilnd', 'ilsd'],
+  'new jersey': ['ca3', 'njd'],
+  pennsylvania: ['ca3', 'paed', 'pamd', 'pawd'],
+  georgia: ['ca11', 'gamd', 'gand', 'gasd'],
+  massachusetts: ['ca1', 'mad'],
+  virginia: ['ca4', 'vaed', 'vawd'],
+  'north carolina': ['ca4', 'nced', 'ncmd', 'ncwd'],
+  ohio: ['ca6', 'ohnd', 'ohsd'],
+  michigan: ['ca6', 'mied', 'miwd'],
+  washington: ['ca9', 'waed', 'wawd'],
+  colorado: ['ca10', 'cod'],
+  arizona: ['ca9', 'azd'],
+  nevada: ['ca9', 'nvd'],
+  oregon: ['ca9', 'ord'],
+  minnesota: ['ca8', 'mnd'],
+  missouri: ['ca8', 'moed', 'mowd'],
 }
 
 async function searchCourtListener(query: string, jurisdiction: string, token?: string) {
@@ -62,6 +97,7 @@ const COURT_MAP_UK: Record<string, string> = {
   'court of appeal': 'ewca', ewca: 'ewca',
   'high court': 'ewhc', ewhc: 'ewhc',
   'upper tribunal': 'ukut', ukut: 'ukut',
+  'northern ireland': 'nica',
 }
 
 function decodeXml(s: string) {
@@ -134,8 +170,13 @@ export async function GET(req: NextRequest) {
 
       try {
         const jur = jurisdiction.toLowerCase()
-        const isUK = jur.includes('uk') || jur.includes('england') || jur.includes('wales') || jur.includes('scotland')
-        const isUS = jur.includes('us') || jur.includes('federal') || jur.includes('california') || jur.includes('new york') || jur.includes('delaware')
+        const isUK = jur.includes('uk') || jur.includes('england') || jur.includes('wales') || jur.includes('scotland') || jur.includes('northern ireland') || jur.includes('uksc') || jur.includes('court of appeal') || jur.includes('high court') || jur.includes('upper tribunal')
+        const isUS = jur.includes('us') || jur.includes('federal') || jur.includes('scotus') || jur.includes('circuit') ||
+          jur.includes('california') || jur.includes('new york') || jur.includes('delaware') || jur.includes('texas') ||
+          jur.includes('florida') || jur.includes('illinois') || jur.includes('new jersey') || jur.includes('pennsylvania') ||
+          jur.includes('virginia') || jur.includes('ohio') || jur.includes('michigan') || jur.includes('washington') ||
+          jur.includes('colorado') || jur.includes('arizona') || jur.includes('oregon') || jur.includes('minnesota') ||
+          jur.includes('missouri') || jur.includes('georgia') || jur.includes('massachusetts') || jur.includes('nevada')
         const isGlobal = jur === 'global' || jur === 'all' || (!isUK && !isUS)
 
         send({ type: 'progress', message: 'Searching verified case databases...' })

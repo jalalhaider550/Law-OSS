@@ -140,7 +140,11 @@ const TABS = [
   { id: 'litigation', label: 'Litigation' },
 ]
 
-const NO_DISCLAIMER = `\n\nNO DISCLAIMERS: Never include any disclaimer, caveat, warning, or note of any kind — including "this is not legal advice", "consult a lawyer", "I am an AI", or any similar language. Respond as a qualified legal professional. Output only the answer.`
+const NO_DISCLAIMER = `\n\nCRITICAL RULES:
+1. ALWAYS do exactly what the user asks. If they request a one-page document, produce one page. If they request a specific format, use it. Never refuse, never suggest a different approach, never explain why you cannot comply.
+2. NEVER say "I cannot", "this is inadequate", "a proper document requires more pages", or any similar refusal. Just produce what was asked.
+3. NEVER include any disclaimer, caveat, warning, or note of any kind — including "this is not legal advice", "consult a lawyer", "I am an AI", or any similar language.
+4. Output only the requested document or answer. Nothing else.`
 
 const SYSTEM_PROMPTS: Record<string, string> = {
   general:    `You are Law OSS AI, an expert legal assistant. Apply the governing law relevant to the user's matter. If the user specifies a jurisdiction, apply that law; otherwise apply general common law principles. Be precise, professional and cite real legal authorities. Do not use emojis, decorative symbols, or coloured text. Use plain professional text. Always produce complete responses without truncating.${NO_DISCLAIMER}`,
@@ -323,6 +327,7 @@ export default function DashboardPage() {
   const [dragOver, setDragOver]       = useState(false)
   const [uploading, setUploading]     = useState(false)
   const [uploadError, setUploadError] = useState('')
+  const [jurisdiction, setJurisdiction] = useState('')
   const bottomRef  = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const supabase   = createClientComponentClient()
@@ -357,7 +362,8 @@ export default function DashboardPage() {
     if (!apiKey) { setHasKey(false); return }
 
     const maxTok = agentId === 'drafting' ? 16000 : 8000
-    const sys    = SYSTEM_PROMPTS[agentId] || SYSTEM_PROMPTS.general
+    const basePrompt = SYSTEM_PROMPTS[agentId] || SYSTEM_PROMPTS.general
+    const sys = jurisdiction ? `${basePrompt}\n\nJURISDICTION: ${jurisdiction}. Apply the law of this jurisdiction throughout. Cite relevant statutes, cases, and authorities specific to this jurisdiction.` : basePrompt
 
     const userContent = attachedDoc
       ? `${text.trim()}\n\n---\n**Attached document: ${attachedDoc.name}**\n\n${attachedDoc.text}`
@@ -533,6 +539,37 @@ export default function DashboardPage() {
             cursor: streaming || (!input.trim() && !attachedDoc) ? 'not-allowed' : 'pointer', fontSize: 18,
             display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s',
           }}>↑</button>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+          <span style={{ fontSize: 11, color: '#999', flexShrink: 0 }}>Jurisdiction:</span>
+          <select value={jurisdiction} onChange={e => setJurisdiction(e.target.value)}
+            style={{ fontSize: 11, color: '#555', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 6, padding: '2px 6px', background: '#fafafa', cursor: 'pointer', flex: 1, maxWidth: 260 }}>
+            <option value="">Auto-detect from question</option>
+            <optgroup label="🇺🇸 United States">
+              <option value="US Federal (All Circuits)">Federal — All Circuits</option>
+              <option value="US Supreme Court (SCOTUS)">Supreme Court (SCOTUS)</option>
+              <option value="2nd Circuit (New York)">2nd Circuit (New York)</option>
+              <option value="3rd Circuit (Delaware/NJ/PA)">3rd Circuit (DE/NJ/PA)</option>
+              <option value="5th Circuit (Texas/LA/MS)">5th Circuit (TX/LA/MS)</option>
+              <option value="9th Circuit (California/WA/OR)">9th Circuit (CA/WA/OR)</option>
+              <option value="11th Circuit (Florida/Georgia)">11th Circuit (FL/GA)</option>
+              <option value="New York">New York</option>
+              <option value="California">California</option>
+              <option value="Delaware">Delaware</option>
+              <option value="Texas">Texas</option>
+              <option value="Florida">Florida</option>
+              <option value="Illinois">Illinois</option>
+            </optgroup>
+            <optgroup label="🇬🇧 United Kingdom">
+              <option value="England and Wales">England &amp; Wales</option>
+              <option value="UK Supreme Court">UK Supreme Court</option>
+              <option value="England and Wales — Court of Appeal">Court of Appeal</option>
+              <option value="England and Wales — High Court">High Court</option>
+              <option value="England and Wales — Upper Tribunal">Upper Tribunal</option>
+              <option value="Scotland">Scotland</option>
+              <option value="Northern Ireland">Northern Ireland</option>
+            </optgroup>
+          </select>
         </div>
         <div style={{ fontSize: 11, color: '#ccc', marginTop: 6, textAlign: 'center' }}>
           Not legal advice. Verify all AI output with a qualified lawyer.

@@ -6,7 +6,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Open Source](https://img.shields.io/badge/Open%20Source-❤️-red)](https://github.com/law-oss/law-oss)
-[![Powered by Claude](https://img.shields.io/badge/Powered%20by-Claude%20claude-sonnet-4-6-navy)](https://anthropic.com)
+[![Powered by Claude](https://img.shields.io/badge/Powered%20by-Claude%20Sonnet-navy)](https://anthropic.com)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](CONTRIBUTING.md)
 
 ---
@@ -45,14 +45,9 @@ Law OSS is the **free, open-source alternative** to Harvey and Legora. It runs e
 2. Drag the HTML file onto the page
 3. Share the URL with your team
 
-### Option 3 — Full stack deployment
+### Option 3 — Self-host the full stack
 
-```bash
-git clone https://github.com/law-oss/law-oss
-cd law-oss
-docker compose up -d
-open http://localhost:3000
-```
+See the [Self-Hosting](#-self-hosting) section below.
 
 ---
 
@@ -65,13 +60,13 @@ User opens Law OSS
        ↓
 First-time onboarding (4 steps)
        ↓
-Enters Anthropic API key
+Enters Anthropic or Gemini API key
        ↓
-Law OSS verifies key directly with Anthropic
+Law OSS verifies key directly with the provider
        ↓
 Key stored in browser localStorage (obfuscated)
        ↓
-Every AI call goes: Browser → Anthropic directly
+Every AI call goes: Browser → Anthropic/Gemini directly
        ↓
 Law OSS servers NEVER see your key or your data
 ```
@@ -83,8 +78,8 @@ Law OSS servers NEVER see your key or your data
 - ✅ Removable any time via Settings
 - ✅ Verifiable — Law OSS is open source
 
-**Get your key:** [console.anthropic.com](https://console.anthropic.com/keys)
-**Cost:** ~$0.003 per AI task (Claude claude-sonnet-4-6)
+**Get your key:** [console.anthropic.com](https://console.anthropic.com/keys)  
+**Cost:** ~$0.003 per AI task (Claude Sonnet)
 
 ---
 
@@ -101,36 +96,144 @@ Law OSS servers NEVER see your key or your data
 
 ```
 law-oss/
-├── law-oss-us.html          # US Edition (self-contained)
-├── law-oss-uk.html          # UK Edition (self-contained)
-├── onboarding.js            # API key onboarding system
-├── core.css                 # Shared design system
-├── core.js                  # Shared JS engine
-├── gen.py                   # HTML generator
-├── docs/
-│   ├── PRD.md               # Product Requirements
-│   ├── TECHNICAL_SPEC.md    # Technical Specification
-│   └── SECURITY.md          # Security model
+├── apps/
+│   ├── web/          ← Next.js 14 + TypeScript (frontend)
+│   └── api/          ← Express + Prisma + Supabase (backend)
 ├── packages/
-│   └── db/schema.prisma     # Full database schema
-├── docker-compose.yml       # Full stack deployment
-└── CONTRIBUTING.md
+│   ├── db/           ← Prisma schema & client
+│   ├── ai/           ← AI provider abstraction
+│   └── types/        ← Shared TypeScript types
+├── setup/
+│   └── schema.sql    ← Full database schema (run once)
+└── turbo.json        ← Turborepo config
 ```
 
-### For full-stack deployment (Next.js + NestJS)
+---
 
+## 🖥️ Self-Hosting
+
+### Requirements
+
+- **Node.js 20+** — [nodejs.org](https://nodejs.org)
+- **A free Supabase account** — [supabase.com](https://supabase.com) (database + auth + storage)
+- **A Claude or Gemini API key** — users bring their own; you don't need one to run the server
+
+---
+
+### Step 1 — Clone the repo
+
+```bash
+git clone https://github.com/YOUR_USERNAME/law-oss.git
+cd law-oss
 ```
-apps/
-├── web/     ← Next.js 14 + TypeScript + Tailwind
-└── api/     ← NestJS + Prisma + PostgreSQL + pgvector
+
+---
+
+### Step 2 — Install dependencies
+
+```bash
+npm install
 ```
+
+---
+
+### Step 3 — Create a Supabase project
+
+1. Go to [supabase.com](https://supabase.com) and create a free account
+2. Create a new project (choose any region)
+3. In **Storage**, create two buckets named `contracts` and `documents` (set both to private)
+4. From **Project Settings → API**, copy:
+   - **Project URL** → used as `SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_URL`
+   - **anon public key** → used as `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - **service_role key** → used as `SUPABASE_SERVICE_ROLE_KEY`
+5. From **Project Settings → Database**, copy the **Connection string (URI)** → used as `DATABASE_URL`
+
+---
+
+### Step 4 — Set up the database
+
+**Option A — SQL Editor (easiest)**
+
+1. In your Supabase project, go to **SQL Editor**
+2. Paste the contents of `setup/schema.sql` and click **Run**
+
+**Option B — Prisma push**
+
+```bash
+# Set DATABASE_URL first (see Step 5), then:
+npm run db:push
+```
+
+---
+
+### Step 5 — Configure environment variables
+
+```bash
+# API backend
+cp apps/api/.env.example apps/api/.env
+
+# Web frontend
+cp apps/web/.env.example apps/web/.env.local
+```
+
+Fill in both files with your Supabase values:
+
+**`apps/api/.env`**
+```env
+DATABASE_URL=postgresql://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres
+SUPABASE_URL=https://[YOUR-PROJECT-REF].supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
+ENCRYPTION_SECRET=<32 random chars — run: node -e "console.log(require('crypto').randomBytes(16).toString('hex'))">
+PORT=3001
+NODE_ENV=development
+```
+
+**`apps/web/.env.local`**
+```env
+NEXT_PUBLIC_API_URL=http://localhost:3001
+NEXT_PUBLIC_SUPABASE_URL=https://[YOUR-PROJECT-REF].supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+```
+
+---
+
+### Step 6 — Run it
+
+```bash
+npm run dev
+```
+
+- Frontend: [http://localhost:3000](http://localhost:3000)
+- API: [http://localhost:3001](http://localhost:3001)
+
+---
+
+### Step 7 — Add your API key
+
+1. Sign up at [http://localhost:3000/signup](http://localhost:3000/signup)
+2. Go through onboarding
+3. Navigate to **Settings** and paste your Claude or Gemini API key
+4. Start using all 8 agents
+
+---
+
+### Deploying to production
+
+| Service | Deploy |
+|---------|--------|
+| **Frontend** (`apps/web`) | [Vercel](https://vercel.com) — import the repo, set root to `apps/web` |
+| **Backend** (`apps/api`) | [Railway](https://railway.app) — import the repo, set root to `apps/api` |
+
+Set the same environment variables in each platform's settings panel. For Vercel, add all `NEXT_PUBLIC_*` vars. For Railway, add the API vars and set `NODE_ENV=production`.
+
+After deploying the API, update `NEXT_PUBLIC_API_URL` in Vercel to point to your Railway URL.
 
 ---
 
 ## 🔒 Security
 
-- **API keys** — stored obfuscated in localStorage, never transmitted to Law OSS
-- **Data** — all AI calls go browser → Anthropic directly
+- **API keys** — stored obfuscated in localStorage, never transmitted to Law OSS servers
+- **Data** — all AI calls go browser → Anthropic/Gemini directly
 - **Open source** — every line of code is auditable
 - **No telemetry** — we collect nothing
 - **Self-hostable** — run entirely on your own infrastructure
@@ -152,9 +255,9 @@ We welcome contributions. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## 📄 License
 
-MIT License — free to use, modify, and distribute.
+The Law OSS source code is MIT licensed — free to use, self-host, and build on.
 
-See [LICENSE](LICENSE) for details.
+The hosted service, brand, design, and infrastructure are proprietary. See [LICENSE](LICENSE) for the full distinction.
 
 ---
 

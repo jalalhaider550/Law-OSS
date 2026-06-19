@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2025 Law OSS Contributors
+Copyright (c) 2026 Law OSS
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,3 +19,14 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+NOTE: This license applies to the open-source software code only.
+
+The Law OSS hosted service, website, brand, trade names, logos, design,
+hosted infrastructure, documentation, and any non-open-source elements are
+NOT covered by this license. Those are owned by Law OSS and its licensors
+and are protected by intellectual property and other applicable laws. Use of
+the hosted service is governed by the Law OSS Terms of Service at
+https://lawoss.com/terms — not by this license.

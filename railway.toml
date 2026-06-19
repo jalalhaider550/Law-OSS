@@ -1,6 +1,6 @@
 [build]
 builder = "nixpacks"
-buildCommand = "npm install && npx turbo run build --filter=@law-oss/api... --force"
+buildCommand = "npm install && (cd apps/api/vendor/db && npm install --ignore-scripts && npx prisma generate --schema=prisma/schema.prisma && npx tsc) && (cd apps/api/vendor/ai && npm install --ignore-scripts && npx tsc) && (cd apps/api/vendor/types && npm install --ignore-scripts && npx tsc) && npx turbo run build --filter=@law-oss/api... --force"
 
 [deploy]
 startCommand = "node apps/api/dist/index.js"

@@ -46,6 +46,17 @@ export default function SettingsPage() {
   const [keyErr,       setKeyErr]       = useState('')
   const [savingKey,    setSavingKey]    = useState(false)
 
+  // Password state
+  const [newPassword,    setNewPassword]    = useState('')
+  const [confirmPassword,setConfirmPassword]= useState('')
+  const [showNewPwd,     setShowNewPwd]     = useState(false)
+  const [pwdSaved,       setPwdSaved]       = useState('')
+  const [pwdErr,         setPwdErr]         = useState('')
+  const [savingPwd,      setSavingPwd]      = useState(false)
+  const [resetSent,      setResetSent]      = useState(false)
+  const [resetErr,       setResetErr]       = useState('')
+  const [sendingReset,   setSendingReset]   = useState(false)
+
   // MFA state
   const [mfaEnrolled,    setMfaEnrolled]    = useState(false)
   const [mfaEnrolling,   setMfaEnrolling]   = useState(false)
@@ -152,6 +163,36 @@ export default function SettingsPage() {
   async function signOut() {
     await supabase.auth.signOut()
     router.replace('/login')
+  }
+
+  async function changePassword() {
+    setPwdErr(''); setPwdSaved('')
+    if (!newPassword) { setPwdErr('Enter a new password.'); return }
+    if (newPassword.length < 8) { setPwdErr('Password must be at least 8 characters.'); return }
+    if (newPassword !== confirmPassword) { setPwdErr('Passwords do not match.'); return }
+    setSavingPwd(true)
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword })
+      if (error) { setPwdErr(error.message); return }
+      setNewPassword(''); setConfirmPassword('')
+      setPwdSaved('Password updated successfully.')
+      setTimeout(() => setPwdSaved(''), 4000)
+    } catch { setPwdErr('Failed to update password.') }
+    finally { setSavingPwd(false) }
+  }
+
+  async function sendPasswordReset() {
+    if (!userEmail) return
+    setSendingReset(true); setResetErr('')
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
+        redirectTo: `${window.location.origin}/auth/callback?next=/dashboard/settings`,
+      })
+      if (error) { setResetErr(error.message); return }
+      setResetSent(true)
+      setTimeout(() => setResetSent(false), 6000)
+    } catch { setResetErr('Failed to send reset email.') }
+    finally { setSendingReset(false) }
   }
 
   // MFA: begin enrollment
@@ -346,8 +387,52 @@ export default function SettingsPage() {
         )}
       </Section>
 
-      {/* Security — MFA */}
+      {/* Security — Password + MFA */}
       <Section title="Security">
+        {/* Change Password */}
+        {pwdSaved && <div style={{ padding: '9px 14px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 7, fontSize: 13, color: '#15803d', marginBottom: 16 }}>{pwdSaved}</div>}
+        {pwdErr && <div style={{ padding: '9px 14px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 7, fontSize: 13, color: '#b91c1c', marginBottom: 16 }}>{pwdErr}</div>}
+        {resetSent && <div style={{ padding: '9px 14px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 7, fontSize: 13, color: '#15803d', marginBottom: 16 }}>Password reset email sent to {userEmail}.</div>}
+        {resetErr && <div style={{ padding: '9px 14px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 7, fontSize: 13, color: '#b91c1c', marginBottom: 16 }}>{resetErr}</div>}
+
+        <div style={{ fontSize: 14, fontWeight: 600, color: '#0f0f0f', marginBottom: 12 }}>Change Password</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px', marginBottom: 12 }}>
+          <Field label="New password">
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showNewPwd ? 'text' : 'password'} value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+                placeholder="Min. 8 characters"
+                style={{ ...inputStyle, paddingRight: 50 }}
+              />
+              <button onClick={() => setShowNewPwd(s => !s)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#999', fontSize: 12 }}>{showNewPwd ? 'Hide' : 'Show'}</button>
+            </div>
+          </Field>
+          <Field label="Confirm new password">
+            <input
+              type={showNewPwd ? 'text' : 'password'} value={confirmPassword}
+              onChange={e => setConfirmPassword(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && changePassword()}
+              placeholder="Repeat password"
+              style={inputStyle}
+            />
+          </Field>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+          <button onClick={changePassword} disabled={savingPwd || !newPassword} style={{
+            padding: '9px 20px', border: 'none', borderRadius: 8,
+            background: savingPwd || !newPassword ? 'rgba(0,0,0,0.1)' : '#0f0f0f',
+            color: savingPwd || !newPassword ? '#bbb' : '#fff',
+            fontSize: 14, fontWeight: 600, cursor: savingPwd || !newPassword ? 'not-allowed' : 'pointer',
+          }}>{savingPwd ? 'Updating...' : 'Update password'}</button>
+          <button onClick={sendPasswordReset} disabled={sendingReset} style={{
+            padding: '9px 18px', border: '1.5px solid rgba(0,0,0,0.15)', borderRadius: 8,
+            background: '#fff', color: '#555', fontSize: 13.5, cursor: sendingReset ? 'not-allowed' : 'pointer',
+          }}>{sendingReset ? 'Sending...' : 'Forgot password — send reset email'}</button>
+        </div>
+
+        <div style={{ borderTop: '1px solid rgba(0,0,0,0.08)', paddingTop: 20 }} />
+
         {mfaMsg && <div style={{ padding: '9px 14px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 7, fontSize: 13, color: '#15803d', marginBottom: 16 }}>{mfaMsg}</div>}
         {mfaErr && <div style={{ padding: '9px 14px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 7, fontSize: 13, color: '#b91c1c', marginBottom: 16 }}>{mfaErr}</div>}
 
