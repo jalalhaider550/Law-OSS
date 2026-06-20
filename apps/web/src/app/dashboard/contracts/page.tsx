@@ -172,7 +172,8 @@ function fuzzyReplace(text: string, clause: string, fix: string): { result: stri
   return { result: text, matched: false }
 }
 
-async function downloadUpdatedContract(docText: string, risks: Risk[], filename: string) {
+type DownloadResult = { applied: number; appended: number; failed: Risk[]; renumberWarning: boolean }
+async function downloadUpdatedContract(docText: string, risks: Risk[], filename: string): Promise<DownloadResult> {
   const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx')
 
   // Apply accepted fixes — preserve every character of the original; only swap the clause text
@@ -184,6 +185,7 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
     const brackets = (clause.match(/\[[^\]]+\]/g) || []).join('').length
     return brackets / clause.length > 0.4
   }
+  let appliedCount = 0
   for (const r of risks) {
     if (!r.accepted) continue
     if (!r.clause || r.clause.toLowerCase() === 'not present' || isPlaceholderClause(r.clause)) {
@@ -192,10 +194,57 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
       const { result, matched } = fuzzyReplace(updated, r.clause, r.fix)
       if (matched) {
         updated = result
+        appliedCount++
       } else {
         notFound.push(r)
       }
     }
+  }
+
+  // ── Fix A: insert new/missing accepted clauses before signature block ────────
+  let renumberWarning = false
+  if (appended.length > 0) {
+    const lines = updated.split('\n')
+    const numericSectionRe = /^\d+[\.\)]\s+[A-Z]/
+    const hasNumericSections = lines.some(l => numericSectionRe.test(l.trim()))
+
+    let maxSection = 0
+    if (hasNumericSections) {
+      for (const line of lines) {
+        const m = /^(\d+)[\.\)]\s+[A-Z]/.exec(line.trim())
+        if (m) maxSection = Math.max(maxSection, parseInt(m[1]))
+      }
+    }
+
+    // Find insertion point: first line matching a signature block header
+    const sigRe = /^(in witness whereof|signatures?\s*:|signed by|executed by)/i
+    let insertIdx = lines.length
+    for (let i = 0; i < lines.length; i++) {
+      if (sigRe.test(lines[i].trim())) { insertIdx = i; break }
+    }
+
+    const newLines: string[] = ['']
+    for (const r of appended) {
+      if (hasNumericSections) {
+        maxSection++
+        const fixTrimmed = r.fix.trimStart()
+        // If the AI already prefixed a section number, use it; otherwise prepend ours
+        const alreadyNumbered = /^\d+[\.\)]\s/.test(fixTrimmed)
+        newLines.push(alreadyNumbered ? fixTrimmed : `${maxSection}. ${fixTrimmed}`)
+      } else {
+        // Non-numeric numbering — insert with manual marker, do not guess
+        newLines.push('[NEW CLAUSE — RENUMBER MANUALLY]')
+        newLines.push(r.fix.trimStart())
+        renumberWarning = true
+      }
+      newLines.push('')
+    }
+
+    updated = [
+      ...lines.slice(0, insertIdx),
+      ...newLines,
+      ...lines.slice(insertIdx),
+    ].join('\n')
   }
 
   // Zero-spacing paragraphs — blank lines get a small gap, content lines get none
@@ -227,8 +276,6 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
     children.push(textLine(line))
   }
 
-  // appended and notFound clauses are silently skipped — document stays clean
-
   const doc = new Document({ sections: [{ properties: {}, children }] })
   const blob = await Packer.toBlob(doc)
   const url = URL.createObjectURL(blob)
@@ -236,6 +283,7 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
   const base = filename.replace(/\.[^.]+$/, '')
   a.href = url; a.download = `${base}-updated.docx`; a.click()
   URL.revokeObjectURL(url)
+  return { applied: appliedCount, appended: appended.length, failed: notFound, renumberWarning }
 }
 
 async function extractText(file: File): Promise<string> {
@@ -413,6 +461,7 @@ export default function ContractsPage() {
   const [generating, setGenerating] = useState(false)
   const [uid, setUidState] = useState('')
   const [authToken, setAuthToken] = useState<string | null>(null)
+  const [downloadResult, setDownloadResult] = useState<DownloadResult | null>(null)
 
   const fileRef = useRef<HTMLInputElement>(null)
   const supabase = createClientComponentClient()
@@ -493,7 +542,7 @@ Each item must be:
   "severity": "CRITICAL" | "HIGH" | "MEDIUM" | "LOW",
   "clause": "Copy the clause CHARACTER-FOR-CHARACTER, exactly as it appears in the contract text provided. Do NOT paraphrase, summarise, shorten, or reconstruct. If the clause does not exist in the document, use 'Not present'.",
   "risk": "One sentence explaining why this is risky (cite applicable statute or common law doctrine if relevant)",
-  "fix": "Suggested replacement or addition text"
+  "fix": "Write the COMPLETE, FINAL clause text ready to be inserted verbatim into the contract. Output only finished, binding legal language — numbered/lettered subsections, defined terms, operative words — exactly as it would appear in a signed agreement. NEVER write a description, summary, or instruction about what the clause should say. BAD EXAMPLE (do not do this): 'Add an indemnification clause covering direct losses, third-party claims, and IP infringement.' GOOD EXAMPLE (do this): '9. INDEMNIFICATION. (a) Each party (the Indemnifying Party) shall defend, indemnify, and hold harmless the other party and its officers, directors, employees, and agents (collectively, the Indemnified Parties) from and against any and all claims, damages, losses, costs, and expenses (including reasonable attorneys fees) arising out of or relating to: (i) any breach of this Agreement; (ii) the negligence or willful misconduct of the Indemnifying Party; or (iii) infringement of third-party intellectual property rights by the Indemnifying Party. (b) The Indemnified Party shall promptly notify the Indemnifying Party in writing of any claim and grant sole control of its defense.'"
 }
 
 CRITICAL: The "clause" field must be a verbatim copy-paste from the contract. The system will search for this exact string to perform replacements — any deviation will cause the replacement to fail.
@@ -715,7 +764,7 @@ Flag 5–20 genuine risks.`
             </div>
             {accepted > 0 && docText && (
               <button
-                onClick={async () => { setGenerating(true); await downloadUpdatedContract(docText, risks, filename); setGenerating(false) }}
+                onClick={async () => { setGenerating(true); const r = await downloadUpdatedContract(docText, risks, filename); setDownloadResult(r); setGenerating(false) }}
                 disabled={generating}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', border: 'none', borderRadius: 8, background: generating ? '#e5e5e5' : '#0f0f0f', color: generating ? '#999' : '#fff', fontSize: 12.5, fontWeight: 600, cursor: generating ? 'not-allowed' : 'pointer' }}
               >
@@ -726,6 +775,17 @@ Flag 5–20 genuine risks.`
                 )}
                 {generating ? 'Generating...' : `Download updated contract (${accepted} fix${accepted > 1 ? 'es' : ''})`}
               </button>
+            )}
+            {downloadResult && !generating && (
+              <div style={{ fontSize: 12, lineHeight: 1.7, marginTop: 2 }}>
+                <span style={{ color: '#15803d' }}>✓ {downloadResult.applied} replaced · {downloadResult.appended} inserted</span>
+                {downloadResult.failed.length > 0 && (
+                  <span style={{ color: '#dc2626', marginLeft: 10 }}>✗ {downloadResult.failed.length} could not be applied: {downloadResult.failed.map(f => f.title).join(', ')} — edit manually</span>
+                )}
+                {downloadResult.renumberWarning && (
+                  <span style={{ color: '#d97706', marginLeft: 10 }}>⚠ Non-standard numbering — new clauses marked [NEW CLAUSE — RENUMBER MANUALLY]</span>
+                )}
+              </div>
             )}
             {uid && risks.length > 0 && (
               <AddToMatterButton
@@ -758,7 +818,7 @@ Flag 5–20 genuine risks.`
               <div style={{ display: 'flex', gap: 8 }}>
                 {accepted > 0 && docText && (
                   <button
-                    onClick={async () => { setGenerating(true); await downloadUpdatedContract(docText, risks, filename); setGenerating(false) }}
+                    onClick={async () => { setGenerating(true); const r = await downloadUpdatedContract(docText, risks, filename); setDownloadResult(r); setGenerating(false) }}
                     disabled={generating}
                     style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px', border: 'none', borderRadius: 8, background: '#16a34a', color: '#fff', fontSize: 13, fontWeight: 600, cursor: generating ? 'not-allowed' : 'pointer' }}
                   >
