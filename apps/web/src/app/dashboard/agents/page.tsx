@@ -61,53 +61,130 @@ function AgentRiskCard({ risk, onAccept, onReject }: { risk: Risk; onAccept: () 
   )
 }
 
-function fuzzyReplace(text: string, clause: string, fix: string): { result: string; matched: boolean } {
-  if (text.includes(clause)) return { result: text.replace(clause, fix), matched: true }
-  const normalise = (s: string) => s.replace(/\s+/g, ' ').trim()
-  const normClause = normalise(clause)
-  if (normalise(text).includes(normClause)) {
-    const words = normClause.split(' ').map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-    try {
-      const re = new RegExp(words.join('[\\s\\n\\r]+'))
-      if (re.test(text)) return { result: text.replace(re, fix), matched: true }
-    } catch {}
+// BOUNDARY_RE — segment splitting. See contracts/page.tsx for full commentary.
+// NOTE: if you change this, check NUMBERED_ITEM_RE below for consistency.
+const BOUNDARY_RE_A = /^(\d+[\.\)]\s|[a-z][\.\)]\s|\([a-z]\)\s|\([ivxlc]+\)\s|[A-Z][A-Z ]{9,})/
+// NUMBERED_ITEM_RE — pre-body detection only (not segment splitting).
+// NOTE: if you change this, check BOUNDARY_RE_A above for consistency.
+const NUMBERED_ITEM_RE_A = /^(\d+[\.\)]\s|[a-z][\.\)]\s|\([a-z]\)\s|\([ivxlc]+\)\s)/
+const NON_REPLACEABLE_RE_A = /^(in witness whereof|signature[s]?\s*[:\-]|signed by|executed by|schedule\s+\d|exhibit\s+[a-z\d])/i
+
+function splitSegments(text: string): Array<{ start: number; end: number; content: string; preBody: boolean }> {
+  const lines = text.split('\n')
+  const segs: Array<{ start: number; end: number; content: string; preBody: boolean }> = []
+  let segStart = 0; let segLines: string[] = []; let preBody = true
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i].trim()
+    if (BOUNDARY_RE_A.test(t) && t.length > 0 && segLines.length > 0) {
+      segs.push({ start: segStart, end: i - 1, content: segLines.join('\n'), preBody })
+      segStart = i; segLines = []
+    }
+    if (NUMBERED_ITEM_RE_A.test(t)) preBody = false
+    segLines.push(lines[i])
   }
-  return { result: text, matched: false }
+  if (segLines.length > 0) segs.push({ start: segStart, end: lines.length - 1, content: segLines.join('\n'), preBody })
+  return segs
 }
 
-async function downloadUpdatedContract(docText: string, risks: Risk[], filename: string) {
+function buildSegmentIDF(segs: Array<{ content: string }>): Map<string, number> {
+  const norm = (s: string) => s.replace(/\s+/g, ' ').toLowerCase().trim()
+  const df = new Map<string, number>()
+  for (const s of segs) {
+    const words = new Set(norm(s.content).split(' ').filter(w => w.length > 3))
+    for (const w of words) df.set(w, (df.get(w) ?? 0) + 1)
+  }
+  const idf = new Map<string, number>()
+  for (const [w, freq] of df) idf.set(w, Math.log(segs.length / freq))
+  return idf
+}
+
+function scoreIDF(segContent: string, clause: string, idf: Map<string, number>, N: number): number {
+  const norm = (s: string) => s.replace(/\s+/g, ' ').toLowerCase().trim()
+  const normSeg = norm(segContent); const normClause = norm(clause)
+  if (normSeg.includes(normClause)) return 1.0
+  const words = normClause.split(' ').filter(w => w.length > 3)
+  if (words.length === 0) return 0
+  const maxIdf = Math.log(N + 1)
+  let hits = 0, total = 0
+  for (const w of words) {
+    const wt = idf.get(w) ?? maxIdf
+    total += wt
+    if (normSeg.includes(w)) hits += wt
+  }
+  return total > 0 ? hits / total : 0
+}
+
+type AgentDownloadResult = { applied: number; appended: number; failed: Risk[]; renumberWarning: boolean }
+
+function fuzzyReplace(text: string, clause: string, fix: string): { result: string; matched: boolean } {
+  if (text.includes(clause)) return { result: text.replace(clause, fix), matched: true }
+  const segs = splitSegments(text)
+  const idf = buildSegmentIDF(segs)
+  let bestScore = 0; let bestIdx = -1
+  for (let i = 0; i < segs.length; i++) {
+    if (NON_REPLACEABLE_RE_A.test(segs[i].content.trimStart())) continue
+    if (segs[i].preBody) continue
+    const score = scoreIDF(segs[i].content, clause, idf, segs.length)
+    if (score > bestScore) { bestScore = score; bestIdx = i }
+  }
+  if (bestIdx === -1 || bestScore < 0.6) return { result: text, matched: false }
+  const lines = text.split('\n'); const seg = segs[bestIdx]
+  return { result: [...lines.slice(0, seg.start), fix, ...lines.slice(seg.end + 1)].join('\n'), matched: true }
+}
+
+async function downloadUpdatedContract(docText: string, risks: Risk[], filename: string): Promise<AgentDownloadResult> {
   const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx')
   let updated = docText
-  const appended: Risk[] = []
-  const notFound: Risk[] = []
-  // A clause is "placeholder-only" if it's mostly bracket tokens — nothing to find/replace
+  const appended: Risk[] = []; const notFound: Risk[] = []
   const isPlaceholderClause = (clause: string) => {
     const brackets = (clause.match(/\[[^\]]+\]/g) || []).join('').length
     return brackets / clause.length > 0.4
   }
+  let appliedCount = 0
   for (const r of risks) {
     if (!r.accepted) continue
     if (!r.clause || r.clause.toLowerCase() === 'not present' || isPlaceholderClause(r.clause)) {
       appended.push(r)
     } else {
       const { result, matched } = fuzzyReplace(updated, r.clause, r.fix)
-      if (matched) updated = result; else notFound.push(r)
+      if (matched) { updated = result; appliedCount++ } else notFound.push(r)
     }
   }
-  const TIGHT = { before: 0, after: 0 }
-  const GAP   = { before: 0, after: 100 }
+
+  // Insert new/missing clauses before signature block
+  let renumberWarning = false
+  if (appended.length > 0) {
+    const lines = updated.split('\n')
+    const hasNumeric = lines.some(l => /^\d+[\.\)]\s+[A-Z]/.test(l.trim()))
+    let maxSection = 0
+    if (hasNumeric) {
+      for (const l of lines) { const m = /^(\d+)[\.\)]\s+[A-Z]/.exec(l.trim()); if (m) maxSection = Math.max(maxSection, parseInt(m[1])) }
+    }
+    const sigRe = /^(in witness whereof|signatures?\s*:|signed by|executed by)/i
+    let insertIdx = lines.length
+    for (let i = 0; i < lines.length; i++) { if (sigRe.test(lines[i].trim())) { insertIdx = i; break } }
+    const newLines: string[] = ['']
+    for (const r of appended) {
+      if (hasNumeric) {
+        maxSection++
+        const ft = r.fix.trimStart()
+        newLines.push(/^\d+[\.\)]\s/.test(ft) ? ft : `${maxSection}. ${ft}`)
+      } else { newLines.push('[NEW CLAUSE — RENUMBER MANUALLY]'); newLines.push(r.fix.trimStart()); renumberWarning = true }
+      newLines.push('')
+    }
+    updated = [...lines.slice(0, insertIdx), ...newLines, ...lines.slice(insertIdx)].join('\n')
+  }
+
+  const TIGHT = { before: 0, after: 0 }; const GAP = { before: 0, after: 100 }
   function textLine(raw: string): any {
     const t = raw.trimStart()
     if (t.startsWith('### ')) return new Paragraph({ text: t.slice(4), heading: HeadingLevel.HEADING_3, spacing: TIGHT })
     if (t.startsWith('## '))  return new Paragraph({ text: t.slice(3),  heading: HeadingLevel.HEADING_2, spacing: TIGHT })
     if (t.startsWith('# '))   return new Paragraph({ text: t.slice(2),  heading: HeadingLevel.HEADING_1, spacing: TIGHT })
-    const parts: any[] = []
-    const boldRe = /\*\*(.+?)\*\*/g
-    let last = 0; let m: RegExpExecArray | null
+    const parts: any[] = []; const boldRe = /\*\*(.+?)\*\*/g; let last = 0; let m: RegExpExecArray | null
     while ((m = boldRe.exec(raw)) !== null) {
       if (m.index > last) parts.push(new TextRun(raw.slice(last, m.index)))
-      parts.push(new TextRun({ text: m[1], bold: true }))
-      last = m.index + m[0].length
+      parts.push(new TextRun({ text: m[1], bold: true })); last = m.index + m[0].length
     }
     if (last < raw.length) parts.push(new TextRun(raw.slice(last)))
     return new Paragraph({ children: parts.length ? parts : [new TextRun(raw)], spacing: TIGHT })
@@ -117,24 +194,6 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
     if (!line.trim()) { children.push(new Paragraph({ text: '', spacing: GAP })); continue }
     children.push(textLine(line))
   }
-  if (appended.length > 0) {
-    children.push(new Paragraph({ text: '', spacing: GAP }))
-    children.push(new Paragraph({ text: 'ADDITIONAL CLAUSES (RECOMMENDED)', heading: HeadingLevel.HEADING_2, spacing: TIGHT }))
-    for (const r of appended) {
-      children.push(new Paragraph({ text: r.title, heading: HeadingLevel.HEADING_3, spacing: TIGHT }))
-      children.push(new Paragraph({ children: [new TextRun(r.fix)], spacing: TIGHT }))
-    }
-  }
-  if (notFound.length > 0) {
-    children.push(new Paragraph({ text: '', spacing: GAP }))
-    children.push(new Paragraph({ text: 'MANUAL REVIEW REQUIRED', heading: HeadingLevel.HEADING_2, spacing: TIGHT }))
-    children.push(new Paragraph({ children: [new TextRun('These accepted fixes could not be located automatically — please apply manually:')], spacing: TIGHT }))
-    for (const r of notFound) {
-      children.push(new Paragraph({ text: r.title, heading: HeadingLevel.HEADING_3, spacing: TIGHT }))
-      children.push(new Paragraph({ children: [new TextRun({ text: 'Current: ', bold: true }), new TextRun(r.clause)], spacing: TIGHT }))
-      children.push(new Paragraph({ children: [new TextRun({ text: 'Replace with: ', bold: true }), new TextRun(r.fix)], spacing: TIGHT }))
-    }
-  }
   const doc = new Document({ sections: [{ properties: {}, children }] })
   const blob = await Packer.toBlob(doc)
   const url = URL.createObjectURL(blob)
@@ -142,6 +201,7 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
   const base = filename.replace(/\.[^.]+$/, '')
   a.href = url; a.download = `${base}-updated.docx`; a.click()
   URL.revokeObjectURL(url)
+  return { applied: appliedCount, appended: appended.length, failed: notFound, renumberWarning }
 }
 
 async function downloadAcceptedFixes(risks: Risk[]) {
@@ -524,6 +584,7 @@ export default function AgentsPage() {
   const [msgRisks, setMsgRisks] = useState<Record<number, Risk[]>>({})
   const [agentDocText, setAgentDocText] = useState('')
   const [agentDocName, setAgentDocName] = useState('')
+  const [agentDownloadResult, setAgentDownloadResult] = useState<AgentDownloadResult | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const supabase = createClientComponentClient()
@@ -741,15 +802,30 @@ export default function AgentsPage() {
                         <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
                           {acceptedCount > 0 && (
                             <button
-                              onClick={() => agentDocText
-                                ? downloadUpdatedContract(agentDocText, risks, agentDocName || 'contract.docx')
-                                : downloadAcceptedFixes(risks)
-                              }
+                              onClick={async () => {
+                                if (agentDocText) {
+                                  const r = await downloadUpdatedContract(agentDocText, risks, agentDocName || 'contract.docx')
+                                  setAgentDownloadResult(r)
+                                } else {
+                                  downloadAcceptedFixes(risks)
+                                }
+                              }}
                               style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 16px', border: 'none', borderRadius: 8, background: '#16a34a', color: '#fff', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', alignSelf: 'flex-start' }}
                             >
                               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                               {agentDocText ? `Download updated contract (${acceptedCount} fix${acceptedCount > 1 ? 'es' : ''})` : `Download accepted fixes (${acceptedCount})`}
                             </button>
+                          )}
+                          {agentDownloadResult && (
+                            <div style={{ fontSize: 12, lineHeight: 1.7 }}>
+                              <span style={{ color: '#15803d' }}>✓ {agentDownloadResult.applied} replaced · {agentDownloadResult.appended} inserted</span>
+                              {agentDownloadResult.failed.length > 0 && (
+                                <span style={{ color: '#dc2626', marginLeft: 10 }}>✗ {agentDownloadResult.failed.length} could not be applied: {agentDownloadResult.failed.map(f => f.title).join(', ')} — edit manually</span>
+                              )}
+                              {agentDownloadResult.renumberWarning && (
+                                <span style={{ color: '#d97706', marginLeft: 10 }}>⚠ Non-standard numbering — new clauses marked [NEW CLAUSE — RENUMBER MANUALLY]</span>
+                              )}
+                            </div>
                           )}
                           {reviewedCount === risks.length && risks.length > 0 && (
                             <div style={{ fontSize: 12, color: '#15803d', fontWeight: 600 }}>✓ All {risks.length} risks reviewed</div>
