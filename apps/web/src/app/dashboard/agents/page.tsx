@@ -254,7 +254,9 @@ async function downloadAcceptedFixes(risks: Risk[]) {
 
 function tryParseRisks(text: string): Risk[] | null {
   try {
-    const match = text.match(/\[[\s\S]*\]/)
+    // Strip markdown code fences the model sometimes wraps JSON in
+    const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+    const match = stripped.match(/\[[\s\S]*\]/)
     if (!match) return null
     const arr = JSON.parse(match[0])
     if (!Array.isArray(arr) || arr.length === 0) return null

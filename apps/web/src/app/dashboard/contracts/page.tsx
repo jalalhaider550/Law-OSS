@@ -683,7 +683,9 @@ Flag 5–20 genuine risks.`
       // Parse JSON array
       let parsed: Risk[] = []
       try {
-        const match = fullText.match(/\[[\s\S]*\]/)
+        // Strip markdown code fences the model sometimes wraps JSON in
+        const stripped = fullText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+        const match = stripped.match(/\[[\s\S]*\]/)
         if (match) {
           parsed = (JSON.parse(match[0]) as any[]).map(r => ({
             title: r.title || 'Untitled risk',
