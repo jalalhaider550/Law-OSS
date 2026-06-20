@@ -706,17 +706,15 @@ export default function AgentsPage() {
     setContinuationRound(0)
     setStreaming(false)
 
-    // For contract agent: parse risk JSON from final response and store per-message
+    // For contract agent: parse risk JSON from final response and store per-message.
+    // Use `chunk` (local accumulated text) and `history.length` (the assistant message index)
+    // rather than reading inside a setMessages updater — calling setState inside a setState
+    // updater is a React anti-pattern that silently fails, causing raw JSON to show on screen.
     if (agentId === 'contract') {
-      setMessages(prev => {
-        const lastIdx = prev.length - 1
-        const lastMsg = prev[lastIdx]
-        if (lastMsg?.role === 'assistant') {
-          const parsed = tryParseRisks(lastMsg.content)
-          if (parsed) setMsgRisks(r => ({ ...r, [lastIdx]: parsed }))
-        }
-        return prev
-      })
+      const parsed = tryParseRisks(chunk)
+      if (parsed) {
+        setMsgRisks(r => ({ ...r, [history.length]: parsed }))
+      }
     }
   }
 
