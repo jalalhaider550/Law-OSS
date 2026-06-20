@@ -265,8 +265,11 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
       }
     }
 
-    // Find insertion point: first line matching a signature block header
-    const sigRe = /^(in witness whereof|signatures?\s*:|signed by|executed by)/i
+    // Find insertion point: first line matching a signature block header.
+    // Covers: "IN WITNESS WHEREOF", "SIGNATURE PAGE", "SIGNATURES", "SIGNATURE BLOCK",
+    // "SIGNED BY", "EXECUTED BY", "EXECUTION", "EXECUTION PAGE", "ATTESTATION",
+    // "[SIGNATURE PAGE FOLLOWS]", and standalone lines of 3+ underscores (blank sig lines).
+    const sigRe = /^(in witness whereof|signature[s]?(\s+(page|block))?|signed by|executed by|execution(\s+page)?|attestation|\[signature[^\]]*\]|_{3,})/i
     let insertIdx = lines.length
     for (let i = 0; i < lines.length; i++) {
       if (sigRe.test(lines[i].trim())) { insertIdx = i; break }
@@ -636,7 +639,7 @@ Flag 5–20 genuine risks.`
           body: JSON.stringify({
             system_instruction: { parts: [{ text: SYSTEM }] },
             contents: [{ role: 'user', parts: [{ text: userMsg }] }],
-            generationConfig: { maxOutputTokens: 8000, temperature: 0.1 },
+            generationConfig: { maxOutputTokens: 16000, temperature: 0.1 },
           }),
         })
         const d = await res.json() as any
@@ -653,7 +656,7 @@ Flag 5–20 genuine risks.`
           },
           body: JSON.stringify({
             model: 'claude-sonnet-4-6',
-            max_tokens: 8000,
+            max_tokens: 16000,
             stream: true,
             system: SYSTEM,
             messages: [{ role: 'user', content: userMsg }],
@@ -685,17 +688,26 @@ Flag 5–20 genuine risks.`
       try {
         // Strip markdown code fences the model sometimes wraps JSON in
         const stripped = fullText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
-        const match = stripped.match(/\[[\s\S]*\]/)
-        if (match) {
-          parsed = (JSON.parse(match[0]) as any[]).map(r => ({
-            title: r.title || 'Untitled risk',
-            severity: (['CRITICAL','HIGH','MEDIUM','LOW'] as const).includes(r.severity) ? r.severity : 'MEDIUM',
-            clause: r.clause || '',
-            risk: r.risk || '',
-            fix: r.fix || '',
-            accepted: false,
-            rejected: false,
-          }))
+        // Bracket-depth extraction — finds the outermost [ ... ] by counting depth,
+        // immune to stray ] characters inside fix-field text or trailing prose.
+        const arrStart = stripped.indexOf('[')
+        if (arrStart !== -1) {
+          let depth = 0, arrEnd = -1
+          for (let ci = arrStart; ci < stripped.length; ci++) {
+            if (stripped[ci] === '[') depth++
+            else if (stripped[ci] === ']') { depth--; if (depth === 0) { arrEnd = ci; break } }
+          }
+          if (arrEnd !== -1) {
+            parsed = (JSON.parse(stripped.slice(arrStart, arrEnd + 1)) as any[]).map(r => ({
+              title: r.title || 'Untitled risk',
+              severity: (['CRITICAL','HIGH','MEDIUM','LOW'] as const).includes(r.severity) ? r.severity : 'MEDIUM',
+              clause: r.clause || '',
+              risk: r.risk || '',
+              fix: r.fix || '',
+              accepted: false,
+              rejected: false,
+            }))
+          }
         }
       } catch { parsed = [] }
 

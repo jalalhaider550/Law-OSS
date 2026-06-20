@@ -160,7 +160,10 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
     if (hasNumeric) {
       for (const l of lines) { const m = /^(\d+)[\.\)]\s+[A-Z]/.exec(l.trim()); if (m) maxSection = Math.max(maxSection, parseInt(m[1])) }
     }
-    const sigRe = /^(in witness whereof|signatures?\s*:|signed by|executed by)/i
+    // Covers: "IN WITNESS WHEREOF", "SIGNATURE PAGE", "SIGNATURES", "SIGNATURE BLOCK",
+    // "SIGNED BY", "EXECUTED BY", "EXECUTION", "EXECUTION PAGE", "ATTESTATION",
+    // "[SIGNATURE PAGE FOLLOWS]", and standalone lines of 3+ underscores (blank sig lines).
+    const sigRe = /^(in witness whereof|signature[s]?(\s+(page|block))?|signed by|executed by|execution(\s+page)?|attestation|\[signature[^\]]*\]|_{3,})/i
     let insertIdx = lines.length
     for (let i = 0; i < lines.length; i++) { if (sigRe.test(lines[i].trim())) { insertIdx = i; break } }
     const newLines: string[] = ['']
@@ -256,9 +259,16 @@ function tryParseRisks(text: string): Risk[] | null {
   try {
     // Strip markdown code fences the model sometimes wraps JSON in
     const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
-    const match = stripped.match(/\[[\s\S]*\]/)
-    if (!match) return null
-    const arr = JSON.parse(match[0])
+    // Bracket-depth extraction — immune to stray ] inside fix-field text or trailing prose
+    const arrStart = stripped.indexOf('[')
+    if (arrStart === -1) return null
+    let depth = 0, arrEnd = -1
+    for (let ci = arrStart; ci < stripped.length; ci++) {
+      if (stripped[ci] === '[') depth++
+      else if (stripped[ci] === ']') { depth--; if (depth === 0) { arrEnd = ci; break } }
+    }
+    if (arrEnd === -1) return null
+    const arr = JSON.parse(stripped.slice(arrStart, arrEnd + 1))
     if (!Array.isArray(arr) || arr.length === 0) return null
     if (!arr[0]?.title || !arr[0]?.severity) return null
     return arr.map((r: any) => ({
@@ -670,8 +680,10 @@ export default function AgentsPage() {
     // Detect a fully completed document — signature/execution block is the definitive end
     const DONE_RE = /IN WITNESS WHEREOF|EXECUTED AS A DEED|SIGNATURE PAGE|EXECUTION BLOCK|\bSIGNED BY\b|\bSIGNATURE BLOCK\b|\bDuly (Authorised|Executed)\b|Date:\s*[_\[.]{2,}|___+\s*(Signature|Name|Date|Title)|\/s\/\s*[A-Z]|\bFOR AND ON BEHALF\b|\bDuly authorised signatory\b|\bend of (this )?(agreement|contract|deed|document|schedule)\b/i
 
-    // Drafting agent gets 16000 tokens per call; others get 8000
-    const maxTok = agentId === 'drafting' ? 16000 : 8000
+    // Drafting agent gets 16000 tokens per call; contract agent needs 16000 for full JSON output
+    // (20 risks × ~300 tokens = 6000+ output tokens; 8000 risks truncation mid-array).
+    // All other agents get 8000.
+    const maxTok = (agentId === 'drafting' || agentId === 'contract') ? 16000 : 8000
 
     let rounds = 0
     let keepGoing = true
