@@ -13,3 +13,8 @@ coverage/
 .buildinfo
 apps/api/vendor/
 .vercel
+*.zip
+*.save
+law-oss-project/
+.claude/
+apps/web/.claude/

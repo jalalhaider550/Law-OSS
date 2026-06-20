@@ -26,7 +26,7 @@ function useFadeIn() {
   }
 }
 
-const GH = 'https://github.com/YOUR_USERNAME/law-oss'
+const GH = 'https://github.com/jalalhaider550/Law-OSS'
 
 const AGENTS = [
   {
