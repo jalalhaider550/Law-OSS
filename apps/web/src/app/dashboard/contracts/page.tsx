@@ -1,9 +1,10 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { loadAllFromCloud, saveToCloud } from '../../../lib/sync'
 
 // ── Add to Matter ─────────────────────────────────────────────────────────────
-function AddToMatterButton({ content, title, uid }: { content: string; title: string; uid: string }) {
+function AddToMatterButton({ content, title, uid, token }: { content: string; title: string; uid: string; token: string }) {
   const [open, setOpen] = useState(false)
   const [matters, setMatters] = useState<any[]>([])
   const [saved, setSaved] = useState(false)
@@ -11,7 +12,10 @@ function AddToMatterButton({ content, title, uid }: { content: string; title: st
   function loadMatters() {
     try { return JSON.parse(localStorage.getItem(`law_oss_matters_${uid}`) || '[]') } catch { return [] }
   }
-  function saveMatters(m: any[]) { localStorage.setItem(`law_oss_matters_${uid}`, JSON.stringify(m)) }
+  function saveMatters(m: any[]) {
+    localStorage.setItem(`law_oss_matters_${uid}`, JSON.stringify(m))
+    if (token) saveToCloud(token, 'matters', m)
+  }
 
   function handleOpen() { setMatters(loadMatters()); setOpen(true); setSaved(false) }
 
@@ -25,7 +29,8 @@ function AddToMatterButton({ content, title, uid }: { content: string; title: st
       messages: [{ role: 'assistant', content }],
       savedAt: new Date().toISOString(),
     }
-    saveMatters(all.map((m: any) => m.id === matterId ? { ...m, savedChats: [chat, ...(m.savedChats || [])] } : m))
+    const updated = all.map((m: any) => m.id === matterId ? { ...m, savedChats: [chat, ...(m.savedChats || [])] } : m)
+    saveMatters(updated)
     setSaved(true)
     setTimeout(() => setOpen(false), 900)
   }
@@ -407,22 +412,41 @@ export default function ContractsPage() {
   const [showHistory, setShowHistory] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [uid, setUidState] = useState('')
+  const [authToken, setAuthToken] = useState<string | null>(null)
 
   const fileRef = useRef<HTMLInputElement>(null)
   const supabase = createClientComponentClient()
 
   useEffect(() => {
     // Set uid FIRST so userKey() returns the correct namespaced key
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) { setUid(session.user.id); setUidState(session.user.id) }
-      setStored(loadReviews())
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session) {
+        setUid(session.user.id)
+        setUidState(session.user.id)
+        const token = session.access_token
+        setAuthToken(token)
+        const cloud = await loadAllFromCloud(token)
+        if (cloud.contracts && cloud.contracts.length > 0) {
+          saveReviews(cloud.contracts)
+          setStored(cloud.contracts)
+        } else {
+          setStored(loadReviews())
+        }
+      } else {
+        setStored(loadReviews())
+      }
     })
   }, [])
+
+  function persistReviewsToCloud(next: StoredReview[]) {
+    saveReviews(next)
+    if (authToken) saveToCloud(authToken, 'contracts', next)
+  }
 
   function persistRisks(id: string, updated: Risk[]) {
     const all = loadReviews()
     const next = all.map(r => r.id === id ? { ...r, risks: updated } : r)
-    saveReviews(next)
+    persistReviewsToCloud(next)
     setStored(next)
   }
 
@@ -560,7 +584,7 @@ Flag 5–20 genuine risks.`
       setCurrentId(id)
       const review: StoredReview = { id, filename: file.name, createdAt: new Date().toISOString(), risks: parsed, docText: extracted }
       const all = loadReviews()
-      const next = [review, ...all]; saveReviews(next); setStored(next)
+      const next = [review, ...all]; persistReviewsToCloud(next); setStored(next)
       setBusy(false); setStage('')
     } catch (e: any) {
       setError(e.message || 'Review failed')
@@ -579,7 +603,7 @@ Flag 5–20 genuine risks.`
 
   function deleteReview(id: string) {
     const next = loadReviews().filter(r => r.id !== id)
-    saveReviews(next); setStored(next)
+    persistReviewsToCloud(next); setStored(next)
     if (currentId === id) { setRisks([]); setCurrentId(null) }
   }
 
@@ -706,6 +730,7 @@ Flag 5–20 genuine risks.`
             {uid && risks.length > 0 && (
               <AddToMatterButton
                 uid={uid}
+                token={authToken ?? ''}
                 title={`Contract Review: ${filename}`}
                 content={`# Contract Review — ${filename}\n\n${risks.map(r => `## ${r.severity}: ${r.title}\n**Risk:** ${r.risk}\n**Clause:** ${r.clause}\n**Fix:** ${r.fix}\n**Status:** ${r.accepted ? 'Accepted' : r.rejected ? 'Rejected' : 'Pending'}`).join('\n\n')}`}
               />

@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { saveToCloud } from '../../../lib/sync'
 import LogoLoader from '../../../components/LogoLoader'
 import MarkdownRenderer from '../../../components/MarkdownRenderer'
 
@@ -34,7 +35,7 @@ async function downloadAsWord(content: string, filename = 'research.docx') {
 }
 
 // ── Add to Matter ─────────────────────────────────────────────────────────────
-function AddToMatterButton({ content, title, uid }: { content: string; title: string; uid: string }) {
+function AddToMatterButton({ content, title, uid, token }: { content: string; title: string; uid: string; token: string }) {
   const [open, setOpen] = useState(false)
   const [matters, setMatters] = useState<any[]>([])
   const [saved, setSaved] = useState(false)
@@ -46,6 +47,7 @@ function AddToMatterButton({ content, title, uid }: { content: string; title: st
   }
   function saveMatters(m: any[]) {
     localStorage.setItem(`law_oss_matters_${uid}`, JSON.stringify(m))
+    if (token) saveToCloud(token, 'matters', m)
   }
 
   function handleOpen() {
@@ -384,7 +386,7 @@ export default function ResearchPage() {
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                   {dlBusy ? 'Downloading...' : 'Download Word'}
                 </button>
-                {uid && <AddToMatterButton content={aiAnalysis} title={`Research: ${query.slice(0, 60)}`} uid={uid} />}
+                {uid && <AddToMatterButton content={aiAnalysis} title={`Research: ${query.slice(0, 60)}`} uid={uid} token={token ?? ''} />}
               </div>
             )}
           </div>

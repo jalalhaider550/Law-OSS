@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import MarkdownRenderer from '../../../components/MarkdownRenderer'
+import { loadAllFromCloud, saveToCloud } from '../../../lib/sync'
 
 type Msg = { role: 'user' | 'assistant'; content: string }
 type Project = { id: string; name: string; createdAt: string; updatedAt: string; messages: Msg[] }
@@ -211,6 +212,7 @@ export default function ProjectsPage() {
   const [uploading, setUploading]   = useState(false)
   const [uploadError, setUploadError] = useState('')
   const [dragOver, setDragOver]     = useState(false)
+  const [authToken, setAuthToken]   = useState<string | null>(null)
   const bottomRef  = useRef<HTMLDivElement>(null)
   const inputRef   = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -227,11 +229,19 @@ export default function ProjectsPage() {
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) return
       setUid(session.user.id)
       setHasKey(!!localStorage.getItem(userKey('law_oss_api_key')))
-      setProjects(getProjects())
+      const token = session.access_token
+      setAuthToken(token)
+      const cloud = await loadAllFromCloud(token)
+      if (cloud.projects && cloud.projects.length > 0) {
+        persistProjects(cloud.projects)
+        setProjects(cloud.projects)
+      } else {
+        setProjects(getProjects())
+      }
     })
   }, [])
 
@@ -243,13 +253,18 @@ export default function ProjectsPage() {
     setTimeout(() => inputRef.current?.focus(), 100)
   }
 
+  function syncProjects(updated: Project[]) {
+    persistProjects(updated)
+    if (authToken) saveToCloud(authToken, 'projects', updated)
+  }
+
   function createProject() {
     const name = newName.trim()
     if (!name) return
     const now = new Date().toISOString()
     const proj: Project = { id: Date.now().toString(), name, createdAt: now, updatedAt: now, messages: [] }
     const updated = [proj, ...projects]
-    persistProjects(updated)
+    syncProjects(updated)
     setProjects(updated)
     setNewName(''); setCreating(false)
     openProject(proj)
@@ -258,14 +273,14 @@ export default function ProjectsPage() {
   function saveMessages(projectId: string, msgs: Msg[]) {
     const now = new Date().toISOString()
     const updated = projects.map(p => p.id === projectId ? { ...p, messages: msgs, updatedAt: now } : p)
-    persistProjects(updated)
+    syncProjects(updated)
     setProjects(updated)
     if (active?.id === projectId) setActive(a => a ? { ...a, messages: msgs, updatedAt: now } : a)
   }
 
   function deleteProject(id: string) {
     const updated = projects.filter(p => p.id !== id)
-    persistProjects(updated)
+    syncProjects(updated)
     setProjects(updated)
     if (active?.id === id) { setActive(null); setMessages([]) }
     setConfirmDel(null)
@@ -276,7 +291,7 @@ export default function ProjectsPage() {
     const val = renameVal.trim()
     if (!val) { setRenaming(null); return }
     const updated = projects.map(p => p.id === id ? { ...p, name: val } : p)
-    persistProjects(updated)
+    syncProjects(updated)
     setProjects(updated)
     if (active?.id === id) setActive(a => a ? { ...a, name: val } : a)
     setRenaming(null)

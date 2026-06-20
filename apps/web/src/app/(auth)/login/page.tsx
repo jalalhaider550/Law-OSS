@@ -17,10 +17,23 @@ function LoginForm() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [checking, setChecking] = useState(true)
+  const [resetSent, setResetSent] = useState(false)
+  const [resetLoading, setResetLoading] = useState(false)
+  const [resetErr, setResetErr] = useState('')
   const router = useRouter()
   const searchParams = useSearchParams()
   const confirmed = searchParams.get('confirmed') === '1'
   const supabase = createClientComponentClient()
+
+  async function handleForgotPassword() {
+    if (!email) { setResetErr('Enter your email address above first.'); return }
+    setResetLoading(true); setResetErr('')
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/callback?next=/dashboard/settings`,
+    })
+    setResetLoading(false)
+    if (error) { setResetErr(error.message) } else { setResetSent(true) }
+  }
 
   useEffect(() => {
     supabase.auth.signOut().finally(() => setChecking(false))
@@ -78,13 +91,30 @@ function LoginForm() {
             <input type="email" value={email} onChange={e => setEmail(e.target.value)}
               placeholder="jane@firm.com" style={inp} required autoFocus />
           </div>
-          <div style={{ marginBottom: 24 }}>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6, color: '#555' }}>
-              Password
-            </label>
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#555' }}>Password</label>
+              <button type="button" onClick={handleForgotPassword} disabled={resetLoading}
+                style={{ background: 'none', border: 'none', fontSize: 12, color: '#888', cursor: resetLoading ? 'not-allowed' : 'pointer', padding: 0, textDecoration: 'underline' }}>
+                {resetLoading ? 'Sending…' : 'Forgot password?'}
+              </button>
+            </div>
             <input type="password" value={password} onChange={e => setPassword(e.target.value)}
               placeholder="••••••••" style={inp} required minLength={8} />
           </div>
+
+          {resetSent && (
+            <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#15803d', marginBottom: 16 }}>
+              Reset link sent — check your email.
+            </div>
+          )}
+          {resetErr && (
+            <div style={{ background: 'rgba(127,29,29,0.07)', border: '1px solid rgba(127,29,29,0.18)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#7f1d1d', marginBottom: 16 }}>
+              {resetErr}
+            </div>
+          )}
+
+          <div style={{ marginBottom: 24 }} />
 
           {error && (
             <div style={{

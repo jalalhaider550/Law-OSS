@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import MarkdownRenderer from '../../../components/MarkdownRenderer'
+import { loadAllFromCloud, saveToCloud } from '../../../lib/sync'
 
 // ── Word export ──────────────────────────────────────────────────────────────
 async function downloadAsWord(content: string, filename = 'document.docx') {
@@ -568,24 +569,56 @@ export default function MattersPage() {
   const [matters, setMatters] = useState<Matter[]>([])
   const [showForm, setShowForm] = useState(false)
   const [filter, setFilter] = useState<'all' | 'active' | 'pending' | 'closed'>('all')
+  const [authToken, setAuthToken] = useState<string | null>(null)
   const supabase = createClientComponentClient()
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) { window.location.href = '/login'; return }
       // Set uid FIRST so userKey() returns the correct namespaced key
       setUid(session.user.id)
-      setMatters(loadMatters())
+      const token = session.access_token
+      setAuthToken(token)
+      // Show local data immediately — never block on cloud
+      const local = loadMatters()
+      setMatters(local)
+      // Merge cloud data: union savedChats per matter so nothing is lost
+      const cloud = await loadAllFromCloud(token)
+      if (cloud.matters && cloud.matters.length > 0) {
+        const merged = cloud.matters.map((cm: Matter) => {
+          const lm = local.find((m: Matter) => m.id === cm.id)
+          if (!lm) return cm
+          // union savedChats by id — take all unique chats from both sources
+          const allChats = [...cm.savedChats]
+          for (const lc of (lm.savedChats || [])) {
+            if (!allChats.find(c => c.id === lc.id)) allChats.push(lc)
+          }
+          // keep whichever source has more metadata (local may be newer)
+          return { ...cm, ...lm, savedChats: allChats }
+        })
+        // include any local matters not yet in cloud
+        for (const lm of local) {
+          if (!merged.find((m: Matter) => m.id === lm.id)) merged.push(lm)
+        }
+        saveMatters(merged)
+        setMatters(merged)
+        if (token) saveToCloud(token, 'matters', merged)
+      }
     })
   }, [])
+
+  function persistMatters(u: Matter[]) {
+    saveMatters(u)
+    if (authToken) saveToCloud(authToken, 'matters', u)
+  }
 
   function addMatter(m: Matter) {
     const nextNum = matters.length > 0 ? Math.max(...matters.map(x => x.matterNumber ?? 0)) + 1 : 1
     const withNum = { ...m, matterNumber: nextNum }
-    const u = [withNum, ...matters]; setMatters(u); saveMatters(u); setShowForm(false)
+    const u = [withNum, ...matters]; setMatters(u); persistMatters(u); setShowForm(false)
   }
-  function deleteMatter(id: string) { const u = matters.filter(m => m.id !== id); setMatters(u); saveMatters(u) }
-  function updateMatter(m: Matter) { const u = matters.map(x => x.id === m.id ? m : x); setMatters(u); saveMatters(u) }
+  function deleteMatter(id: string) { const u = matters.filter(m => m.id !== id); setMatters(u); persistMatters(u) }
+  function updateMatter(m: Matter) { const u = matters.map(x => x.id === m.id ? m : x); setMatters(u); persistMatters(u) }
 
   const filtered = filter === 'all' ? matters : matters.filter(m => m.status === filter)
 

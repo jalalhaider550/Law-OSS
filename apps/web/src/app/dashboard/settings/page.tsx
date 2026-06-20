@@ -24,6 +24,12 @@ const ROLES = [
 export default function SettingsPage() {
   const [authToken, setAuthToken] = useState<string | null>(null)
   const [userEmail, setUserEmail] = useState('')
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640)
+    check(); window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   // Profile fields
   const [fullName,     setFullName]     = useState('')
@@ -294,7 +300,7 @@ export default function SettingsPage() {
         {profileSaved && <div style={{ padding: '9px 14px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 7, fontSize: 13, color: '#15803d', marginBottom: 16 }}>Profile saved.</div>}
         {profileErr && <div style={{ padding: '9px 14px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 7, fontSize: 13, color: '#b91c1c', marginBottom: 16 }}>{profileErr}</div>}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '0 16px' }}>
           <Field label="Full name">
             <input style={inputStyle} value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Jane Smith" />
           </Field>

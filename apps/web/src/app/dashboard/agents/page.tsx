@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { saveToCloud } from '../../../lib/sync'
 import LogoLoader from '../../../components/LogoLoader'
 import MarkdownRenderer from '../../../components/MarkdownRenderer'
 
@@ -194,7 +195,7 @@ function userKey(base: string) { return `${base}_${_uid || _tabId}` }
 function getMatters(): Matter[] { try { return JSON.parse(localStorage.getItem(userKey('law_oss_matters')) || '[]') } catch { return [] } }
 function persistMatters(m: Matter[]) { localStorage.setItem(userKey('law_oss_matters'), JSON.stringify(m)) }
 
-function SaveToMatter({ messages, agentId, agentName }: { messages: Msg[]; agentId: string; agentName: string }) {
+function SaveToMatter({ messages, agentId, agentName, token }: { messages: Msg[]; agentId: string; agentName: string; token: string }) {
   const [open, setOpen] = useState(false)
   const [toast, setToast] = useState('')
   const [creating, setCreating] = useState(false)
@@ -203,12 +204,17 @@ function SaveToMatter({ messages, agentId, agentName }: { messages: Msg[]; agent
 
   useEffect(() => { setMatters(getMatters()) }, [open])
 
+  function persistAndSync(m: Matter[]) {
+    persistMatters(m)
+    if (token) saveToCloud(token, 'matters', m)
+  }
+
   function saveToMatter(matter: Matter) {
     const all = getMatters()
     const firstUser = messages.find(m => m.role === 'user')?.content || 'Untitled'
     const chat: SavedChat = { id: Date.now().toString(), agentId, agentName, title: firstUser.slice(0, 60), messages, savedAt: new Date().toISOString() }
     const updated = all.map(m => m.id === matter.id ? { ...m, savedChats: [...m.savedChats, chat] } : m)
-    persistMatters(updated)
+    persistAndSync(updated)
     setOpen(false); setCreating(false); setNewName('')
     setToast(`Saved to "${matter.name}"`)
     setTimeout(() => setToast(''), 2500)
@@ -220,7 +226,7 @@ function SaveToMatter({ messages, agentId, agentName }: { messages: Msg[]; agent
     const all = getMatters()
     const nextNum = all.length > 0 ? Math.max(...all.map(x => x.matterNumber ?? 0)) + 1 : 1
     const newMatter: Matter = { id: Date.now().toString(), matterNumber: nextNum, name, type: 'general', status: 'active', savedChats: [] }
-    persistMatters([newMatter, ...all])
+    persistAndSync([newMatter, ...all])
     saveToMatter(newMatter)
   }
 
@@ -626,23 +632,56 @@ export default function AgentsPage() {
   }
 
   const activeAgent = AGENTS.find(a => a.id === agentId)!
+  const [isMobile, setIsMobile] = useState(false)
+  const [showAgentPicker, setShowAgentPicker] = useState(false)
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check(); window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   return (
     <div style={{ display: 'flex', height: '100%' }}>
-      <div style={{ width: 220, borderRight: '1px solid rgba(0,0,0,0.08)', overflowY: 'auto', flexShrink: 0, background: '#fafafa' }}>
-        <div style={{ padding: '14px 16px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#999' }}>Agents</div>
-        {AGENTS.map(a => (
-          <button key={a.id} onClick={() => { setAgentId(a.id); setMessages([]); setMsgRisks({}); setAgentDocText(''); setAgentDocName('') }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 16px', border: 'none', background: agentId === a.id ? '#fff' : 'transparent', borderLeft: agentId === a.id ? '3px solid #0f0f0f' : '3px solid transparent', cursor: 'pointer' }}>
-            <div style={{ fontSize: 13.5, fontWeight: agentId === a.id ? 600 : 400, color: agentId === a.id ? '#0f0f0f' : '#333' }}>{a.name}</div>
-            <div style={{ fontSize: 11.5, color: '#888', marginTop: 2, lineHeight: 1.4 }}>{a.desc}</div>
-          </button>
-        ))}
-      </div>
+      {/* Agent list — hidden on mobile, visible on desktop */}
+      {!isMobile && (
+        <div style={{ width: 220, borderRight: '1px solid rgba(0,0,0,0.08)', overflowY: 'auto', flexShrink: 0, background: '#fafafa' }}>
+          <div style={{ padding: '14px 16px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#999' }}>Agents</div>
+          {AGENTS.map(a => (
+            <button key={a.id} onClick={() => { setAgentId(a.id); setMessages([]); setMsgRisks({}); setAgentDocText(''); setAgentDocName('') }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 16px', border: 'none', background: agentId === a.id ? '#fff' : 'transparent', borderLeft: agentId === a.id ? '3px solid #0f0f0f' : '3px solid transparent', cursor: 'pointer' }}>
+              <div style={{ fontSize: 13.5, fontWeight: agentId === a.id ? 600 : 400, color: agentId === a.id ? '#0f0f0f' : '#333' }}>{a.name}</div>
+              <div style={{ fontSize: 11.5, color: '#888', marginTop: 2, lineHeight: 1.4 }}>{a.desc}</div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Mobile agent picker modal */}
+      {isMobile && showAgentPicker && (
+        <div onClick={() => setShowAgentPicker(false)} style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.4)' }}>
+          <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: '#fff', borderRadius: '16px 16px 0 0', padding: '16px 0 32px', maxHeight: '70vh', overflowY: 'auto' }}>
+            <div style={{ padding: '0 16px 12px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#999' }}>Choose Agent</div>
+            {AGENTS.map(a => (
+              <button key={a.id} onClick={() => { setAgentId(a.id); setMessages([]); setMsgRisks({}); setAgentDocText(''); setAgentDocName(''); setShowAgentPicker(false) }}
+                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '12px 16px', border: 'none', background: agentId === a.id ? '#f5f5f5' : 'transparent', cursor: 'pointer' }}>
+                <div style={{ fontSize: 14, fontWeight: agentId === a.id ? 600 : 400, color: '#0f0f0f' }}>{a.name}</div>
+                <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{a.desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: '#fff', flexShrink: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#0f0f0f' }}>{activeAgent.name}</div>
-          <div style={{ fontSize: 12.5, color: '#888', marginTop: 2 }}>{activeAgent.desc}</div>
+        <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: '#fff', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#0f0f0f' }}>{activeAgent.name}</div>
+            <div style={{ fontSize: 12.5, color: '#888', marginTop: 2 }}>{activeAgent.desc}</div>
+          </div>
+          {isMobile && (
+            <button onClick={() => setShowAgentPicker(true)} style={{ flexShrink: 0, padding: '6px 12px', border: '1.5px solid rgba(0,0,0,0.15)', borderRadius: 7, background: '#fff', fontSize: 12.5, fontWeight: 600, color: '#555', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              Switch ↕
+            </button>
+          )}
         </div>
 
         {noKey && (
@@ -717,7 +756,7 @@ export default function AgentsPage() {
                           )}
                           <div style={{ display: 'flex', gap: 6 }}>
                             <CopyButton content={m.content} />
-                            <SaveToMatter messages={messages.slice(0, i + 1)} agentId={agentId} agentName={activeAgent.name} />
+                            <SaveToMatter messages={messages.slice(0, i + 1)} agentId={agentId} agentName={activeAgent.name} token={authToken ?? ''} />
                           </div>
                         </div>
                       )
@@ -744,7 +783,7 @@ export default function AgentsPage() {
                     {showMsgActions && (
                       <div style={{ paddingLeft: 4, display: 'flex', gap: 6, marginTop: showDocActions ? 4 : 6, flexWrap: 'wrap' }}>
                         <CopyButton content={m.content} />
-                        <SaveToMatter messages={messages.slice(0, i + 1)} agentId={agentId} agentName={activeAgent.name} />
+                        <SaveToMatter messages={messages.slice(0, i + 1)} agentId={agentId} agentName={activeAgent.name} token={authToken ?? ''} />
                       </div>
                     )}
                   </>
