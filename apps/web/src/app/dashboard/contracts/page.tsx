@@ -100,76 +100,125 @@ function saveReviews(list: StoredReview[]) {
 }
 
 // Fuzzy match: normalise whitespace so PDF-extracted text (which collapses spaces) still matches
-function fuzzyReplace(text: string, clause: string, fix: string): { result: string; matched: boolean } {
-  const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const normalise = (s: string) => s.replace(/\s+/g, ' ').trim()
+// BOUNDARY_RE — determines where one segment ends and the next begins.
+// Matches: numbered sections (1. / 1)), lettered sub-clauses (a. / (a) / (i)),
+// and all-caps headers of ≥ 10 chars (excludes short table cells like
+// SELLER/BUYER/DATE). Intentionally broader than NUMBERED_ITEM_RE below.
+// NOTE: if you change this regex, check NUMBERED_ITEM_RE for consistency —
+// they serve different purposes and must stay aligned.
+const BOUNDARY_RE = /^(\d+[\.\)]\s|[a-z][\.\)]\s|\([a-z]\)\s|\([ivxlc]+\)\s|[A-Z][A-Z ]{9,})/
 
-  // 1. Exact match
+// NUMBERED_ITEM_RE — detects strictly numeric/alphabetic section starts that
+// mark the transition from pre-body (preamble/recitals) into the document body.
+// Intentionally excludes all-caps headers (e.g. RECITALS, WHEREAS) because those
+// can appear before the first numbered clause and are still pre-body content.
+// NOTE: if you change this regex, check BOUNDARY_RE for consistency —
+// they serve different purposes and must stay aligned.
+const NUMBERED_ITEM_RE = /^(\d+[\.\)]\s|[a-z][\.\)]\s|\([a-z]\)\s|\([ivxlc]+\)\s)/
+
+// Segments whose content starts with these phrases are never replaced, regardless
+// of match score — protects signature blocks and schedule/exhibit headers.
+const NON_REPLACEABLE_RE = /^(in witness whereof|signature[s]?\s*[:\-]|signed by|executed by|schedule\s+\d|exhibit\s+[a-z\d])/i
+
+function splitIntoSegments(text: string): Array<{ start: number; end: number; content: string; preBody: boolean }> {
+  const lines = text.split('\n')
+  const segments: Array<{ start: number; end: number; content: string; preBody: boolean }> = []
+  let segStart = 0
+  let segLines: string[] = []
+  // preBody starts true and flips to false permanently once a strictly-numbered
+  // item is seen — correctly handles preamble + RECITALS + WHEREAS as pre-body
+  // even if RECITALS triggers a BOUNDARY_RE split of its own.
+  let preBody = true
+
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim()
+    const isBoundary = BOUNDARY_RE.test(trimmed) && trimmed.length > 0
+    if (isBoundary && segLines.length > 0) {
+      segments.push({ start: segStart, end: i - 1, content: segLines.join('\n'), preBody })
+      segStart = i
+      segLines = []
+    }
+    // Flip preBody off as soon as we see a strictly-numbered line; never flips back
+    if (NUMBERED_ITEM_RE.test(trimmed)) preBody = false
+    segLines.push(lines[i])
+  }
+  if (segLines.length > 0) {
+    segments.push({ start: segStart, end: lines.length - 1, content: segLines.join('\n'), preBody })
+  }
+  return segments
+}
+
+function buildIDF(segments: Array<{ content: string }>): Map<string, number> {
+  const norm = (s: string) => s.replace(/\s+/g, ' ').toLowerCase().trim()
+  const docFreq = new Map<string, number>()
+  for (const seg of segments) {
+    const words = new Set(norm(seg.content).split(' ').filter(w => w.length > 3))
+    for (const w of words) docFreq.set(w, (docFreq.get(w) ?? 0) + 1)
+  }
+  const idf = new Map<string, number>()
+  // log(N/freq): words appearing in every segment → 0; rare words → high weight
+  for (const [word, freq] of docFreq) idf.set(word, Math.log(segments.length / freq))
+  return idf
+}
+
+function scoreMatchIDF(
+  segContent: string, clause: string,
+  idf: Map<string, number>, totalSegs: number
+): number {
+  const norm = (s: string) => s.replace(/\s+/g, ' ').toLowerCase().trim()
+  const normSeg = norm(segContent)
+  const normClause = norm(clause)
+  if (normSeg.includes(normClause)) return 1.0
+  const clauseWords = normClause.split(' ').filter(w => w.length > 3)
+  if (clauseWords.length === 0) return 0
+  const maxIdf = Math.log(totalSegs + 1)  // fallback weight for unseen words
+  let weightedHits = 0, totalWeight = 0
+  for (const w of clauseWords) {
+    const weight = idf.get(w) ?? maxIdf
+    totalWeight += weight
+    if (normSeg.includes(w)) weightedHits += weight
+  }
+  return totalWeight > 0 ? weightedHits / totalWeight : 0
+}
+
+function fuzzyReplace(text: string, clause: string, fix: string): { result: string; matched: boolean } {
+  // 1. Exact match — fastest path, no boundary logic needed
   if (text.includes(clause)) {
     return { result: text.replace(clause, fix), matched: true }
   }
 
-  // 1b. Strip trailing ellipsis the AI sometimes appends, then match the prefix
-  //     and extend the match to the end of that sentence in the document
-  const stripped = clause.replace(/\.{3,}$/, '').replace(/…$/, '').trim()
-  if (stripped.length > 20 && stripped !== clause && text.includes(stripped)) {
-    const idx = text.indexOf(stripped)
-    const after = text.slice(idx + stripped.length)
-    const sentenceEnd = after.search(/[.!?](\s|$)/)
-    const tailLen = sentenceEnd >= 0 ? sentenceEnd + 1 : 0
-    return { result: text.slice(0, idx) + fix + text.slice(idx + stripped.length + tailLen), matched: true }
+  // 2. Split into boundary-anchored segments; build IDF over this document
+  const segments = splitIntoSegments(text)
+  const idf = buildIDF(segments)
+
+  let bestScore = 0
+  let bestIdx = -1
+  for (let i = 0; i < segments.length; i++) {
+    // Never touch signature blocks or schedule/exhibit headers
+    if (NON_REPLACEABLE_RE.test(segments[i].content.trimStart())) continue
+    // Pre-body segments (preamble, RECITALS, WHEREAS) are skipped — they
+    // concentrate party names and "Agreement" that score falsely against any
+    // clause. Exact match (strategy 1 above) handles verbatim copies.
+    if (segments[i].preBody) continue
+    const score = scoreMatchIDF(segments[i].content, clause, idf, segments.length)
+    if (score > bestScore) { bestScore = score; bestIdx = i }
   }
 
-  // 2. Whitespace-normalised regex (any whitespace between each word)
-  const normClause = normalise(clause)
-  const words = normClause.split(' ').filter(Boolean)
-  if (words.length > 0) {
-    const pattern = words.map(escape).join('[\\s\\n\\r]+')
-    try {
-      const re = new RegExp(pattern, 'i')
-      if (re.test(text)) {
-        return { result: text.replace(re, fix), matched: true }
-      }
-    } catch {}
+  // Require ≥ 60% IDF-weighted coverage to accept a match
+  const THRESHOLD = 0.6
+  if (bestIdx === -1 || bestScore < THRESHOLD) {
+    return { result: text, matched: false }
   }
 
-  // 3. Try matching on just the first significant sentence of the clause
-  const firstSentence = clause.split(/[.!?]\s+/)[0]?.trim()
-  if (firstSentence && firstSentence.length > 20) {
-    const fsWords = normalise(firstSentence).split(' ').filter(Boolean)
-    const fsPattern = fsWords.map(escape).join('[\\s\\n\\r]+')
-    try {
-      const fsRe = new RegExp(fsPattern, 'i')
-      if (fsRe.test(text)) {
-        // Replace the whole sentence block that contains the match
-        return { result: text.replace(fsRe, fix), matched: true }
-      }
-    } catch {}
-  }
-
-  // 4. Sliding window: try any 8-word phrase from the clause against the text
-  if (words.length >= 8) {
-    for (let i = 0; i <= words.length - 8; i++) {
-      const chunk = words.slice(i, i + 8)
-      const chunkPattern = chunk.map(escape).join('[\\s\\n\\r]+')
-      try {
-        const chunkRe = new RegExp(chunkPattern, 'i')
-        if (chunkRe.test(text)) {
-          // Found anchor — now try to replace from that anchor as far as possible
-          const fullPattern = words.map(escape).join('[\\s\\n\\r,;.]*(?:[\\w\\s,;.]*[\\s\\n\\r,;.]*)?')
-          try {
-            const fullRe = new RegExp(fullPattern, 'i')
-            if (fullRe.test(text)) {
-              return { result: text.replace(fullRe, fix), matched: true }
-            }
-          } catch {}
-          return { result: text.replace(chunkRe, fix), matched: true }
-        }
-      } catch {}
-    }
-  }
-
-  return { result: text, matched: false }
+  // Replace the ENTIRE matched segment — never a mid-sentence fragment
+  const lines = text.split('\n')
+  const seg = segments[bestIdx]
+  const newLines = [
+    ...lines.slice(0, seg.start),
+    fix,
+    ...lines.slice(seg.end + 1),
+  ]
+  return { result: newLines.join('\n'), matched: true }
 }
 
 type DownloadResult = { applied: number; appended: number; failed: Risk[]; renumberWarning: boolean }
