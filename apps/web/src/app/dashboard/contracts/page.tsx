@@ -148,6 +148,33 @@ function splitIntoSegments(text: string): Array<{ start: number; end: number; co
   return segments
 }
 
+// Groups a numeric section header (e.g. "4. REPRESENTATIONS.") with all immediately
+// following lettered/roman sub-clause segments into one super-segment. This lets
+// fuzzyReplace replace a full section atomically when the AI's clause spans the whole
+// section, while individual sub-clause segments still win for partial-clause matches.
+// Bidirectional IDF scoring in fuzzyReplace determines which candidate wins.
+function buildMergedSegments(
+  segs: Array<{ start: number; end: number; content: string; preBody: boolean }>
+): Array<{ start: number; end: number; content: string; preBody: boolean }> {
+  const result: typeof segs = []
+  let i = 0
+  while (i < segs.length) {
+    const seg = segs[i]
+    if (/^\d+[\.\)]\s+/.test(seg.content.trimStart())) {
+      let j = i + 1
+      while (j < segs.length && /^(\([a-z]\)|\([ivxlc]+\)|[a-z][\.\)]\s)/i.test(segs[j].content.trimStart())) {
+        j++
+      }
+      if (j > i + 1) {
+        result.push({ start: segs[i].start, end: segs[j - 1].end, content: segs.slice(i, j).map(s => s.content).join('\n'), preBody: segs[i].preBody })
+        i = j; continue
+      }
+    }
+    result.push(seg); i++
+  }
+  return result
+}
+
 function buildIDF(segments: Array<{ content: string }>): Map<string, number> {
   const norm = (s: string) => s.replace(/\s+/g, ' ').toLowerCase().trim()
   const docFreq = new Map<string, number>()
@@ -182,43 +209,57 @@ function scoreMatchIDF(
 }
 
 function fuzzyReplace(text: string, clause: string, fix: string): { result: string; matched: boolean } {
-  // 1. Exact match — fastest path, no boundary logic needed
-  if (text.includes(clause)) {
+  // Option B: if the winning segment starts with a numeric section header (e.g. "4. "),
+  // strip any leading number the AI may have included in the fix (per CASE 3 prompt) and
+  // re-prepend the ORIGINAL section number — preserving the document's numbering scheme.
+  const preserveNumPrefix = (segFirstLine: string, fixText: string): string => {
+    const m = /^(\d+[\.\)]\s+)/.exec(segFirstLine.trim())
+    if (!m) return fixText
+    return m[1] + fixText.trimStart().replace(/^\d+[\.\)]\s+/, '')
+  }
+
+  // Strategy 1: exact substring match — skipped for numeric-section-header clauses so
+  // merged-segment scoring replaces the full section (header + sub-clauses atomically),
+  // not just the header line. All other clauses still get the fast exact-match path.
+  const clauseIsNumericSection = /^\d+[\.\)]\s+/.test(clause.trim())
+  if (!clauseIsNumericSection && text.includes(clause)) {
     return { result: text.replace(clause, fix), matched: true }
   }
 
-  // 2. Split into boundary-anchored segments; build IDF over this document
-  const segments = splitIntoSegments(text)
-  const idf = buildIDF(segments)
+  // Strategy 2: bidirectional IDF harmonic-mean scoring over merged super-segments AND
+  // individual segments together. Bidirectional prevents partial-match over-replacement:
+  // clause covering only (a)+(b) of a 4-sub-clause section → merged scores 0.575 (rejected),
+  // individual 4b scores 0.658 (wins). Full-section clause → merged ~1.0 vs individual ~0.35.
+  // Paraphrased full-section ("carry out" not "perform") → merged 0.943, individual 0.344.
+  // Combined partial+paraphrased → merged 0.575 (rejected), individual 4b 0.658 (wins).
+  const segs = splitIntoSegments(text)
+  const idf = buildIDF(segs)
+  const N = segs.length
+  const candidates = buildMergedSegments(segs)
+
+  const bidirScore = (segContent: string): number => {
+    const fwd = scoreMatchIDF(segContent, clause, idf, N)   // clause words found in seg
+    const rev = scoreMatchIDF(clause, segContent, idf, N)   // seg words found in clause
+    return (fwd + rev) > 0 ? 2 * fwd * rev / (fwd + rev) : 0
+  }
 
   let bestScore = 0
-  let bestIdx = -1
-  for (let i = 0; i < segments.length; i++) {
-    // Never touch signature blocks or schedule/exhibit headers
-    if (NON_REPLACEABLE_RE.test(segments[i].content.trimStart())) continue
-    // Pre-body segments (preamble, RECITALS, WHEREAS) are skipped — they
-    // concentrate party names and "Agreement" that score falsely against any
-    // clause. Exact match (strategy 1 above) handles verbatim copies.
-    if (segments[i].preBody) continue
-    const score = scoreMatchIDF(segments[i].content, clause, idf, segments.length)
-    if (score > bestScore) { bestScore = score; bestIdx = i }
+  let bestSeg: typeof candidates[0] | null = null
+  for (const seg of candidates) {
+    if (NON_REPLACEABLE_RE.test(seg.content.trimStart())) continue
+    if (seg.preBody) continue
+    const score = bidirScore(seg.content)
+    if (score > bestScore) { bestScore = score; bestSeg = seg }
   }
 
-  // Require ≥ 60% IDF-weighted coverage to accept a match
-  const THRESHOLD = 0.6
-  if (bestIdx === -1 || bestScore < THRESHOLD) {
-    return { result: text, matched: false }
-  }
+  if (!bestSeg || bestScore < 0.6) return { result: text, matched: false }
 
-  // Replace the ENTIRE matched segment — never a mid-sentence fragment
   const lines = text.split('\n')
-  const seg = segments[bestIdx]
-  const newLines = [
-    ...lines.slice(0, seg.start),
-    fix,
-    ...lines.slice(seg.end + 1),
-  ]
-  return { result: newLines.join('\n'), matched: true }
+  const effectiveFix = preserveNumPrefix(lines[bestSeg.start], fix)
+  return {
+    result: [...lines.slice(0, bestSeg.start), effectiveFix, ...lines.slice(bestSeg.end + 1)].join('\n'),
+    matched: true,
+  }
 }
 
 type DownloadResult = { applied: number; appended: number; failed: Risk[]; renumberWarning: boolean }
@@ -619,7 +660,7 @@ Each item must be:
   "severity": "CRITICAL" | "HIGH" | "MEDIUM" | "LOW",
   "clause": "Copy the clause CHARACTER-FOR-CHARACTER, exactly as it appears in the contract text provided. Do NOT paraphrase, summarise, shorten, or reconstruct. If the clause does not exist in the document, use 'Not present'.",
   "risk": "One sentence explaining why this is risky (cite applicable statute or common law doctrine if relevant)",
-  "fix": "Write the COMPLETE, FINAL text ready to be inserted verbatim into the contract. Two cases apply — choose the right one:\n\nCASE 1 — Clauses you can fully draft (indemnification, governing law, reps and warranties, boilerplate): write finished, binding legal language with numbered/lettered subsections, defined terms, and operative words exactly as they would appear in a signed agreement. NEVER write a description or instruction about what the clause should say. BAD EXAMPLE: 'Add an indemnification clause covering direct losses and third-party claims.' GOOD EXAMPLE: '9. INDEMNIFICATION. (a) Each party (the Indemnifying Party) shall defend, indemnify, and hold harmless the other party and its officers, directors, employees, and agents from and against any and all claims, damages, losses, costs, and expenses (including reasonable attorneys fees) arising out of or relating to: (i) any breach of this Agreement; (ii) the negligence or willful misconduct of the Indemnifying Party; or (iii) infringement of third-party intellectual property rights by the Indemnifying Party. (b) The Indemnified Party shall promptly notify the Indemnifying Party in writing of any claim and grant sole control of its defense.'\n\nCASE 2 — Blanks requiring party-specific facts you cannot know (closing location, dollar amounts, named individuals, specific dates): do NOT describe what should go there. Instead, insert a blank using the same placeholder convention already used elsewhere in this document (typically underscores, e.g. __________). Write the surrounding clause language in full, leaving only the unknown fact as a blank. BAD EXAMPLE: 'Insert the agreed closing location here.' GOOD EXAMPLE: 'Closing shall occur at __________, on __________, 20__.'"
+  "fix": "Write the COMPLETE, FINAL text ready to be inserted verbatim into the contract. Two cases apply — choose the right one:\n\nCASE 1 — Clauses you can fully draft (indemnification, governing law, reps and warranties, boilerplate): write finished, binding legal language with numbered/lettered subsections, defined terms, and operative words exactly as they would appear in a signed agreement. NEVER write a description or instruction about what the clause should say. BAD EXAMPLE: 'Add an indemnification clause covering direct losses and third-party claims.' GOOD EXAMPLE: '9. INDEMNIFICATION. (a) Each party (the Indemnifying Party) shall defend, indemnify, and hold harmless the other party and its officers, directors, employees, and agents from and against any and all claims, damages, losses, costs, and expenses (including reasonable attorneys fees) arising out of or relating to: (i) any breach of this Agreement; (ii) the negligence or willful misconduct of the Indemnifying Party; or (iii) infringement of third-party intellectual property rights by the Indemnifying Party. (b) The Indemnified Party shall promptly notify the Indemnifying Party in writing of any claim and grant sole control of its defense.'\n\nCASE 2 — Blanks requiring party-specific facts you cannot know (closing location, dollar amounts, named individuals, specific dates): do NOT describe what should go there. Instead, insert a blank using the same placeholder convention already used elsewhere in this document (typically underscores, e.g. __________). Write the surrounding clause language in full, leaving only the unknown fact as a blank. BAD EXAMPLE: 'Insert the agreed closing location here.' GOOD EXAMPLE: 'Closing shall occur at __________, on __________, 20__.'\n\nSECTION NUMBER RULE (applies to all fixes): NEVER start the fix text with a numeric section number (e.g. do NOT write '4.' or '9.' at the beginning). Start from the section TITLE directly (e.g. 'INDEMNIFICATION.' or 'REPRESENTATIONS AND WARRANTIES.'). The system automatically preserves the original section number for replacements and assigns the next available number for new clauses. BAD: '9. INDEMNIFICATION. (a) Each party...' GOOD: 'INDEMNIFICATION. (a) Each party...'"
 }
 
 CRITICAL: The "clause" field must be a verbatim copy-paste from the contract. The system will search for this exact string to perform replacements — any deviation will cause the replacement to fail.

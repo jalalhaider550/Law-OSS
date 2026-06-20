@@ -86,6 +86,29 @@ function splitSegments(text: string): Array<{ start: number; end: number; conten
   return segs
 }
 
+// Same logic as contracts/page.tsx — see that file for full commentary and IDF worked examples.
+function buildMergedSegments(
+  segs: Array<{ start: number; end: number; content: string; preBody: boolean }>
+): Array<{ start: number; end: number; content: string; preBody: boolean }> {
+  const result: typeof segs = []
+  let i = 0
+  while (i < segs.length) {
+    const seg = segs[i]
+    if (/^\d+[\.\)]\s+/.test(seg.content.trimStart())) {
+      let j = i + 1
+      while (j < segs.length && /^(\([a-z]\)|\([ivxlc]+\)|[a-z][\.\)]\s)/i.test(segs[j].content.trimStart())) {
+        j++
+      }
+      if (j > i + 1) {
+        result.push({ start: segs[i].start, end: segs[j - 1].end, content: segs.slice(i, j).map(s => s.content).join('\n'), preBody: segs[i].preBody })
+        i = j; continue
+      }
+    }
+    result.push(seg); i++
+  }
+  return result
+}
+
 function buildSegmentIDF(segs: Array<{ content: string }>): Map<string, number> {
   const norm = (s: string) => s.replace(/\s+/g, ' ').toLowerCase().trim()
   const df = new Map<string, number>()
@@ -117,19 +140,37 @@ function scoreIDF(segContent: string, clause: string, idf: Map<string, number>, 
 type AgentDownloadResult = { applied: number; appended: number; failed: Risk[]; renumberWarning: boolean }
 
 function fuzzyReplace(text: string, clause: string, fix: string): { result: string; matched: boolean } {
-  if (text.includes(clause)) return { result: text.replace(clause, fix), matched: true }
+  const preserveNumPrefix = (segFirstLine: string, fixText: string): string => {
+    const m = /^(\d+[\.\)]\s+)/.exec(segFirstLine.trim())
+    if (!m) return fixText
+    return m[1] + fixText.trimStart().replace(/^\d+[\.\)]\s+/, '')
+  }
+  // Skip exact-match fast path for numeric-section-header clauses — route through merged
+  // segment scoring so the full section (header + sub-clauses) is replaced atomically.
+  const clauseIsNumericSection = /^\d+[\.\)]\s+/.test(clause.trim())
+  if (!clauseIsNumericSection && text.includes(clause)) {
+    return { result: text.replace(clause, fix), matched: true }
+  }
   const segs = splitSegments(text)
   const idf = buildSegmentIDF(segs)
-  let bestScore = 0; let bestIdx = -1
-  for (let i = 0; i < segs.length; i++) {
-    if (NON_REPLACEABLE_RE_A.test(segs[i].content.trimStart())) continue
-    if (segs[i].preBody) continue
-    const score = scoreIDF(segs[i].content, clause, idf, segs.length)
-    if (score > bestScore) { bestScore = score; bestIdx = i }
+  const N = segs.length
+  const candidates = buildMergedSegments(segs)
+  const bidirScore = (segContent: string): number => {
+    const fwd = scoreIDF(segContent, clause, idf, N)
+    const rev = scoreIDF(clause, segContent, idf, N)
+    return (fwd + rev) > 0 ? 2 * fwd * rev / (fwd + rev) : 0
   }
-  if (bestIdx === -1 || bestScore < 0.6) return { result: text, matched: false }
-  const lines = text.split('\n'); const seg = segs[bestIdx]
-  return { result: [...lines.slice(0, seg.start), fix, ...lines.slice(seg.end + 1)].join('\n'), matched: true }
+  let bestScore = 0; let bestSeg: typeof candidates[0] | null = null
+  for (const seg of candidates) {
+    if (NON_REPLACEABLE_RE_A.test(seg.content.trimStart())) continue
+    if (seg.preBody) continue
+    const score = bidirScore(seg.content)
+    if (score > bestScore) { bestScore = score; bestSeg = seg }
+  }
+  if (!bestSeg || bestScore < 0.6) return { result: text, matched: false }
+  const lines = text.split('\n')
+  const effectiveFix = preserveNumPrefix(lines[bestSeg.start], fix)
+  return { result: [...lines.slice(0, bestSeg.start), effectiveFix, ...lines.slice(bestSeg.end + 1)].join('\n'), matched: true }
 }
 
 async function downloadUpdatedContract(docText: string, risks: Risk[], filename: string): Promise<AgentDownloadResult> {
@@ -542,6 +583,8 @@ RULES FOR THE "fix" FIELD — two cases, choose the right one:
 CASE 1 — Clauses you can fully draft (indemnification, governing law, reps and warranties, boilerplate): write finished, binding legal language with numbered/lettered subsections, defined terms, and operative words exactly as they would appear in a signed agreement. NEVER write a description or instruction about what the clause should say. BAD: 'Add an indemnification clause covering direct losses and third-party claims.' GOOD: '9. INDEMNIFICATION. (a) Each party (the Indemnifying Party) shall defend, indemnify, and hold harmless the other party and its officers, directors, employees, and agents from and against any and all claims, damages, losses, costs, and expenses (including reasonable attorneys fees) arising out of or relating to: (i) any breach of this Agreement; (ii) the negligence or willful misconduct of the Indemnifying Party; or (iii) infringement of third-party intellectual property rights by the Indemnifying Party. (b) The Indemnified Party shall promptly notify the Indemnifying Party in writing of any claim and grant sole control of its defense.'
 CASE 2 — Blanks requiring party-specific facts you cannot know (closing location, dollar amounts, named individuals, specific dates): do NOT describe what should go there. Insert a blank using the same placeholder convention already used in this document (typically underscores, e.g. __________). Write the full surrounding clause language, leaving only the unknown fact as a blank. BAD: 'Insert the agreed closing location here.' GOOD: 'Closing shall occur at __________, on __________, 20__.'
 
+SECTION NUMBER RULE (applies to all fixes): NEVER start the fix text with a numeric section number (e.g. do NOT write '4.' or '9.' at the beginning). Start from the section TITLE directly (e.g. 'INDEMNIFICATION.' or 'REPRESENTATIONS AND WARRANTIES.'). The system automatically preserves the original section number for replacements and assigns the next available number for new clauses. BAD: '9. INDEMNIFICATION. (a) Each party...' GOOD: 'INDEMNIFICATION. (a) Each party...'
+
 For all other questions (explanations, comparisons, strategy): respond normally in clear professional prose.${NO_DISCLAIMER}` },
   { id: 'litigation', name: 'Litigation Assistant', desc: 'Strategy, procedure & pleadings', icon: 'L', chips: ['Assess case merits', 'Draft skeleton argument', 'Litigation risk estimate'], sys: `You are Law OSS AI, an expert litigation assistant covering US federal and state courts as well as UK courts. Analyse merits, identify key issues, suggest case strategy, and assess litigation risk with probability estimates. For US matters reference FRCP, relevant circuit rules, and state procedural rules. For UK matters reference CPR and practice directions. Be precise and strategic.${NO_DISCLAIMER}` },
   { id: 'compliance', name: 'Compliance Officer', desc: 'Regulatory compliance guidance', icon: 'Co', chips: ['Check GDPR compliance', 'AML obligations', 'Data breach response'], sys: `You are Law OSS AI, an expert compliance advisor covering US and UK/EU regulatory frameworks. For US matters: reference SEC, FINRA, CFPB, FTC, HIPAA, CCPA/CPRA, BSA/AML rules. For UK/EU matters: reference FCA, ICO, GDPR/UK GDPR, MLR 2017. Identify applicable regulations by name and provision, analyse compliance gaps, and recommend remediation steps. Be thorough and practical.${NO_DISCLAIMER}` },
@@ -688,10 +731,11 @@ export default function AgentsPage() {
     let rounds = 0
     let keepGoing = true
     setContinuationRound(0)
+    let chunk = ''
     while (keepGoing && rounds < 12) {
       keepGoing = false
       rounds++
-      let chunk = ''
+      chunk = ''
       let errored = false
       await new Promise<void>((resolve) => {
         const onTok = (t: string) => { chunk += t; appendToken(t) }
