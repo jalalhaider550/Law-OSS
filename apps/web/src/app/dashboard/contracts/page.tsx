@@ -296,27 +296,52 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
     ].join('\n')
   }
 
-  // Zero-spacing paragraphs — blank lines get a small gap, content lines get none
-  const TIGHT = { before: 0, after: 0 }
-  const GAP   = { before: 0, after: 100 }
+  // ── Intermediate formatting fix (Bug 3 partial) ────────────────────────────
+  // docx@9 is write-only — it cannot read existing files. True surgical
+  // preservation of original paragraph spacing, fonts, and table structure
+  // requires JSZip raw XML editing or server-side processing (future work).
+  // This rebuild reapplies the most common contract formatting patterns so
+  // the output looks close to the original.
+  const TIGHT  = { before: 0, after: 0   }
+  const BODY   = { before: 0, after: 80  }  // standard body paragraph gap
+  const GAP    = { before: 0, after: 160 }  // blank-line separator
+  const INDENT = { left: 720 }              // 0.5 inch for sub-clauses
+
+  const SECTION_HDR_RE = /^(\d+[\.\)]\s)(.+)/
+  const SUBCLAUSE_RE   = /^(\([a-z]\)|\([ivxlc]+\)|[a-z][\.\)]\s)/i
+  const ALLCAPS_HDR_RE = /^[A-Z][A-Z ]{9,}$/
+  // Tightened to known party/role words only — avoids bolding arbitrary short
+  // all-caps text like "AND", "OR", "WHEREAS" from poorly-converted table cells.
+  const TABLE_HDR_RE   = /^(SELLER|BUYER|PARTY|PARTIES|DATE|NAME|SIGNATURE|WITNESS|GRANTOR|GRANTEE|VENDOR|PURCHASER|LESSOR|LESSEE|LICENSOR|LICENSEE|BORROWER|LENDER)$/
+
+  function buildRuns(raw: string, forceBold = false): any[] {
+    const parts: any[] = []; const boldRe = /\*\*(.+?)\*\*/g
+    let last = 0; let bm: RegExpExecArray | null
+    while ((bm = boldRe.exec(raw)) !== null) {
+      if (bm.index > last) parts.push(new TextRun({ text: raw.slice(last, bm.index), bold: forceBold }))
+      parts.push(new TextRun({ text: bm[1], bold: true }))
+      last = bm.index + bm[0].length
+    }
+    if (last < raw.length) parts.push(new TextRun({ text: raw.slice(last), bold: forceBold }))
+    return parts.length ? parts : [new TextRun({ text: raw, bold: forceBold })]
+  }
 
   function textLine(raw: string): any {
-    // detect headings
     const t = raw.trimStart()
     if (t.startsWith('### ')) return new Paragraph({ text: t.slice(4), heading: HeadingLevel.HEADING_3, spacing: TIGHT })
     if (t.startsWith('## '))  return new Paragraph({ text: t.slice(3),  heading: HeadingLevel.HEADING_2, spacing: TIGHT })
     if (t.startsWith('# '))   return new Paragraph({ text: t.slice(2),  heading: HeadingLevel.HEADING_1, spacing: TIGHT })
-    // detect bold **...**
-    const parts: any[] = []
-    const boldRe = /\*\*(.+?)\*\*/g
-    let last = 0; let m: RegExpExecArray | null
-    while ((m = boldRe.exec(raw)) !== null) {
-      if (m.index > last) parts.push(new TextRun(raw.slice(last, m.index)))
-      parts.push(new TextRun({ text: m[1], bold: true }))
-      last = m.index + m[0].length
-    }
-    if (last < raw.length) parts.push(new TextRun(raw.slice(last)))
-    return new Paragraph({ children: parts.length ? parts : [new TextRun(raw)], spacing: TIGHT })
+    if (ALLCAPS_HDR_RE.test(t))
+      return new Paragraph({ children: [new TextRun({ text: t, bold: true })], heading: HeadingLevel.HEADING_2, spacing: TIGHT })
+    if (TABLE_HDR_RE.test(t))
+      return new Paragraph({ children: [new TextRun({ text: t, bold: true })], spacing: BODY })
+    if (SECTION_HDR_RE.test(t))
+      return new Paragraph({ children: [new TextRun({ text: t, bold: true })], spacing: BODY })
+    if (SUBCLAUSE_RE.test(t))
+      return new Paragraph({ children: buildRuns(raw), indent: INDENT, spacing: BODY })
+    if (/:\s*$/.test(t) && t.length < 60)
+      return new Paragraph({ children: [new TextRun({ text: t, bold: true })], spacing: BODY })
+    return new Paragraph({ children: buildRuns(raw), spacing: BODY })
   }
 
   const children: any[] = []

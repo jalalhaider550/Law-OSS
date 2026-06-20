@@ -175,19 +175,41 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
     updated = [...lines.slice(0, insertIdx), ...newLines, ...lines.slice(insertIdx)].join('\n')
   }
 
-  const TIGHT = { before: 0, after: 0 }; const GAP = { before: 0, after: 100 }
+  // Intermediate formatting fix — docx@9 is write-only, true surgical XML
+  // preservation is future work. Reapplies common contract formatting patterns.
+  const TIGHT  = { before: 0, after: 0   }
+  const BODY   = { before: 0, after: 80  }
+  const GAP    = { before: 0, after: 160 }
+  const INDENT = { left: 720 }
+  const SECTION_HDR_RE_D = /^(\d+[\.\)]\s)(.+)/
+  const SUBCLAUSE_RE_D   = /^(\([a-z]\)|\([ivxlc]+\)|[a-z][\.\)]\s)/i
+  const ALLCAPS_HDR_RE_D = /^[A-Z][A-Z ]{9,}$/
+  const TABLE_HDR_RE_D   = /^(SELLER|BUYER|PARTY|PARTIES|DATE|NAME|SIGNATURE|WITNESS|GRANTOR|GRANTEE|VENDOR|PURCHASER|LESSOR|LESSEE|LICENSOR|LICENSEE|BORROWER|LENDER)$/
+  function buildRunsD(raw: string, forceBold = false): any[] {
+    const parts: any[] = []; const boldRe = /\*\*(.+?)\*\*/g; let last = 0; let bm: RegExpExecArray | null
+    while ((bm = boldRe.exec(raw)) !== null) {
+      if (bm.index > last) parts.push(new TextRun({ text: raw.slice(last, bm.index), bold: forceBold }))
+      parts.push(new TextRun({ text: bm[1], bold: true })); last = bm.index + bm[0].length
+    }
+    if (last < raw.length) parts.push(new TextRun({ text: raw.slice(last), bold: forceBold }))
+    return parts.length ? parts : [new TextRun({ text: raw, bold: forceBold })]
+  }
   function textLine(raw: string): any {
     const t = raw.trimStart()
     if (t.startsWith('### ')) return new Paragraph({ text: t.slice(4), heading: HeadingLevel.HEADING_3, spacing: TIGHT })
     if (t.startsWith('## '))  return new Paragraph({ text: t.slice(3),  heading: HeadingLevel.HEADING_2, spacing: TIGHT })
     if (t.startsWith('# '))   return new Paragraph({ text: t.slice(2),  heading: HeadingLevel.HEADING_1, spacing: TIGHT })
-    const parts: any[] = []; const boldRe = /\*\*(.+?)\*\*/g; let last = 0; let m: RegExpExecArray | null
-    while ((m = boldRe.exec(raw)) !== null) {
-      if (m.index > last) parts.push(new TextRun(raw.slice(last, m.index)))
-      parts.push(new TextRun({ text: m[1], bold: true })); last = m.index + m[0].length
-    }
-    if (last < raw.length) parts.push(new TextRun(raw.slice(last)))
-    return new Paragraph({ children: parts.length ? parts : [new TextRun(raw)], spacing: TIGHT })
+    if (ALLCAPS_HDR_RE_D.test(t))
+      return new Paragraph({ children: [new TextRun({ text: t, bold: true })], heading: HeadingLevel.HEADING_2, spacing: TIGHT })
+    if (TABLE_HDR_RE_D.test(t))
+      return new Paragraph({ children: [new TextRun({ text: t, bold: true })], spacing: BODY })
+    if (SECTION_HDR_RE_D.test(t))
+      return new Paragraph({ children: [new TextRun({ text: t, bold: true })], spacing: BODY })
+    if (SUBCLAUSE_RE_D.test(t))
+      return new Paragraph({ children: buildRunsD(raw), indent: INDENT, spacing: BODY })
+    if (/:\s*$/.test(t) && t.length < 60)
+      return new Paragraph({ children: [new TextRun({ text: t, bold: true })], spacing: BODY })
+    return new Paragraph({ children: buildRunsD(raw), spacing: BODY })
   }
   const children: any[] = []
   for (const line of updated.split('\n')) {
