@@ -101,20 +101,23 @@ function saveReviews(list: StoredReview[]) {
 
 // Fuzzy match: normalise whitespace so PDF-extracted text (which collapses spaces) still matches
 // BOUNDARY_RE — determines where one segment ends and the next begins.
-// Matches: numbered sections (1. / 1)), lettered sub-clauses (a. / (a) / (i)),
-// and all-caps headers of ≥ 10 chars (excludes short table cells like
-// SELLER/BUYER/DATE). Intentionally broader than NUMBERED_ITEM_RE below.
+// Matches: numbered sections (1. / 1) / 3.2 / 9.4.1 / 21.9)), lettered
+// sub-clauses (a. / (a) / (i)), and all-caps headers of ≥ 10 chars (excludes
+// short table cells like SELLER/BUYER/DATE). Intentionally broader than
+// NUMBERED_ITEM_RE below.
+// \d+(?:\.\d+)* matches flat (9.) AND decimal multi-level (9.4 / 9.4.1).
 // NOTE: if you change this regex, check NUMBERED_ITEM_RE for consistency —
 // they serve different purposes and must stay aligned.
-const BOUNDARY_RE = /^(?:\*{1,2})?(\d+[\.\)]\s|[a-z][\.\)]\s|\([a-z]\)\s|\([ivxlc]+\)\s|[A-Z][A-Z ]{9,})/
+const BOUNDARY_RE = /^(?:\*{1,2})?(\d+(?:\.\d+)*[\.\)]\s|[a-z][\.\)]\s|\([a-z]\)\s|\([ivxlc]+\)\s|[A-Z][A-Z ]{9,})/
 
 // NUMBERED_ITEM_RE — detects strictly numeric/alphabetic section starts that
 // mark the transition from pre-body (preamble/recitals) into the document body.
 // Intentionally excludes all-caps headers (e.g. RECITALS, WHEREAS) because those
 // can appear before the first numbered clause and are still pre-body content.
+// \d+(?:\.\d+)* matches flat (9.) AND decimal multi-level (9.4 / 9.4.1).
 // NOTE: if you change this regex, check BOUNDARY_RE for consistency —
 // they serve different purposes and must stay aligned.
-const NUMBERED_ITEM_RE = /^(?:\*{1,2})?(\d+[\.\)]\s|[a-z][\.\)]\s|\([a-z]\)\s|\([ivxlc]+\)\s)/
+const NUMBERED_ITEM_RE = /^(?:\*{1,2})?(\d+(?:\.\d+)*[\.\)]\s|[a-z][\.\)]\s|\([a-z]\)\s|\([ivxlc]+\)\s)/
 
 // Segments whose content starts with these phrases are never replaced, regardless
 // of match score — protects signature blocks and schedule/exhibit headers.
@@ -213,15 +216,17 @@ function fuzzyReplace(text: string, clause: string, fix: string): { result: stri
   // strip any leading number the AI may have included in the fix (per CASE 3 prompt) and
   // re-prepend the ORIGINAL section number — preserving the document's numbering scheme.
   const preserveNumPrefix = (segFirstLine: string, fixText: string): string => {
-    const m = /^(?:\*{1,2})?(\d+[\.\)]\s+)/.exec(segFirstLine.trim())
+    // Captures flat (9. ) AND decimal (9.4 / 9.4.1 ) prefixes
+    const m = /^(?:\*{1,2})?(\d+(?:\.\d+)*[\.\)]\s+)/.exec(segFirstLine.trim())
     if (!m) return fixText
-    return m[1] + fixText.trimStart().replace(/^\d+[\.\)]\s+/, '')
+    // Strip any leading number the AI put on the fix, then prepend the original
+    return m[1] + fixText.trimStart().replace(/^\d+(?:\.\d+)*[\.\)]\s+/, '')
   }
 
   // Strategy 1: exact substring match — skipped for numeric-section-header clauses so
   // merged-segment scoring replaces the full section (header + sub-clauses atomically),
   // not just the header line. All other clauses still get the fast exact-match path.
-  const clauseIsNumericSection = /^\d+[\.\)]\s+/.test(clause.trim())
+  const clauseIsNumericSection = /^\d+(?:\.\d+)*[\.\)]\s+/.test(clause.trim())
   if (!clauseIsNumericSection && text.includes(clause)) {
     return { result: text.replace(clause, fix), matched: true }
   }
@@ -262,8 +267,8 @@ function fuzzyReplace(text: string, clause: string, fix: string): { result: stri
   }
 }
 
-type DownloadResult = { applied: number; appended: number; failed: Risk[]; renumberWarning: boolean }
-async function downloadUpdatedContract(docText: string, risks: Risk[], filename: string): Promise<DownloadResult> {
+type DownloadResult = { applied: number; appended: number; failed: Risk[]; renumberWarning: boolean; blob: Blob; updatedFilename: string }
+async function buildUpdatedContract(docText: string, risks: Risk[], filename: string): Promise<DownloadResult> {
   const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx')
 
   // Apply accepted fixes — preserve every character of the original; only swap the clause text
@@ -295,11 +300,17 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
   let renumberWarning = false
   if (appended.length > 0) {
     const lines = updated.split('\n')
-    const numericSectionRe = /^(?:\*{1,2})?\d+[\.\)]\s+[A-Z]/
+    // Matches flat (9. TITLE) AND decimal (9.4 TITLE / 21.9 TITLE) section starts
+    const numericSectionRe = /^(?:\*{1,2})?\d+(?:\.\d+)*[\.\)]\s+[A-Z]/
     const hasNumericSections = lines.some(l => numericSectionRe.test(l.trim()))
 
+    // Detect whether the document uses decimal multi-level numbering (e.g. "9.4 Foo").
+    // If so, auto-incrementing a flat integer is ambiguous — fall back to the manual marker.
+    const hasDecimalNumbering = lines.some(l => /^(?:\*{1,2})?\d+\.\d+[\.\)]\s+[A-Z]/i.test(l.trim()))
+
     let maxSection = 0
-    if (hasNumericSections) {
+    if (hasNumericSections && !hasDecimalNumbering) {
+      // Only scan for maxSection when numbering is flat (9.) — safe to auto-increment
       for (const line of lines) {
         const m = /^(?:\*{1,2})?(\d+)[\.\)]\s+[A-Z]/.exec(line.trim())
         if (m) maxSection = Math.max(maxSection, parseInt(m[1]))
@@ -318,14 +329,15 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
 
     const newLines: string[] = ['']
     for (const r of appended) {
-      if (hasNumericSections) {
+      if (hasNumericSections && !hasDecimalNumbering) {
+        // Flat numbering (9.) — safe to auto-increment
         maxSection++
         const fixTrimmed = r.fix.trimStart()
         // If the AI already prefixed a section number, use it; otherwise prepend ours
-        const alreadyNumbered = /^\d+[\.\)]\s/.test(fixTrimmed)
+        const alreadyNumbered = /^\d+(?:\.\d+)*[\.\)]\s/.test(fixTrimmed)
         newLines.push(alreadyNumbered ? fixTrimmed : `${maxSection}. ${fixTrimmed}`)
       } else {
-        // Non-numeric numbering — insert with manual marker, do not guess
+        // Decimal numbering (9.4) or non-numeric — auto-increment is ambiguous, use marker
         newLines.push('[NEW CLAUSE — RENUMBER MANUALLY]')
         newLines.push(r.fix.trimStart())
         renumberWarning = true
@@ -351,23 +363,28 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
   const GAP    = { before: 0, after: 160 }  // blank-line separator
   const INDENT = { left: 720 }              // 0.5 inch for sub-clauses
 
-  const SECTION_HDR_RE = /^(?:\*{1,2})?(\d+[\.\)]\s)(.+)/
+  const SECTION_HDR_RE = /^(?:\*{1,2})?(\d+(?:\.\d+)*[\.\)]\s)(.+)/
   const SUBCLAUSE_RE   = /^(\([a-z]\)|\([ivxlc]+\)|[a-z][\.\)]\s)/i
-  const ALLCAPS_HDR_RE = /^(?:\*{1,2})?[A-Z][A-Z ]{9,}(?:\*{1,2})?$/
+  const ALLCAPS_HDR_RE = /^(?:\*{1,2})?[A-Z][A-Z ;]{9,}(?:\*{1,2})?$/
   // Tightened to known party/role words only — avoids bolding arbitrary short
   // all-caps text like "AND", "OR", "WHEREAS" from poorly-converted table cells.
   const TABLE_HDR_RE   = /^(?:\*{1,2})?(SELLER|BUYER|PARTY|PARTIES|DATE|NAME|SIGNATURE|WITNESS|GRANTOR|GRANTEE|VENDOR|PURCHASER|LESSOR|LESSEE|LICENSOR|LICENSEE|BORROWER|LENDER)(?:\*{1,2})?$/
 
   function buildRuns(raw: string, forceBold = false): any[] {
+    // Normalize nested bold markers produced by mammoth's overlapping <strong> tags.
+    // **"**Word**"** → **"Word"**: strip close+reopen ** around boundary punctuation.
+    const normalized = raw
+      .replace(/\*\*([\W_]{1,3})\*\*(\w)/g, '**$1$2')   // **"**W → **"W
+      .replace(/(\w)\*\*([\W_]{1,3})\*\*/g, '$1$2**')    // s**"** → s"**
     const parts: any[] = []; const boldRe = /\*\*(.+?)\*\*/g
     let last = 0; let bm: RegExpExecArray | null
-    while ((bm = boldRe.exec(raw)) !== null) {
-      if (bm.index > last) parts.push(new TextRun({ text: raw.slice(last, bm.index), bold: forceBold }))
+    while ((bm = boldRe.exec(normalized)) !== null) {
+      if (bm.index > last) parts.push(new TextRun({ text: normalized.slice(last, bm.index), bold: forceBold }))
       parts.push(new TextRun({ text: bm[1], bold: true }))
       last = bm.index + bm[0].length
     }
-    if (last < raw.length) parts.push(new TextRun({ text: raw.slice(last), bold: forceBold }))
-    return parts.length ? parts : [new TextRun({ text: raw, bold: forceBold })]
+    if (last < normalized.length) parts.push(new TextRun({ text: normalized.slice(last), bold: forceBold }))
+    return parts.length ? parts : [new TextRun({ text: normalized, bold: forceBold })]
   }
 
   function textLine(raw: string): any {
@@ -376,11 +393,13 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
     if (t.startsWith('## '))  return new Paragraph({ text: t.slice(3),  heading: HeadingLevel.HEADING_2, spacing: TIGHT })
     if (t.startsWith('# '))   return new Paragraph({ text: t.slice(2),  heading: HeadingLevel.HEADING_1, spacing: TIGHT })
     if (ALLCAPS_HDR_RE.test(t))
-      return new Paragraph({ children: [new TextRun({ text: t, bold: true })], heading: HeadingLevel.HEADING_2, spacing: TIGHT })
+      return new Paragraph({ children: [new TextRun({ text: t.replace(/^\*{1,2}|\*{1,2}$/g, ''), bold: true })], heading: HeadingLevel.HEADING_2, spacing: TIGHT })
     if (TABLE_HDR_RE.test(t))
-      return new Paragraph({ children: [new TextRun({ text: t, bold: true })], spacing: BODY })
+      return new Paragraph({ children: [new TextRun({ text: t.replace(/^\*{1,2}|\*{1,2}$/g, ''), bold: true })], spacing: BODY })
     if (SECTION_HDR_RE.test(t))
-      return new Paragraph({ children: [new TextRun({ text: t, bold: true })], spacing: BODY })
+      // Use buildRuns so DOCX lines (with ** markers) get inline-bold handling;
+      // PDF/plain lines (no **) fall back to force-bold for the whole line.
+      return new Paragraph({ children: buildRuns(t, !t.includes('**')), spacing: BODY })
     if (SUBCLAUSE_RE.test(t))
       return new Paragraph({ children: buildRuns(raw), indent: INDENT, spacing: BODY })
     if (/:\s*$/.test(t) && t.length < 60)
@@ -396,12 +415,9 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
 
   const doc = new Document({ sections: [{ properties: {}, children }] })
   const blob = await Packer.toBlob(doc)
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
   const base = filename.replace(/\.[^.]+$/, '')
-  a.href = url; a.download = `${base}-updated.docx`; a.click()
-  URL.revokeObjectURL(url)
-  return { applied: appliedCount, appended: appended.length, failed: notFound, renumberWarning }
+  const updatedFilename = `${base}-updated.docx`
+  return { applied: appliedCount, appended: appended.length, failed: notFound, renumberWarning, blob, updatedFilename }
 }
 
 // Extracts text from a single pdf.js page with line/paragraph detection.
@@ -950,7 +966,7 @@ Flag 5–20 genuine risks.`
             </div>
             {accepted > 0 && docText && (
               <button
-                onClick={async () => { setGenerating(true); const r = await downloadUpdatedContract(docText, risks, filename); setDownloadResult(r); setGenerating(false) }}
+                onClick={async () => { setGenerating(true); const r = await buildUpdatedContract(docText, risks, filename); const u = URL.createObjectURL(r.blob); const a = document.createElement('a'); a.href = u; a.download = r.updatedFilename; a.click(); URL.revokeObjectURL(u); setDownloadResult(r); setGenerating(false) }}
                 disabled={generating}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', border: 'none', borderRadius: 8, background: generating ? '#e5e5e5' : '#0f0f0f', color: generating ? '#999' : '#fff', fontSize: 12.5, fontWeight: 600, cursor: generating ? 'not-allowed' : 'pointer' }}
               >
@@ -1004,7 +1020,7 @@ Flag 5–20 genuine risks.`
               <div style={{ display: 'flex', gap: 8 }}>
                 {accepted > 0 && docText && (
                   <button
-                    onClick={async () => { setGenerating(true); const r = await downloadUpdatedContract(docText, risks, filename); setDownloadResult(r); setGenerating(false) }}
+                    onClick={async () => { setGenerating(true); const r = await buildUpdatedContract(docText, risks, filename); const u = URL.createObjectURL(r.blob); const a = document.createElement('a'); a.href = u; a.download = r.updatedFilename; a.click(); URL.revokeObjectURL(u); setDownloadResult(r); setGenerating(false) }}
                     disabled={generating}
                     style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px', border: 'none', borderRadius: 8, background: '#16a34a', color: '#fff', fontSize: 13, fontWeight: 600, cursor: generating ? 'not-allowed' : 'pointer' }}
                   >
