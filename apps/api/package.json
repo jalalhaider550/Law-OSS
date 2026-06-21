@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "nodemon",
-    "build": "tsc",
+    "build": "npx tsc -p vendor/types/tsconfig.json && npx tsc -p vendor/ai/tsconfig.json && npx tsc -p vendor/db/tsconfig.json && tsc",
     "start": "node dist/index.js"
   },
   "dependencies": {
