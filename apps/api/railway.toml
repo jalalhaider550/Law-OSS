@@ -1,6 +1,6 @@
 [build]
 builder = "nixpacks"
-buildCommand = "npm install && npx tsc -p vendor/types/tsconfig.json && npx tsc -p vendor/ai/tsconfig.json && npx prisma generate --schema=vendor/db/prisma/schema.prisma && npx tsc -p vendor/db/tsconfig.json && npm run build"
+buildCommand = "npm install && npx prisma generate --schema=vendor/db/prisma/schema.prisma && npm run build"
 
 [deploy]
 startCommand = "npm start"
