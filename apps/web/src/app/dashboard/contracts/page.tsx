@@ -453,8 +453,7 @@ async function buildUpdatedContract(docText: string, risks: Risk[], filename: st
   // This rebuild reapplies the most common contract formatting patterns so
   // the output looks close to the original.
   const TIGHT  = { before: 0, after: 0   }
-  const BODY   = { before: 0, after: 80  }  // standard body paragraph gap
-  const GAP    = { before: 0, after: 160 }  // blank-line separator
+  const BODY   = { before: 0, after: 120 }  // 6pt after each paragraph (blank-line paragraphs removed)
   const INDENT = { left: 720 }              // 0.5 inch for sub-clauses
 
   const SECTION_HDR_RE = /^(?:\*{1,2})?(\d+(?:\.\d+)*[\.\)]\s)(.+)/
@@ -504,7 +503,9 @@ async function buildUpdatedContract(docText: string, risks: Risk[], filename: st
         // Orphan guard: whole-clause bold (** closes at end of line, not after title) leaves
         // an unpaired closing ** in bodySlice. Strip it so no literal ** appears in output.
         if ((bodySlice.match(/\*\*/g) || []).length % 2 !== 0) bodySlice = bodySlice.replace(/\*\*(?=[^*]*$)/, '')
-        return new Paragraph({ children: [new TextRun({ text: plain.slice(0, tl).trimEnd(), bold: true }), ...buildRuns(bodySlice, false)], spacing: BODY })
+        // Space TextRun separates bold title from normal body (the \s+ in the title regex
+        // consumed the separating space into group 1, so we re-add it explicitly).
+        return new Paragraph({ children: [new TextRun({ text: plain.slice(0, tl).trimEnd(), bold: true }), new TextRun({ text: ' ' }), ...buildRuns(bodySlice, false)], spacing: BODY })
       }
       // No title found: force-bold for PDF (no **) or inline ** handling for DOCX
       return new Paragraph({ children: buildRuns(t, !t.includes('**')), spacing: BODY })
@@ -520,7 +521,7 @@ async function buildUpdatedContract(docText: string, risks: Risk[], filename: st
         while (si < t.length && t[si] === '*') si++
         let bodySlice = t.slice(si)
         if ((bodySlice.match(/\*\*/g) || []).length % 2 !== 0) bodySlice = bodySlice.replace(/\*\*(?=[^*]*$)/, '')
-        return new Paragraph({ children: [new TextRun({ text: plain.slice(0, tl).trimEnd(), bold: true }), ...buildRuns(bodySlice, false)], indent: INDENT, spacing: BODY })
+        return new Paragraph({ children: [new TextRun({ text: plain.slice(0, tl).trimEnd(), bold: true }), new TextRun({ text: ' ' }), ...buildRuns(bodySlice, false)], indent: INDENT, spacing: BODY })
       }
       return new Paragraph({ children: buildRuns(raw), indent: INDENT, spacing: BODY })
     }
@@ -531,8 +532,13 @@ async function buildUpdatedContract(docText: string, risks: Risk[], filename: st
 
   const children: any[] = []
   for (const line of updated.split('\n')) {
-    if (!line.trim()) { children.push(new Paragraph({ text: '', spacing: GAP })); continue }
-    children.push(textLine(line))
+    if (!line.trim()) continue  // skip blank lines — BODY paragraph spacing provides separation
+    // Split mid-line sub-clause markers into separate lines so each (a)/(b)/(i)/(ii)/etc.
+    // gets its own indented paragraph regardless of whether the source had a line break there.
+    // Pattern covers single-letter (a)-(z) and roman-numeral sub-clauses (i)-(viii) etc.
+    for (const sub of line.split(/\s+(?=(?:\([a-z]\)|\([ivxlcdm]{1,6}\))\s)/i)) {
+      if (sub.trim()) children.push(textLine(sub))
+    }
   }
 
   const doc = new Document({ sections: [{ properties: {}, children }] })
