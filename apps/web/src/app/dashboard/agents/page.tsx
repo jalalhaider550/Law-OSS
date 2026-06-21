@@ -139,7 +139,7 @@ function scoreIDF(segContent: string, clause: string, idf: Map<string, number>, 
   return total > 0 ? hits / total : 0
 }
 
-type AgentDownloadResult = { applied: number; appended: number; failed: Risk[]; renumberWarning: boolean }
+type AgentDownloadResult = { applied: number; appended: number; failed: Risk[]; renumberWarning: boolean; blob: Blob; updatedFilename: string }
 
 function fuzzyReplace(text: string, clause: string, fix: string): { result: string; matched: boolean } {
   const preserveNumPrefix = (segFirstLine: string, fixText: string): string => {
@@ -176,7 +176,7 @@ function fuzzyReplace(text: string, clause: string, fix: string): { result: stri
   return { result: [...lines.slice(0, bestSeg.start), effectiveFix, ...lines.slice(bestSeg.end + 1)].join('\n'), matched: true }
 }
 
-async function downloadUpdatedContract(docText: string, risks: Risk[], filename: string): Promise<AgentDownloadResult> {
+async function downloadUpdatedContract(docText: string, risks: Risk[], filename: string): Promise<AgentDownloadResult & { blob: Blob; updatedFilename: string }> {
   const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx')
   let updated = docText
   const appended: Risk[] = []; const notFound: Risk[] = []
@@ -259,8 +259,9 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
       return new Paragraph({ children: [new TextRun({ text: t, bold: true })], heading: HeadingLevel.HEADING_2, spacing: TIGHT })
     if (TABLE_HDR_RE_D.test(t))
       return new Paragraph({ children: [new TextRun({ text: t, bold: true })], spacing: BODY })
-    if (SECTION_HDR_RE_D.test(t))
-      return new Paragraph({ children: [new TextRun({ text: t, bold: true })], spacing: BODY })
+    const sectionMatchD = SECTION_HDR_RE_D.exec(t)
+    if (sectionMatchD)
+      return new Paragraph({ children: [new TextRun({ text: sectionMatchD[1], bold: true }), ...buildRunsD(sectionMatchD[2])], spacing: BODY })
     if (SUBCLAUSE_RE_D.test(t))
       return new Paragraph({ children: buildRunsD(raw), indent: INDENT, spacing: BODY })
     if (/:\s*$/.test(t) && t.length < 60)
@@ -274,12 +275,9 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
   }
   const doc = new Document({ sections: [{ properties: {}, children }] })
   const blob = await Packer.toBlob(doc)
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
   const base = filename.replace(/\.[^.]+$/, '')
-  a.href = url; a.download = `${base}-updated.docx`; a.click()
-  URL.revokeObjectURL(url)
-  return { applied: appliedCount, appended: appended.length, failed: notFound, renumberWarning }
+  const updatedFilename = `${base}-updated.docx`
+  return { applied: appliedCount, appended: appended.length, failed: notFound, renumberWarning, blob, updatedFilename }
 }
 
 async function downloadAcceptedFixes(risks: Risk[]) {
@@ -432,6 +430,82 @@ function SaveToMatter({ messages, agentId, agentName, token }: { messages: Msg[]
         </div>
       )}
       {toast && <div style={{ position: 'fixed', bottom: 24, right: 24, background: '#0f0f0f', color: '#fff', padding: '10px 18px', borderRadius: 8, fontSize: 13.5, fontWeight: 500, zIndex: 9999, boxShadow: '0 4px 16px rgba(0,0,0,0.25)' }}>{toast}</div>}
+    </div>
+  )
+}
+
+// Uploads the built .docx Blob to private Supabase Storage and persists the
+// path in the matter's savedDocFile — same pattern as contracts/page.tsx.
+function SaveDocToMatterAgent({ blob, docFilename, uid, token, supabase }: {
+  blob: Blob; docFilename: string; uid: string; token: string
+  supabase: ReturnType<typeof import('@supabase/auth-helpers-nextjs').createClientComponentClient>
+}) {
+  const [open, setOpen] = useState(false)
+  const [matters, setMatters] = useState<any[]>([])
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [err, setErr] = useState('')
+
+  function handleOpen() { setMatters(getMatters()); setOpen(true); setSaved(false); setErr('') }
+
+  async function saveToMatter(matterId: string) {
+    setSaving(true); setErr('')
+    try {
+      const path = `${uid}/${matterId}/${Date.now()}-${docFilename}`
+      const { error: upErr } = await supabase.storage.from('matter-documents').upload(path, blob, {
+        contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        upsert: false,
+      })
+      if (upErr) throw new Error(upErr.message)
+      const savedDocFile: SavedDocFile = { name: docFilename, path, size: blob.size, savedAt: new Date().toISOString() }
+      const chat: SavedChat = {
+        id: Date.now().toString(), agentId: 'contracts', agentName: 'Contract Review',
+        title: `Updated contract: ${docFilename}`,
+        messages: [{ role: 'assistant', content: `✅ Updated contract saved.\n\n**File:** ${docFilename}` }],
+        savedAt: new Date().toISOString(), savedDocFile,
+      }
+      const all = getMatters()
+      const updated = all.map((m: any) => m.id === matterId ? { ...m, savedChats: [chat, ...(m.savedChats || [])] } : m)
+      persistMatters(updated)
+      if (token) saveToCloud(token, 'matters', updated)
+      setSaved(true)
+      setTimeout(() => setOpen(false), 900)
+    } catch (e: any) { setErr(e.message || 'Upload failed') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div style={{ position: 'relative', display: 'inline-block' }}>
+      <button onClick={handleOpen} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', border: '1.5px solid rgba(0,0,0,0.15)', borderRadius: 6, background: '#fff', color: '#374151', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        Save to matter
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', bottom: '110%', left: 0, background: '#fff', border: '1px solid #e5e5e5', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', minWidth: 220, zIndex: 100, overflow: 'hidden' }}>
+          {saved ? (
+            <div style={{ padding: '14px 16px', fontSize: 13, color: '#15803d', fontWeight: 600 }}>✓ Saved to matter</div>
+          ) : matters.length === 0 ? (
+            <div style={{ padding: '14px 16px', fontSize: 13, color: '#888' }}>No matters yet. <a href="/dashboard/matters" style={{ color: '#0f0f0f', fontWeight: 600 }}>Create one</a>.</div>
+          ) : (
+            <>
+              <div style={{ padding: '9px 14px 6px', fontSize: 11, fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: 1 }}>Select matter</div>
+              {err && <div style={{ padding: '6px 14px', fontSize: 12, color: '#b91c1c' }}>{err}</div>}
+              {matters.map((m: any) => (
+                <div key={m.id} onClick={() => !saving && saveToMatter(m.id)}
+                  style={{ padding: '9px 14px', fontSize: 13, cursor: saving ? 'not-allowed' : 'pointer', borderTop: '1px solid rgba(0,0,0,0.06)', color: saving ? '#aaa' : '#0f0f0f', opacity: saving ? 0.6 : 1 }}
+                  onMouseEnter={e => { if (!saving) e.currentTarget.style.background = '#f5f5f5' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '' }}>
+                  <div style={{ fontWeight: 600 }}>{m.name}</div>
+                  <div style={{ fontSize: 11, color: '#aaa' }}>{m.type} · {m.status}</div>
+                </div>
+              ))}
+            </>
+          )}
+          <div style={{ padding: '8px 14px', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+            <button onClick={() => setOpen(false)} style={{ fontSize: 12, color: '#aaa', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Cancel</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -714,6 +788,8 @@ export default function AgentsPage() {
   const [agentDocText, setAgentDocText] = useState('')
   const [agentDocName, setAgentDocName] = useState('')
   const [agentDownloadResult, setAgentDownloadResult] = useState<AgentDownloadResult | null>(null)
+  const [agentLastBlob, setAgentLastBlob] = useState<Blob | null>(null)
+  const [agentLastBlobFilename, setAgentLastBlobFilename] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const supabase = createClientComponentClient()
@@ -958,7 +1034,8 @@ export default function AgentsPage() {
                               onClick={async () => {
                                 if (agentDocText) {
                                   const r = await downloadUpdatedContract(agentDocText, risks, agentDocName || 'contract.docx')
-                                  setAgentDownloadResult(r)
+                                  const u = URL.createObjectURL(r.blob); const a = document.createElement('a'); a.href = u; a.download = r.updatedFilename; a.click(); URL.revokeObjectURL(u)
+                                  setAgentLastBlob(r.blob); setAgentLastBlobFilename(r.updatedFilename); setAgentDownloadResult(r)
                                 } else {
                                   downloadAcceptedFixes(risks)
                                 }
@@ -985,7 +1062,10 @@ export default function AgentsPage() {
                           )}
                           <div style={{ display: 'flex', gap: 6 }}>
                             <CopyButton content={m.content} />
-                            <SaveToMatter messages={messages.slice(0, i + 1)} agentId={agentId} agentName={activeAgent.name} token={authToken ?? ''} />
+                            {agentLastBlob
+                              ? <SaveDocToMatterAgent blob={agentLastBlob} docFilename={agentLastBlobFilename} uid={_uid} token={authToken ?? ''} supabase={supabase} />
+                              : <SaveToMatter messages={messages.slice(0, i + 1)} agentId={agentId} agentName={activeAgent.name} token={authToken ?? ''} />
+                            }
                           </div>
                         </div>
                       )

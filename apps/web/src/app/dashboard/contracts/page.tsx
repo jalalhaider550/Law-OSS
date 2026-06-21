@@ -490,10 +490,11 @@ async function buildUpdatedContract(docText: string, risks: Risk[], filename: st
       return new Paragraph({ children: [new TextRun({ text: t.replace(/^\*{1,2}|\*{1,2}$/g, ''), bold: true })], heading: HeadingLevel.HEADING_2, spacing: TIGHT })
     if (TABLE_HDR_RE.test(t))
       return new Paragraph({ children: [new TextRun({ text: t.replace(/^\*{1,2}|\*{1,2}$/g, ''), bold: true })], spacing: BODY })
-    if (SECTION_HDR_RE.test(t))
-      // Use buildRuns so DOCX lines (with ** markers) get inline-bold handling;
-      // PDF/plain lines (no **) fall back to force-bold for the whole line.
-      return new Paragraph({ children: buildRuns(t, !t.includes('**')), spacing: BODY })
+    const sectionMatch = SECTION_HDR_RE.exec(t)
+    if (sectionMatch)
+      // Bold the number prefix only (e.g. "1. "); body text is normal weight.
+      // buildRuns handles any ** inline markers within the body portion.
+      return new Paragraph({ children: [new TextRun({ text: sectionMatch[1], bold: true }), ...buildRuns(sectionMatch[2])], spacing: BODY })
     if (SUBCLAUSE_RE.test(t))
       return new Paragraph({ children: buildRuns(raw), indent: INDENT, spacing: BODY })
     if (/:\s*$/.test(t) && t.length < 60)
@@ -1087,14 +1088,6 @@ Flag 5–20 genuine risks.`
                   <span style={{ color: '#d97706', marginLeft: 10 }}>⚠ Non-standard numbering — new clauses marked [NEW CLAUSE — RENUMBER MANUALLY]</span>
                 )}
               </div>
-            )}
-            {uid && risks.length > 0 && (
-              <AddToMatterButton
-                uid={uid}
-                token={authToken ?? ''}
-                title={`Contract Review: ${filename}`}
-                content={`# Contract Review — ${filename}\n\n${risks.map(r => `## ${r.severity}: ${r.title}\n**Risk:** ${r.risk}\n**Clause:** ${r.clause}\n**Fix:** ${r.fix}\n**Status:** ${r.accepted ? 'Accepted' : r.rejected ? 'Rejected' : 'Pending'}`).join('\n\n')}`}
-              />
             )}
           </div>
 
