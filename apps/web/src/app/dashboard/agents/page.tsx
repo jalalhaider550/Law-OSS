@@ -292,7 +292,7 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
   }
   const children: any[] = []
   for (const line of updated.split('\n')) {
-    if (!line.trim()) { children.push(new Paragraph({ text: '', spacing: GAP })); continue }
+    if (!line.trim()) { children.push(new Paragraph({ text: '', spacing: BODY })); continue }
     children.push(textLine(line))
   }
   const doc = new Document({ sections: [{ properties: {}, children }] })
