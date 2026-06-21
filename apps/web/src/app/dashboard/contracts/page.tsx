@@ -106,7 +106,7 @@ function saveReviews(list: StoredReview[]) {
 // SELLER/BUYER/DATE). Intentionally broader than NUMBERED_ITEM_RE below.
 // NOTE: if you change this regex, check NUMBERED_ITEM_RE for consistency —
 // they serve different purposes and must stay aligned.
-const BOUNDARY_RE = /^(\d+[\.\)]\s|[a-z][\.\)]\s|\([a-z]\)\s|\([ivxlc]+\)\s|[A-Z][A-Z ]{9,})/
+const BOUNDARY_RE = /^(?:\*{1,2})?(\d+[\.\)]\s|[a-z][\.\)]\s|\([a-z]\)\s|\([ivxlc]+\)\s|[A-Z][A-Z ]{9,})/
 
 // NUMBERED_ITEM_RE — detects strictly numeric/alphabetic section starts that
 // mark the transition from pre-body (preamble/recitals) into the document body.
@@ -114,11 +114,11 @@ const BOUNDARY_RE = /^(\d+[\.\)]\s|[a-z][\.\)]\s|\([a-z]\)\s|\([ivxlc]+\)\s|[A-Z
 // can appear before the first numbered clause and are still pre-body content.
 // NOTE: if you change this regex, check BOUNDARY_RE for consistency —
 // they serve different purposes and must stay aligned.
-const NUMBERED_ITEM_RE = /^(\d+[\.\)]\s|[a-z][\.\)]\s|\([a-z]\)\s|\([ivxlc]+\)\s)/
+const NUMBERED_ITEM_RE = /^(?:\*{1,2})?(\d+[\.\)]\s|[a-z][\.\)]\s|\([a-z]\)\s|\([ivxlc]+\)\s)/
 
 // Segments whose content starts with these phrases are never replaced, regardless
 // of match score — protects signature blocks and schedule/exhibit headers.
-const NON_REPLACEABLE_RE = /^(in witness whereof|signature[s]?\s*[:\-]|signed by|executed by|schedule\s+\d|exhibit\s+[a-z\d])/i
+const NON_REPLACEABLE_RE = /^(?:\*{1,2})?(in witness whereof|signature[s]?\s*[:\-]|signed by|executed by|schedule\s+\d|exhibit\s+[a-z\d])/i
 
 function splitIntoSegments(text: string): Array<{ start: number; end: number; content: string; preBody: boolean }> {
   const lines = text.split('\n')
@@ -160,7 +160,7 @@ function buildMergedSegments(
   let i = 0
   while (i < segs.length) {
     const seg = segs[i]
-    if (/^\d+[\.\)]\s+/.test(seg.content.trimStart())) {
+    if (/^(?:\*{1,2})?\d+[\.\)]\s+/.test(seg.content.trimStart())) {
       let j = i + 1
       while (j < segs.length && /^(\([a-z]\)|\([ivxlc]+\)|[a-z][\.\)]\s)/i.test(segs[j].content.trimStart())) {
         j++
@@ -213,7 +213,7 @@ function fuzzyReplace(text: string, clause: string, fix: string): { result: stri
   // strip any leading number the AI may have included in the fix (per CASE 3 prompt) and
   // re-prepend the ORIGINAL section number — preserving the document's numbering scheme.
   const preserveNumPrefix = (segFirstLine: string, fixText: string): string => {
-    const m = /^(\d+[\.\)]\s+)/.exec(segFirstLine.trim())
+    const m = /^(?:\*{1,2})?(\d+[\.\)]\s+)/.exec(segFirstLine.trim())
     if (!m) return fixText
     return m[1] + fixText.trimStart().replace(/^\d+[\.\)]\s+/, '')
   }
@@ -295,13 +295,13 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
   let renumberWarning = false
   if (appended.length > 0) {
     const lines = updated.split('\n')
-    const numericSectionRe = /^\d+[\.\)]\s+[A-Z]/
+    const numericSectionRe = /^(?:\*{1,2})?\d+[\.\)]\s+[A-Z]/
     const hasNumericSections = lines.some(l => numericSectionRe.test(l.trim()))
 
     let maxSection = 0
     if (hasNumericSections) {
       for (const line of lines) {
-        const m = /^(\d+)[\.\)]\s+[A-Z]/.exec(line.trim())
+        const m = /^(?:\*{1,2})?(\d+)[\.\)]\s+[A-Z]/.exec(line.trim())
         if (m) maxSection = Math.max(maxSection, parseInt(m[1]))
       }
     }
@@ -310,7 +310,7 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
     // Covers: "IN WITNESS WHEREOF", "SIGNATURE PAGE", "SIGNATURES", "SIGNATURE BLOCK",
     // "SIGNED BY", "EXECUTED BY", "EXECUTION", "EXECUTION PAGE", "ATTESTATION",
     // "[SIGNATURE PAGE FOLLOWS]", and standalone lines of 3+ underscores (blank sig lines).
-    const sigRe = /^(in witness whereof|signature[s]?(\s+(page|block))?|signed by|executed by|execution(\s+page)?|attestation|\[signature[^\]]*\]|_{3,})/i
+    const sigRe = /^(?:\*{1,2})?(in witness whereof|signature[s]?(\s+(page|block))?|signed by|executed by|execution(\s+page)?|attestation|\[signature[^\]]*\]|_{3,})/i
     let insertIdx = lines.length
     for (let i = 0; i < lines.length; i++) {
       if (sigRe.test(lines[i].trim())) { insertIdx = i; break }
@@ -351,12 +351,12 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
   const GAP    = { before: 0, after: 160 }  // blank-line separator
   const INDENT = { left: 720 }              // 0.5 inch for sub-clauses
 
-  const SECTION_HDR_RE = /^(\d+[\.\)]\s)(.+)/
+  const SECTION_HDR_RE = /^(?:\*{1,2})?(\d+[\.\)]\s)(.+)/
   const SUBCLAUSE_RE   = /^(\([a-z]\)|\([ivxlc]+\)|[a-z][\.\)]\s)/i
-  const ALLCAPS_HDR_RE = /^[A-Z][A-Z ]{9,}$/
+  const ALLCAPS_HDR_RE = /^(?:\*{1,2})?[A-Z][A-Z ]{9,}(?:\*{1,2})?$/
   // Tightened to known party/role words only — avoids bolding arbitrary short
   // all-caps text like "AND", "OR", "WHEREAS" from poorly-converted table cells.
-  const TABLE_HDR_RE   = /^(SELLER|BUYER|PARTY|PARTIES|DATE|NAME|SIGNATURE|WITNESS|GRANTOR|GRANTEE|VENDOR|PURCHASER|LESSOR|LESSEE|LICENSOR|LICENSEE|BORROWER|LENDER)$/
+  const TABLE_HDR_RE   = /^(?:\*{1,2})?(SELLER|BUYER|PARTY|PARTIES|DATE|NAME|SIGNATURE|WITNESS|GRANTOR|GRANTEE|VENDOR|PURCHASER|LESSOR|LESSEE|LICENSOR|LICENSEE|BORROWER|LENDER)(?:\*{1,2})?$/
 
   function buildRuns(raw: string, forceBold = false): any[] {
     const parts: any[] = []; const boldRe = /\*\*(.+?)\*\*/g
