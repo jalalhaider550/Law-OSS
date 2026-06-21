@@ -5,6 +5,12 @@
     "lib": ["ES2020"],
     "outDir": "./dist",
     "rootDir": "./src",
+    "baseUrl": ".",
+    "paths": {
+      "@law-oss/db":    ["vendor/db/dist/index"],
+      "@law-oss/ai":    ["vendor/ai/dist/index"],
+      "@law-oss/types": ["vendor/types/dist/index"]
+    },
     "strict": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
