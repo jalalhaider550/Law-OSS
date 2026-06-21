@@ -1,6 +1,6 @@
 [build]
 builder = "nixpacks"
-buildCommand = "echo '--- vendor/db ---' && ls -la vendor/db/ && echo '--- vendor/db/dist ---' && ls -la vendor/db/dist/ 2>/dev/null || echo 'dist/ MISSING' && echo '--- node_modules/@law-oss ---' && ls -la node_modules/@law-oss/ 2>/dev/null || echo '@law-oss MISSING' && npm install && npx prisma generate --schema=vendor/db/prisma/schema.prisma && npm run build"
+buildCommand = "npm install && npx prisma generate --schema=vendor/db/prisma/schema.prisma && npm run build"
 
 [deploy]
 startCommand = "npm start"
