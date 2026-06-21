@@ -234,8 +234,7 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
   // Intermediate formatting fix — docx@9 is write-only, true surgical XML
   // preservation is future work. Reapplies common contract formatting patterns.
   const TIGHT  = { before: 0, after: 0   }
-  const BODY   = { before: 0, after: 80  }
-  const GAP    = { before: 0, after: 160 }
+  const BODY   = { before: 0, after: 120 }  // 6pt after each paragraph (blank-line paragraphs removed)
   const INDENT = { left: 720 }
   const SECTION_HDR_RE_D = /^(\d+(?:\.\d+)*[\.\)]\s)(.+)/
   const SUBCLAUSE_RE_D   = /^(\([a-z]\)|\([ivxlc]+\)|[a-z][\.\)]\s)/i
@@ -269,7 +268,7 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
         while (si < t.length && t[si] === '*') si++
         let bodySlice = t.slice(si)
         if ((bodySlice.match(/\*\*/g) || []).length % 2 !== 0) bodySlice = bodySlice.replace(/\*\*(?=[^*]*$)/, '')
-        return new Paragraph({ children: [new TextRun({ text: plain.slice(0, tl).trimEnd(), bold: true }), ...buildRunsD(bodySlice, false)], spacing: BODY })
+        return new Paragraph({ children: [new TextRun({ text: plain.slice(0, tl).trimEnd(), bold: true }), new TextRun({ text: ' ' }), ...buildRunsD(bodySlice, false)], spacing: BODY })
       }
       return new Paragraph({ children: buildRunsD(t, !t.includes('**')), spacing: BODY })
     }
@@ -283,7 +282,7 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
         while (si < t.length && t[si] === '*') si++
         let bodySlice = t.slice(si)
         if ((bodySlice.match(/\*\*/g) || []).length % 2 !== 0) bodySlice = bodySlice.replace(/\*\*(?=[^*]*$)/, '')
-        return new Paragraph({ children: [new TextRun({ text: plain.slice(0, tl).trimEnd(), bold: true }), ...buildRunsD(bodySlice, false)], indent: INDENT, spacing: BODY })
+        return new Paragraph({ children: [new TextRun({ text: plain.slice(0, tl).trimEnd(), bold: true }), new TextRun({ text: ' ' }), ...buildRunsD(bodySlice, false)], indent: INDENT, spacing: BODY })
       }
       return new Paragraph({ children: buildRunsD(raw), indent: INDENT, spacing: BODY })
     }
@@ -589,7 +588,9 @@ async function extractTextFromFile(file: File): Promise<string> {
   }
   if (name.endsWith('.pdf') || file.type === 'application/pdf') {
     const pdfjsLib = await import('pdfjs-dist')
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs'
+    // Derive worker URL from the actual bundled version to prevent API/Worker mismatch
+    const pdfjsVersion = pdfjsLib.version ?? '4.10.38'
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsVersion}/pdf.worker.min.mjs`
     const ab = await file.arrayBuffer()
     const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(ab) }).promise
     let text = ''
