@@ -1,0 +1,182 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String    @id @default(uuid())
+  email              String    @unique
+  fullName           String?   @map("full_name")
+  avatarUrl          String?   @map("avatar_url")
+  onboardingComplete Boolean   @default(false) @map("onboarding_complete")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  apiKey           ApiKey?
+  contracts        Contract[]
+  tabularReviews   TabularReview[]
+  generatedDocs    GeneratedDocument[]
+  matters          Matter[]
+  researchSessions ResearchSession[]
+  agentSessions    AgentSession[]
+  timeEntries      TimeEntry[]
+
+  @@map("users")
+}
+
+model ApiKey {
+  id           String    @id @default(uuid())
+  userId       String    @unique @map("user_id")
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider     String    @default("anthropic")
+  encryptedKey String    @map("encrypted_key")
+  keyPreview   String    @map("key_preview")
+  verifiedAt   DateTime? @map("verified_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("api_keys")
+}
+
+model Matter {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  type        String
+  status      String    @default("active")
+  court       String?
+  attorney    String?
+  value       Decimal?  @db.Decimal(12, 2)
+  currency    String    @default("USD")
+  dueDate     DateTime? @map("due_date")
+  notes       String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  contracts   Contract[]
+  timeEntries TimeEntry[]
+  documents   MatterDocument[]
+
+  @@map("matters")
+}
+
+model Contract {
+  id                   String   @id @default(uuid())
+  userId               String   @map("user_id")
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  matterId             String?  @map("matter_id")
+  matter               Matter?  @relation(fields: [matterId], references: [id])
+  filename             String
+  storageUrl           String   @map("storage_url")
+  fileSize             Int?     @map("file_size")
+  detectedType         String?  @map("detected_type")
+  detectedGoverningLaw String?  @map("detected_governing_law")
+  detectedParties      Json?    @map("detected_parties")
+  analysisJson         Json?    @map("analysis_json")
+  riskScore            Int?     @map("risk_score")
+  status               String   @default("pending")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@map("contracts")
+}
+
+model TabularReview {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  contractIds String[] @map("contract_ids")
+  fieldsJson  Json?    @map("fields_json")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("tabular_reviews")
+}
+
+model GeneratedDocument {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  storagePath  String   @map("storage_path")
+  filename     String
+  documentType String?  @map("document_type")
+  documentJson Json?    @map("document_json")
+  expiresAt    DateTime @map("expires_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("generated_documents")
+}
+
+model CaseCache {
+  id           String   @id @default(uuid())
+  queryHash    String   @unique @map("query_hash")
+  source       String
+  jurisdiction String?
+  resultsJson  Json     @map("results_json")
+  fetchedAt    DateTime @default(now()) @map("fetched_at")
+  expiresAt    DateTime @map("expires_at")
+
+  @@map("case_cache")
+}
+
+model ResearchSession {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  query        String
+  jurisdiction String?
+  results      Json?
+  aiAnalysis   String?  @map("ai_analysis")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("research_sessions")
+}
+
+model AgentSession {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agentId   String   @map("agent_id")
+  messages  Json     @default("[]")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("agent_sessions")
+}
+
+model TimeEntry {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  matterId    String?  @map("matter_id")
+  matter      Matter?  @relation(fields: [matterId], references: [id])
+  description String
+  hours       Decimal  @db.Decimal(5, 2)
+  rate        Decimal? @db.Decimal(8, 2)
+  currency    String   @default("USD")
+  date        DateTime
+  status      String   @default("draft")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("time_entries")
+}
+
+model MatterDocument {
+  id         String   @id @default(uuid())
+  matterId   String   @map("matter_id")
+  matter     Matter   @relation(fields: [matterId], references: [id], onDelete: Cascade)
+  filename   String
+  storageUrl String   @map("storage_url")
+  fileSize   Int?     @map("file_size")
+  mimeType   String?  @map("mime_type")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("matter_documents")
+}

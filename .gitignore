@@ -11,7 +11,10 @@ coverage/
 .claude-flow/
 **/.claude-flow/
 .buildinfo
-apps/api/vendor/
+apps/api/vendor/**/node_modules/
+apps/api/vendor/**/.prisma/
+# vendor dist/ files ARE committed (needed for Railway build)
+!apps/api/vendor/**/dist/
 .vercel
 *.zip
 *.save
