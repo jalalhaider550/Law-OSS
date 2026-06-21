@@ -62,11 +62,13 @@ function AgentRiskCard({ risk, onAccept, onReject }: { risk: Risk; onAccept: () 
 }
 
 // BOUNDARY_RE — segment splitting. See contracts/page.tsx for full commentary.
+// \d+(?:\.\d+)* matches flat (9.) AND decimal multi-level (9.4 / 9.4.1 / 21.9).
 // NOTE: if you change this, check NUMBERED_ITEM_RE below for consistency.
-const BOUNDARY_RE_A = /^(\d+[\.\)]\s|[a-z][\.\)]\s|\([a-z]\)\s|\([ivxlc]+\)\s|[A-Z][A-Z ]{9,})/
+const BOUNDARY_RE_A = /^(\d+(?:\.\d+)*[\.\)]\s|[a-z][\.\)]\s|\([a-z]\)\s|\([ivxlc]+\)\s|[A-Z][A-Z ]{9,})/
 // NUMBERED_ITEM_RE — pre-body detection only (not segment splitting).
+// \d+(?:\.\d+)* matches flat (9.) AND decimal multi-level (9.4 / 9.4.1 / 21.9).
 // NOTE: if you change this, check BOUNDARY_RE_A above for consistency.
-const NUMBERED_ITEM_RE_A = /^(\d+[\.\)]\s|[a-z][\.\)]\s|\([a-z]\)\s|\([ivxlc]+\)\s)/
+const NUMBERED_ITEM_RE_A = /^(\d+(?:\.\d+)*[\.\)]\s|[a-z][\.\)]\s|\([a-z]\)\s|\([ivxlc]+\)\s)/
 const NON_REPLACEABLE_RE_A = /^(in witness whereof|signature[s]?\s*[:\-]|signed by|executed by|schedule\s+\d|exhibit\s+[a-z\d])/i
 
 function splitSegments(text: string): Array<{ start: number; end: number; content: string; preBody: boolean }> {
@@ -94,7 +96,7 @@ function buildMergedSegments(
   let i = 0
   while (i < segs.length) {
     const seg = segs[i]
-    if (/^\d+[\.\)]\s+/.test(seg.content.trimStart())) {
+    if (/^\d+(?:\.\d+)*[\.\)]\s+/.test(seg.content.trimStart())) {
       let j = i + 1
       while (j < segs.length && /^(\([a-z]\)|\([ivxlc]+\)|[a-z][\.\)]\s)/i.test(segs[j].content.trimStart())) {
         j++
@@ -141,13 +143,14 @@ type AgentDownloadResult = { applied: number; appended: number; failed: Risk[]; 
 
 function fuzzyReplace(text: string, clause: string, fix: string): { result: string; matched: boolean } {
   const preserveNumPrefix = (segFirstLine: string, fixText: string): string => {
-    const m = /^(\d+[\.\)]\s+)/.exec(segFirstLine.trim())
+    // Captures flat (9. ) AND decimal (9.4 / 9.4.1 ) prefixes
+    const m = /^(\d+(?:\.\d+)*[\.\)]\s+)/.exec(segFirstLine.trim())
     if (!m) return fixText
-    return m[1] + fixText.trimStart().replace(/^\d+[\.\)]\s+/, '')
+    return m[1] + fixText.trimStart().replace(/^\d+(?:\.\d+)*[\.\)]\s+/, '')
   }
   // Skip exact-match fast path for numeric-section-header clauses — route through merged
   // segment scoring so the full section (header + sub-clauses) is replaced atomically.
-  const clauseIsNumericSection = /^\d+[\.\)]\s+/.test(clause.trim())
+  const clauseIsNumericSection = /^\d+(?:\.\d+)*[\.\)]\s+/.test(clause.trim())
   if (!clauseIsNumericSection && text.includes(clause)) {
     return { result: text.replace(clause, fix), matched: true }
   }
@@ -196,9 +199,13 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
   let renumberWarning = false
   if (appended.length > 0) {
     const lines = updated.split('\n')
-    const hasNumeric = lines.some(l => /^\d+[\.\)]\s+[A-Z]/.test(l.trim()))
+    // Matches flat (9. TITLE) AND decimal (9.4 TITLE / 21.9 TITLE) section starts
+    const hasNumeric = lines.some(l => /^\d+(?:\.\d+)*[\.\)]\s+[A-Z]/.test(l.trim()))
+    // Detect decimal multi-level numbering — auto-increment is ambiguous for these
+    const hasDecimalNumbering = lines.some(l => /^\d+\.\d+[\.\)]\s+[A-Z]/i.test(l.trim()))
     let maxSection = 0
-    if (hasNumeric) {
+    if (hasNumeric && !hasDecimalNumbering) {
+      // Only scan for maxSection when numbering is flat (9.) — safe to auto-increment
       for (const l of lines) { const m = /^(\d+)[\.\)]\s+[A-Z]/.exec(l.trim()); if (m) maxSection = Math.max(maxSection, parseInt(m[1])) }
     }
     // Covers: "IN WITNESS WHEREOF", "SIGNATURE PAGE", "SIGNATURES", "SIGNATURE BLOCK",
@@ -209,11 +216,16 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
     for (let i = 0; i < lines.length; i++) { if (sigRe.test(lines[i].trim())) { insertIdx = i; break } }
     const newLines: string[] = ['']
     for (const r of appended) {
-      if (hasNumeric) {
+      if (hasNumeric && !hasDecimalNumbering) {
+        // Flat numbering (9.) — safe to auto-increment
         maxSection++
         const ft = r.fix.trimStart()
-        newLines.push(/^\d+[\.\)]\s/.test(ft) ? ft : `${maxSection}. ${ft}`)
-      } else { newLines.push('[NEW CLAUSE — RENUMBER MANUALLY]'); newLines.push(r.fix.trimStart()); renumberWarning = true }
+        const alreadyNumbered = /^\d+(?:\.\d+)*[\.\)]\s/.test(ft)
+        newLines.push(alreadyNumbered ? ft : `${maxSection}. ${ft}`)
+      } else {
+        // Decimal numbering (9.4) or non-numeric — auto-increment is ambiguous, use marker
+        newLines.push('[NEW CLAUSE — RENUMBER MANUALLY]'); newLines.push(r.fix.trimStart()); renumberWarning = true
+      }
       newLines.push('')
     }
     updated = [...lines.slice(0, insertIdx), ...newLines, ...lines.slice(insertIdx)].join('\n')
@@ -225,7 +237,7 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
   const BODY   = { before: 0, after: 80  }
   const GAP    = { before: 0, after: 160 }
   const INDENT = { left: 720 }
-  const SECTION_HDR_RE_D = /^(\d+[\.\)]\s)(.+)/
+  const SECTION_HDR_RE_D = /^(\d+(?:\.\d+)*[\.\)]\s)(.+)/
   const SUBCLAUSE_RE_D   = /^(\([a-z]\)|\([ivxlc]+\)|[a-z][\.\)]\s)/i
   const ALLCAPS_HDR_RE_D = /^[A-Z][A-Z ]{9,}$/
   const TABLE_HDR_RE_D   = /^(SELLER|BUYER|PARTY|PARTIES|DATE|NAME|SIGNATURE|WITNESS|GRANTOR|GRANTEE|VENDOR|PURCHASER|LESSOR|LESSEE|LICENSOR|LICENSEE|BORROWER|LENDER)$/
@@ -319,7 +331,8 @@ function tryParseRisks(text: string): Risk[] | null {
   } catch { return null }
 }
 type ClioMatter = { id: string; display_number: string; description: string; status: string; client_name: string }
-type SavedChat = { id: string; agentId: string; agentName: string; title: string; messages: Msg[]; savedAt: string }
+type SavedDocFile = { name: string; url: string; size: number; savedAt: string }
+type SavedChat = { id: string; agentId: string; agentName: string; title: string; messages: Msg[]; savedAt: string; savedDocFile?: SavedDocFile }
 type Matter = { id: string; matterNumber?: number; name: string; type: string; status: string; court?: string; attorney?: string; dueDate?: string; notes?: string; savedChats: SavedChat[] }
 
 let _uid = ''

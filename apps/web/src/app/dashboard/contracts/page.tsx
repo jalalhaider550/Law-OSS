@@ -69,6 +69,98 @@ function AddToMatterButton({ content, title, uid, token }: { content: string; ti
   )
 }
 
+// ── Save updated contract doc to matter ───────────────────────────────────────
+// Uploads the .docx Blob to Supabase Storage (matter-documents bucket) and
+// persists the URL in the matter's savedChat so it's accessible from any device.
+type SavedDocFile = { name: string; url: string; size: number; savedAt: string }
+
+function SaveDocToMatter({ blob, docFilename, uid, token, supabase }: {
+  blob: Blob; docFilename: string; uid: string; token: string; supabase: ReturnType<typeof import('@supabase/auth-helpers-nextjs').createClientComponentClient>
+}) {
+  const [open, setOpen] = useState(false)
+  const [matters, setMatters] = useState<any[]>([])
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [err, setErr] = useState('')
+
+  function loadMatters() {
+    try { return JSON.parse(localStorage.getItem(`law_oss_matters_${uid}`) || '[]') } catch { return [] }
+  }
+  function saveMatters(m: any[]) {
+    localStorage.setItem(`law_oss_matters_${uid}`, JSON.stringify(m))
+    if (token) saveToCloud(token, 'matters', m)
+  }
+
+  function handleOpen() { setMatters(loadMatters()); setOpen(true); setSaved(false); setErr('') }
+
+  async function saveToMatter(matterId: string, matterName: string) {
+    setSaving(true); setErr('')
+    try {
+      const path = `${uid}/${matterId}/${Date.now()}-${docFilename}`
+      const { error: upErr } = await supabase.storage.from('matter-documents').upload(path, blob, {
+        contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        upsert: false,
+      })
+      if (upErr) throw new Error(upErr.message)
+      const { data: { publicUrl } } = supabase.storage.from('matter-documents').getPublicUrl(path)
+      const savedDocFile: SavedDocFile = { name: docFilename, url: publicUrl, size: blob.size, savedAt: new Date().toISOString() }
+      const chat = {
+        id: Date.now().toString(),
+        agentId: 'contracts',
+        agentName: 'Contract Review',
+        title: `Updated contract: ${docFilename}`,
+        messages: [{ role: 'assistant', content: `✅ Updated contract saved.\n\n**File:** ${docFilename}` }],
+        savedAt: new Date().toISOString(),
+        savedDocFile,
+      }
+      const all = loadMatters()
+      const updated = all.map((m: any) => m.id === matterId ? { ...m, savedChats: [chat, ...(m.savedChats || [])] } : m)
+      saveMatters(updated)
+      setSaved(true)
+      setTimeout(() => setOpen(false), 900)
+    } catch (e: any) {
+      setErr(e.message || 'Upload failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div style={{ position: 'relative', display: 'inline-block' }}>
+      <button onClick={handleOpen} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 13px', border: '1.5px solid rgba(0,0,0,0.15)', borderRadius: 7, background: '#fff', color: '#0f0f0f', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        Save to matter
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', top: '110%', right: 0, zIndex: 200, background: '#fff', border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.13)', minWidth: 220, overflow: 'hidden' }}>
+          {saved ? (
+            <div style={{ padding: '14px 16px', fontSize: 13, color: '#15803d', fontWeight: 600 }}>✓ Saved to matter</div>
+          ) : matters.length === 0 ? (
+            <div style={{ padding: '14px 16px', fontSize: 13, color: '#888' }}>No matters yet. <a href="/dashboard/matters" style={{ color: '#0f0f0f', fontWeight: 600 }}>Create one</a>.</div>
+          ) : (
+            <>
+              <div style={{ padding: '9px 14px 6px', fontSize: 11, fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: 1 }}>Select matter</div>
+              {err && <div style={{ padding: '6px 14px', fontSize: 12, color: '#b91c1c' }}>{err}</div>}
+              {matters.map((m: any) => (
+                <div key={m.id} onClick={() => !saving && saveToMatter(m.id, m.name)}
+                  style={{ padding: '9px 14px', fontSize: 13, cursor: saving ? 'not-allowed' : 'pointer', borderTop: '1px solid rgba(0,0,0,0.06)', color: saving ? '#aaa' : '#0f0f0f', opacity: saving ? 0.6 : 1 }}
+                  onMouseEnter={e => { if (!saving) e.currentTarget.style.background = '#f5f5f5' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '' }}>
+                  <div style={{ fontWeight: 600 }}>{m.name}</div>
+                  <div style={{ fontSize: 11, color: '#aaa' }}>{m.type} · {m.status}</div>
+                </div>
+              ))}
+            </>
+          )}
+          <div style={{ padding: '8px 14px', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+            <button onClick={() => setOpen(false)} style={{ fontSize: 12, color: '#aaa', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Cancel</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 type Risk = {
   title: string
   severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
@@ -627,6 +719,8 @@ export default function ContractsPage() {
   const [docText, setDocText] = useState('')
   const [pdfDebugText, setPdfDebugText] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [lastBlob, setLastBlob] = useState<Blob | null>(null)
+  const [lastBlobFilename, setLastBlobFilename] = useState('')
   const [showHistory, setShowHistory] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [uid, setUidState] = useState('')
@@ -966,7 +1060,7 @@ Flag 5–20 genuine risks.`
             </div>
             {accepted > 0 && docText && (
               <button
-                onClick={async () => { setGenerating(true); const r = await buildUpdatedContract(docText, risks, filename); const u = URL.createObjectURL(r.blob); const a = document.createElement('a'); a.href = u; a.download = r.updatedFilename; a.click(); URL.revokeObjectURL(u); setDownloadResult(r); setGenerating(false) }}
+                onClick={async () => { setGenerating(true); const r = await buildUpdatedContract(docText, risks, filename); const u = URL.createObjectURL(r.blob); const a = document.createElement('a'); a.href = u; a.download = r.updatedFilename; a.click(); URL.revokeObjectURL(u); setLastBlob(r.blob); setLastBlobFilename(r.updatedFilename); setDownloadResult(r); setGenerating(false) }}
                 disabled={generating}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', border: 'none', borderRadius: 8, background: generating ? '#e5e5e5' : '#0f0f0f', color: generating ? '#999' : '#fff', fontSize: 12.5, fontWeight: 600, cursor: generating ? 'not-allowed' : 'pointer' }}
               >
@@ -977,6 +1071,9 @@ Flag 5–20 genuine risks.`
                 )}
                 {generating ? 'Generating...' : `Download updated contract (${accepted} fix${accepted > 1 ? 'es' : ''})`}
               </button>
+            )}
+            {lastBlob && uid && (
+              <SaveDocToMatter blob={lastBlob} docFilename={lastBlobFilename} uid={uid} token={authToken ?? ''} supabase={supabase} />
             )}
             {downloadResult && !generating && (
               <div style={{ fontSize: 12, lineHeight: 1.7, marginTop: 2 }}>
@@ -1020,13 +1117,16 @@ Flag 5–20 genuine risks.`
               <div style={{ display: 'flex', gap: 8 }}>
                 {accepted > 0 && docText && (
                   <button
-                    onClick={async () => { setGenerating(true); const r = await buildUpdatedContract(docText, risks, filename); const u = URL.createObjectURL(r.blob); const a = document.createElement('a'); a.href = u; a.download = r.updatedFilename; a.click(); URL.revokeObjectURL(u); setDownloadResult(r); setGenerating(false) }}
+                    onClick={async () => { setGenerating(true); const r = await buildUpdatedContract(docText, risks, filename); const u = URL.createObjectURL(r.blob); const a = document.createElement('a'); a.href = u; a.download = r.updatedFilename; a.click(); URL.revokeObjectURL(u); setLastBlob(r.blob); setLastBlobFilename(r.updatedFilename); setDownloadResult(r); setGenerating(false) }}
                     disabled={generating}
                     style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px', border: 'none', borderRadius: 8, background: '#16a34a', color: '#fff', fontSize: 13, fontWeight: 600, cursor: generating ? 'not-allowed' : 'pointer' }}
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                     {generating ? 'Generating...' : 'Download updated contract'}
                   </button>
+                )}
+                {lastBlob && uid && (
+                  <SaveDocToMatter blob={lastBlob} docFilename={lastBlobFilename} uid={uid} token={authToken ?? ''} supabase={supabase} />
                 )}
                 <button
                   onClick={() => fileRef.current?.click()}

@@ -117,7 +117,8 @@ function userKey(base: string) { return `${base}_${_uid || _tabId}` }
 const LS_KEY = 'law_oss_matters'
 
 type Msg = { role: 'user' | 'assistant'; content: string }
-type SavedChat = { id: string; agentId: string; agentName: string; title: string; messages: Msg[]; savedAt: string }
+type SavedDocFile = { name: string; url: string; size: number; savedAt: string }
+type SavedChat = { id: string; agentId: string; agentName: string; title: string; messages: Msg[]; savedAt: string; savedDocFile?: SavedDocFile }
 type Matter = { id: string; matterNumber?: number; name: string; type: string; status: 'active' | 'pending' | 'closed'; court?: string; attorney?: string; dueDate?: string; notes?: string; savedChats: SavedChat[] }
 
 function loadMatters(): Matter[] {
@@ -221,6 +222,20 @@ function ContinueChatModal({ chat, onClose, onSave }: { chat: SavedChat; onClose
 
         {/* Messages */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {/* Saved document attachment — persisted cross-device via Supabase Storage */}
+          {chat.savedDocFile && (
+            <a href={chat.savedDocFile.url} download={chat.savedDocFile.name} target="_blank" rel="noopener noreferrer"
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: 9, textDecoration: 'none', color: '#15803d', flexShrink: 0 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chat.savedDocFile.name}</div>
+                <div style={{ fontSize: 11, color: '#166534', marginTop: 1 }}>
+                  Updated contract · {(chat.savedDocFile.size / 1024).toFixed(0)} KB · saved {new Date(chat.savedDocFile.savedAt).toLocaleDateString()}
+                </div>
+              </div>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </a>
+          )}
           {error && <div style={{ padding: '8px 12px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 7, fontSize: 13, color: '#b91c1c' }}>{error}</div>}
           {messages.map((m, i) => (
             <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
@@ -344,7 +359,14 @@ Do not use emojis, decorative symbols, or coloured text. Use plain professional 
                   ) : (
                     <div style={{ fontSize: 12.5, fontWeight: 500, color: '#0f0f0f', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 2 }}>{chat.title}</div>
                   )}
-                  <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 6 }}>{chat.agentName} · {new Date(chat.savedAt).toLocaleDateString()}</div>
+                  <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: chat.savedDocFile ? 4 : 6 }}>{chat.agentName} · {new Date(chat.savedAt).toLocaleDateString()}</div>
+                  {chat.savedDocFile && (
+                    <a href={chat.savedDocFile.url} download={chat.savedDocFile.name} target="_blank" rel="noopener noreferrer"
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 6, textDecoration: 'none', color: '#15803d', fontSize: 11, fontWeight: 600, marginBottom: 6, overflow: 'hidden' }}>
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chat.savedDocFile.name}</span>
+                    </a>
+                  )}
                   <div style={{ display: 'flex', gap: 4 }}>
                     <button onClick={() => setContinueChat(chat)} style={{ flex: 1, padding: '3px 0', background: '#0f0f0f', color: '#fff', border: 'none', borderRadius: 5, fontSize: 11.5, fontWeight: 600, cursor: 'pointer' }}>Continue</button>
                     <button onClick={() => { setEditingChatId(chat.id); setEditTitle(chat.title) }} style={{ padding: '3px 8px', background: '#fff', border: '1px solid #d1d5db', borderRadius: 5, fontSize: 11.5, color: '#555', cursor: 'pointer' }}>Rename</button>
