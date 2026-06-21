@@ -490,13 +490,40 @@ async function buildUpdatedContract(docText: string, risks: Risk[], filename: st
       return new Paragraph({ children: [new TextRun({ text: t.replace(/^\*{1,2}|\*{1,2}$/g, ''), bold: true })], heading: HeadingLevel.HEADING_2, spacing: TIGHT })
     if (TABLE_HDR_RE.test(t))
       return new Paragraph({ children: [new TextRun({ text: t.replace(/^\*{1,2}|\*{1,2}$/g, ''), bold: true })], spacing: BODY })
-    const sectionMatch = SECTION_HDR_RE.exec(t)
-    if (sectionMatch)
-      // Bold the number prefix only (e.g. "1. "); body text is normal weight.
-      // buildRuns handles any ** inline markers within the body portion.
-      return new Paragraph({ children: [new TextRun({ text: sectionMatch[1], bold: true }), ...buildRuns(sectionMatch[2])], spacing: BODY })
-    if (SUBCLAUSE_RE.test(t))
+    if (SECTION_HDR_RE.test(t)) {
+      // Strip ** to get plain text, find title boundary (number + ALL-CAPS/Title-Case phrase ending in "."),
+      // then walk t (with ** markers) to the same split point, skipping marker chars.
+      const plain = t.replace(/\*{1,2}/g, '')
+      const hm = /^(\d+(?:\.\d+)*[\.\)]\s+[A-Z][^\n.]{2,60}?\.\s+)(\S.*)$/.exec(plain)
+      if (hm) {
+        const tl = hm[1].length
+        let pc = 0, si = 0
+        for (let i = 0; i < t.length; i++) { if (t[i] !== '*') { pc++; if (pc === tl) { si = i + 1; break } } }
+        while (si < t.length && t[si] === '*') si++
+        let bodySlice = t.slice(si)
+        // Orphan guard: whole-clause bold (** closes at end of line, not after title) leaves
+        // an unpaired closing ** in bodySlice. Strip it so no literal ** appears in output.
+        if ((bodySlice.match(/\*\*/g) || []).length % 2 !== 0) bodySlice = bodySlice.replace(/\*\*(?=[^*]*$)/, '')
+        return new Paragraph({ children: [new TextRun({ text: plain.slice(0, tl).trimEnd(), bold: true }), ...buildRuns(bodySlice, false)], spacing: BODY })
+      }
+      // No title found: force-bold for PDF (no **) or inline ** handling for DOCX
+      return new Paragraph({ children: buildRuns(t, !t.includes('**')), spacing: BODY })
+    }
+    if (SUBCLAUSE_RE.test(t)) {
+      // Detect sub-clause mini-header: "(a) Title Phrase. Body text" → bold label+title, normal body
+      const plain = t.replace(/\*{1,2}/g, '')
+      const sm = /^((?:\([a-z]+\)|[a-z][\.\)])\s+[A-Z][^\n.]{2,50}?\.\s+)(\S.*)$/i.exec(plain)
+      if (sm) {
+        const tl = sm[1].length
+        let pc = 0, si = 0
+        for (let i = 0; i < t.length; i++) { if (t[i] !== '*') { pc++; if (pc === tl) { si = i + 1; break } } }
+        while (si < t.length && t[si] === '*') si++
+        let bodySlice = t.slice(si)
+        if ((bodySlice.match(/\*\*/g) || []).length % 2 !== 0) bodySlice = bodySlice.replace(/\*\*(?=[^*]*$)/, '')
+        return new Paragraph({ children: [new TextRun({ text: plain.slice(0, tl).trimEnd(), bold: true }), ...buildRuns(bodySlice, false)], indent: INDENT, spacing: BODY })
+      }
       return new Paragraph({ children: buildRuns(raw), indent: INDENT, spacing: BODY })
+    }
     if (/:\s*$/.test(t) && t.length < 60)
       return new Paragraph({ children: [new TextRun({ text: t, bold: true })], spacing: BODY })
     return new Paragraph({ children: buildRuns(raw), spacing: BODY })

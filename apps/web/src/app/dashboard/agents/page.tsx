@@ -259,11 +259,34 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
       return new Paragraph({ children: [new TextRun({ text: t, bold: true })], heading: HeadingLevel.HEADING_2, spacing: TIGHT })
     if (TABLE_HDR_RE_D.test(t))
       return new Paragraph({ children: [new TextRun({ text: t, bold: true })], spacing: BODY })
-    const sectionMatchD = SECTION_HDR_RE_D.exec(t)
-    if (sectionMatchD)
-      return new Paragraph({ children: [new TextRun({ text: sectionMatchD[1], bold: true }), ...buildRunsD(sectionMatchD[2])], spacing: BODY })
-    if (SUBCLAUSE_RE_D.test(t))
+    if (SECTION_HDR_RE_D.test(t)) {
+      const plain = t.replace(/\*{1,2}/g, '')
+      const hm = /^(\d+(?:\.\d+)*[\.\)]\s+[A-Z][^\n.]{2,60}?\.\s+)(\S.*)$/.exec(plain)
+      if (hm) {
+        const tl = hm[1].length
+        let pc = 0, si = 0
+        for (let i = 0; i < t.length; i++) { if (t[i] !== '*') { pc++; if (pc === tl) { si = i + 1; break } } }
+        while (si < t.length && t[si] === '*') si++
+        let bodySlice = t.slice(si)
+        if ((bodySlice.match(/\*\*/g) || []).length % 2 !== 0) bodySlice = bodySlice.replace(/\*\*(?=[^*]*$)/, '')
+        return new Paragraph({ children: [new TextRun({ text: plain.slice(0, tl).trimEnd(), bold: true }), ...buildRunsD(bodySlice, false)], spacing: BODY })
+      }
+      return new Paragraph({ children: buildRunsD(t, !t.includes('**')), spacing: BODY })
+    }
+    if (SUBCLAUSE_RE_D.test(t)) {
+      const plain = t.replace(/\*{1,2}/g, '')
+      const sm = /^((?:\([a-z]+\)|[a-z][\.\)])\s+[A-Z][^\n.]{2,50}?\.\s+)(\S.*)$/i.exec(plain)
+      if (sm) {
+        const tl = sm[1].length
+        let pc = 0, si = 0
+        for (let i = 0; i < t.length; i++) { if (t[i] !== '*') { pc++; if (pc === tl) { si = i + 1; break } } }
+        while (si < t.length && t[si] === '*') si++
+        let bodySlice = t.slice(si)
+        if ((bodySlice.match(/\*\*/g) || []).length % 2 !== 0) bodySlice = bodySlice.replace(/\*\*(?=[^*]*$)/, '')
+        return new Paragraph({ children: [new TextRun({ text: plain.slice(0, tl).trimEnd(), bold: true }), ...buildRunsD(bodySlice, false)], indent: INDENT, spacing: BODY })
+      }
       return new Paragraph({ children: buildRunsD(raw), indent: INDENT, spacing: BODY })
+    }
     if (/:\s*$/.test(t) && t.length < 60)
       return new Paragraph({ children: [new TextRun({ text: t, bold: true })], spacing: BODY })
     return new Paragraph({ children: buildRunsD(raw), spacing: BODY })
