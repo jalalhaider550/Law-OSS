@@ -331,7 +331,7 @@ function tryParseRisks(text: string): Risk[] | null {
   } catch { return null }
 }
 type ClioMatter = { id: string; display_number: string; description: string; status: string; client_name: string }
-type SavedDocFile = { name: string; url: string; size: number; savedAt: string }
+type SavedDocFile = { name: string; path: string; size: number; savedAt: string }
 type SavedChat = { id: string; agentId: string; agentName: string; title: string; messages: Msg[]; savedAt: string; savedDocFile?: SavedDocFile }
 type Matter = { id: string; matterNumber?: number; name: string; type: string; status: string; court?: string; attorney?: string; dueDate?: string; notes?: string; savedChats: SavedChat[] }
 

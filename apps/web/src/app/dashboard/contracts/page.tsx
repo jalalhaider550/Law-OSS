@@ -70,9 +70,11 @@ function AddToMatterButton({ content, title, uid, token }: { content: string; ti
 }
 
 // ── Save updated contract doc to matter ───────────────────────────────────────
-// Uploads the .docx Blob to Supabase Storage (matter-documents bucket) and
-// persists the URL in the matter's savedChat so it's accessible from any device.
-type SavedDocFile = { name: string; url: string; size: number; savedAt: string }
+// Uploads the .docx Blob to the PRIVATE matter-documents bucket in Supabase Storage.
+// We store the storage PATH (not a public URL) — a signed URL is generated at
+// download time and expires after 1 hour, so the file is never publicly accessible.
+// Requires the matter-documents bucket to be set to PRIVATE in Supabase dashboard.
+type SavedDocFile = { name: string; path: string; size: number; savedAt: string }
 
 function SaveDocToMatter({ blob, docFilename, uid, token, supabase }: {
   blob: Blob; docFilename: string; uid: string; token: string; supabase: ReturnType<typeof import('@supabase/auth-helpers-nextjs').createClientComponentClient>
@@ -102,8 +104,8 @@ function SaveDocToMatter({ blob, docFilename, uid, token, supabase }: {
         upsert: false,
       })
       if (upErr) throw new Error(upErr.message)
-      const { data: { publicUrl } } = supabase.storage.from('matter-documents').getPublicUrl(path)
-      const savedDocFile: SavedDocFile = { name: docFilename, url: publicUrl, size: blob.size, savedAt: new Date().toISOString() }
+      // Store path only — signed URL is generated at download time (expires 1 hr)
+      const savedDocFile: SavedDocFile = { name: docFilename, path, size: blob.size, savedAt: new Date().toISOString() }
       const chat = {
         id: Date.now().toString(),
         agentId: 'contracts',

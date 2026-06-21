@@ -117,7 +117,7 @@ function userKey(base: string) { return `${base}_${_uid || _tabId}` }
 const LS_KEY = 'law_oss_matters'
 
 type Msg = { role: 'user' | 'assistant'; content: string }
-type SavedDocFile = { name: string; url: string; size: number; savedAt: string }
+type SavedDocFile = { name: string; path: string; size: number; savedAt: string }
 type SavedChat = { id: string; agentId: string; agentName: string; title: string; messages: Msg[]; savedAt: string; savedDocFile?: SavedDocFile }
 type Matter = { id: string; matterNumber?: number; name: string; type: string; status: 'active' | 'pending' | 'closed'; court?: string; attorney?: string; dueDate?: string; notes?: string; savedChats: SavedChat[] }
 
@@ -169,9 +169,25 @@ function ContinueChatModal({ chat, onClose, onSave }: { chat: SavedChat; onClose
   const [error, setError] = useState('')
   const [editingTitle, setEditingTitle] = useState(false)
   const [title, setTitle] = useState(chat.title)
+  const [docDownloading, setDocDownloading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const supabase = createClientComponentClient()
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+
+  // Generate a 1-hour signed URL and trigger download — file never publicly accessible
+  async function downloadSigned(file: SavedDocFile) {
+    setDocDownloading(true)
+    try {
+      const { data, error: signErr } = await supabase.storage.from('matter-documents').createSignedUrl(file.path, 3600)
+      if (signErr || !data?.signedUrl) throw new Error(signErr?.message || 'Could not generate download link')
+      const a = document.createElement('a'); a.href = data.signedUrl; a.download = file.name; a.click()
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setDocDownloading(false)
+    }
+  }
 
   async function send(text: string) {
     if (!text.trim() || streaming) return
@@ -222,19 +238,20 @@ function ContinueChatModal({ chat, onClose, onSave }: { chat: SavedChat; onClose
 
         {/* Messages */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {/* Saved document attachment — persisted cross-device via Supabase Storage */}
+          {/* Saved document attachment — private Supabase Storage; signed URL generated on demand */}
           {chat.savedDocFile && (
-            <a href={chat.savedDocFile.url} download={chat.savedDocFile.name} target="_blank" rel="noopener noreferrer"
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: 9, textDecoration: 'none', color: '#15803d', flexShrink: 0 }}>
+            <button onClick={() => downloadSigned(chat.savedDocFile!)} disabled={docDownloading}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: 9, cursor: docDownloading ? 'wait' : 'pointer', color: '#15803d', flexShrink: 0, width: '100%', textAlign: 'left' }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chat.savedDocFile.name}</div>
                 <div style={{ fontSize: 11, color: '#166534', marginTop: 1 }}>
                   Updated contract · {(chat.savedDocFile.size / 1024).toFixed(0)} KB · saved {new Date(chat.savedDocFile.savedAt).toLocaleDateString()}
+                  {docDownloading ? ' · Generating secure link…' : ' · Click to download'}
                 </div>
               </div>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            </a>
+            </button>
           )}
           {error && <div style={{ padding: '8px 12px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 7, fontSize: 13, color: '#b91c1c' }}>{error}</div>}
           {messages.map((m, i) => (
@@ -277,8 +294,20 @@ function MatterWorkflowModal({ matter, onClose, onUpdate }: { matter: Matter; on
   const [continueChat, setContinueChat] = useState<SavedChat | null>(null)
   const [editingChatId, setEditingChatId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
+  const [sidebarDownloadingId, setSidebarDownloadingId] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const supabase = createClientComponentClient()
   const mNum = matter.matterNumber ? `#${String(matter.matterNumber).padStart(3, '0')}` : ''
+
+  async function downloadSignedSidebar(chatId: string, file: SavedDocFile) {
+    setSidebarDownloadingId(chatId)
+    try {
+      const { data, error: signErr } = await supabase.storage.from('matter-documents').createSignedUrl(file.path, 3600)
+      if (signErr || !data?.signedUrl) throw new Error(signErr?.message || 'Could not generate download link')
+      const a = document.createElement('a'); a.href = data.signedUrl; a.download = file.name; a.click()
+    } catch { /* silently ignore — user can open chat and retry */ }
+    finally { setSidebarDownloadingId(null) }
+  }
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
@@ -361,11 +390,13 @@ Do not use emojis, decorative symbols, or coloured text. Use plain professional 
                   )}
                   <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: chat.savedDocFile ? 4 : 6 }}>{chat.agentName} · {new Date(chat.savedAt).toLocaleDateString()}</div>
                   {chat.savedDocFile && (
-                    <a href={chat.savedDocFile.url} download={chat.savedDocFile.name} target="_blank" rel="noopener noreferrer"
-                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 6, textDecoration: 'none', color: '#15803d', fontSize: 11, fontWeight: 600, marginBottom: 6, overflow: 'hidden' }}>
+                    <button onClick={() => downloadSignedSidebar(chat.id, chat.savedDocFile!)} disabled={sidebarDownloadingId === chat.id}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 6, cursor: sidebarDownloadingId === chat.id ? 'wait' : 'pointer', color: '#15803d', fontSize: 11, fontWeight: 600, marginBottom: 6, overflow: 'hidden', width: '100%' }}>
                       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chat.savedDocFile.name}</span>
-                    </a>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {sidebarDownloadingId === chat.id ? 'Generating link…' : chat.savedDocFile.name}
+                      </span>
+                    </button>
                   )}
                   <div style={{ display: 'flex', gap: 4 }}>
                     <button onClick={() => setContinueChat(chat)} style={{ flex: 1, padding: '3px 0', background: '#0f0f0f', color: '#fff', border: 'none', borderRadius: 5, fontSize: 11.5, fontWeight: 600, cursor: 'pointer' }}>Continue</button>
