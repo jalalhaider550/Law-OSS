@@ -433,6 +433,41 @@ function CopyButton({ content }: { content: string }) {
   )
 }
 
+// Extracts text from a single pdf.js page with line/paragraph detection.
+// transform[5] = y-coordinate (PDF points, increasing upward on page).
+// dy < 1          → same line       → space-join (always add space to handle
+//                                     PDFs without embedded trailing spaces)
+// dy < 1.5×lh     → new line        → \n
+// dy ≥ 1.5×lh     → paragraph gap   → \n\n
+// lineHeight is estimated from the median non-zero item.height for this page;
+// falls back to 12pt for scanned/image PDFs that have no text items.
+function extractPageText(items: any[]): string {
+  if (items.length === 0) return ''
+  const heights = items.map((it: any) => it.height ?? 0).filter((h: number) => h > 0).sort((a: number, b: number) => a - b)
+  const lineHeight = heights.length > 0 ? heights[Math.floor(heights.length / 2)] : 12
+  let out = ''
+  let prevY: number | null = null
+  for (const item of items) {
+    const str: string = item.str ?? ''
+    if (!str) continue
+    const y: number = item.transform[5]
+    if (prevY === null) {
+      out += str
+    } else {
+      const dy = prevY - y
+      if (dy < 1) {
+        out += ' ' + str            // same line — always space for safety
+      } else if (dy < lineHeight * 1.5) {
+        out += '\n' + str           // normal line break
+      } else {
+        out += '\n\n' + str         // paragraph / section break
+      }
+    }
+    prevY = y
+  }
+  return out
+}
+
 async function extractTextFromFile(file: File): Promise<string> {
   const name = file.name.toLowerCase()
   if (
@@ -450,9 +485,8 @@ async function extractTextFromFile(file: File): Promise<string> {
     let text = ''
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i)
-      const extracted = await page.getTextContent()
-      const pageItems = (extracted.items || []) as any[]
-      text += pageItems.map((item: any) => (item.str ?? '')).join(' ') + '\n'
+      const pageItems = ((await page.getTextContent()).items || []) as any[]
+      text += extractPageText(pageItems) + '\n\n'
     }
     return text // no truncation — full document
   }
@@ -658,6 +692,7 @@ export default function AgentsPage() {
   const [jurisdiction, setJurisdiction] = useState('')
   const [authToken, setAuthToken] = useState<string | null>(null)
   const [attachedDoc, setAttachedDoc] = useState<AttachedDoc | null>(null)
+  const [pdfDebugText, setPdfDebugText] = useState<string | null>(null)
   const [uploadError, setUploadError] = useState('')
   const [uploading, setUploading] = useState(false)
   const [continuationRound, setContinuationRound] = useState(0)
@@ -687,7 +722,14 @@ export default function AgentsPage() {
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return
     setUploading(true); setUploadError('')
-    try { const text = await extractTextFromFile(file); setAttachedDoc({ name: file.name, text }) }
+    try {
+      const text = await extractTextFromFile(file)
+      // ?pdfDebug=1 — show raw extracted text with visible line markers before sending
+      if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('pdfDebug') === '1') {
+        setPdfDebugText(text); setUploading(false); if (fileInputRef.current) fileInputRef.current.value = ''; return
+      }
+      setAttachedDoc({ name: file.name, text })
+    }
     catch (err: any) { setUploadError(err.message || 'Failed to read file') }
     finally { setUploading(false); if (fileInputRef.current) fileInputRef.current.value = '' }
   }
@@ -785,6 +827,22 @@ export default function AgentsPage() {
 
   return (
     <div style={{ display: 'flex', height: '100%' }}>
+
+      {/* ?pdfDebug=1 overlay — remove after verifying line/paragraph extraction */}
+      {pdfDebugText !== null && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.85)', overflow: 'auto', padding: 24 }} onClick={() => setPdfDebugText(null)}>
+          <div style={{ background: '#0f0f0f', borderRadius: 10, padding: 24, maxWidth: 900, margin: '0 auto', color: '#e0e0e0', fontFamily: 'monospace', fontSize: 12, lineHeight: 1.6 }}>
+            <div style={{ marginBottom: 12, color: '#d4a843', fontWeight: 700, fontSize: 13 }}>
+              PDF DEBUG — raw extracted text (click anywhere to dismiss)
+              <span style={{ marginLeft: 16, color: '#888', fontWeight: 400 }}>↵ = \n  ¶ = \n\n</span>
+            </div>
+            <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              {pdfDebugText.replace(/\n\n/g, ' ¶\n\n').replace(/\n/g, ' ↵\n')}
+            </pre>
+          </div>
+        </div>
+      )}
+
       {/* Agent list — hidden on mobile, visible on desktop */}
       {!isMobile && (
         <div style={{ width: 220, borderRight: '1px solid rgba(0,0,0,0.08)', overflowY: 'auto', flexShrink: 0, background: '#fafafa' }}>

@@ -404,6 +404,41 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
   return { applied: appliedCount, appended: appended.length, failed: notFound, renumberWarning }
 }
 
+// Extracts text from a single pdf.js page with line/paragraph detection.
+// transform[5] = y-coordinate (PDF points, increasing upward on page).
+// dy < 1          → same line       → space-join (always add space to handle
+//                                     PDFs without embedded trailing spaces)
+// dy < 1.5×lh     → new line        → \n
+// dy ≥ 1.5×lh     → paragraph gap   → \n\n
+// lineHeight is estimated from the median non-zero item.height for this page;
+// falls back to 12pt for scanned/image PDFs that have no text items.
+function extractPageText(items: any[]): string {
+  if (items.length === 0) return ''
+  const heights = items.map((it: any) => it.height ?? 0).filter((h: number) => h > 0).sort((a: number, b: number) => a - b)
+  const lineHeight = heights.length > 0 ? heights[Math.floor(heights.length / 2)] : 12
+  let out = ''
+  let prevY: number | null = null
+  for (const item of items) {
+    const str: string = item.str ?? ''
+    if (!str) continue
+    const y: number = item.transform[5]
+    if (prevY === null) {
+      out += str
+    } else {
+      const dy = prevY - y
+      if (dy < 1) {
+        out += ' ' + str            // same line — always space for safety
+      } else if (dy < lineHeight * 1.5) {
+        out += '\n' + str           // normal line break
+      } else {
+        out += '\n\n' + str         // paragraph / section break
+      }
+    }
+    prevY = y
+  }
+  return out
+}
+
 async function extractText(file: File): Promise<string> {
   const name = file.name.toLowerCase()
   if (file.type.startsWith('text/') || name.endsWith('.txt') || name.endsWith('.md')) {
@@ -418,7 +453,7 @@ async function extractText(file: File): Promise<string> {
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i)
       const items = ((await page.getTextContent()).items || []) as any[]
-      text += items.map((x: any) => x.str ?? '').join(' ') + '\n'
+      text += extractPageText(items) + '\n\n'
     }
     return text
   }
@@ -574,6 +609,7 @@ export default function ContractsPage() {
   const [filename, setFilename] = useState('')
   const [currentId, setCurrentId] = useState<string | null>(null)
   const [docText, setDocText] = useState('')
+  const [pdfDebugText, setPdfDebugText] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [showHistory, setShowHistory] = useState(false)
   const [generating, setGenerating] = useState(false)
@@ -640,6 +676,12 @@ export default function ContractsPage() {
     let extracted = ''
     try { extracted = await extractText(file) }
     catch (e: any) { setError(e.message); setBusy(false); setStage(''); return }
+
+    // ?pdfDebug=1 — show raw extracted text with visible line markers before AI sees it
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('pdfDebug') === '1') {
+      setPdfDebugText(extracted)
+      setBusy(false); setStage(''); return
+    }
 
     setDocText(extracted)
     setStage('reviewing')
@@ -793,6 +835,21 @@ Flag 5–20 genuine risks.`
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: '24px' }}>
+
+      {/* ?pdfDebug=1 overlay — remove after verifying line/paragraph extraction */}
+      {pdfDebugText !== null && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.85)', overflow: 'auto', padding: 24 }} onClick={() => setPdfDebugText(null)}>
+          <div style={{ background: '#0f0f0f', borderRadius: 10, padding: 24, maxWidth: 900, margin: '0 auto', color: '#e0e0e0', fontFamily: 'monospace', fontSize: 12, lineHeight: 1.6 }}>
+            <div style={{ marginBottom: 12, color: '#d4a843', fontWeight: 700, fontSize: 13 }}>
+              PDF DEBUG — raw extracted text (click anywhere to dismiss)
+              <span style={{ marginLeft: 16, color: '#888', fontWeight: 400 }}>↵ = \n  ¶ = \n\n</span>
+            </div>
+            <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              {pdfDebugText.replace(/\n\n/g, ' ¶\n\n').replace(/\n/g, ' ↵\n')}
+            </pre>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div style={{ marginBottom: 20, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
