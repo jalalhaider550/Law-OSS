@@ -455,9 +455,14 @@ async function buildUpdatedContract(docText: string, risks: Risk[], filename: st
   const TIGHT  = { before: 0, after: 0   }
   const BODY   = { before: 0, after: 120 }  // 6pt after each paragraph (blank-line paragraphs removed)
   const INDENT = { left: 720 }              // 0.5 inch for sub-clauses
+  const INDENT2 = { left: 1440 }            // 1.0 inch for nested roman sub-clauses
 
   const SECTION_HDR_RE = /^(?:\*{1,2})?(\d+(?:\.\d+)*[\.\)]\s)(.+)/
   const SUBCLAUSE_RE   = /^(\([a-z]\)|\([ivxlc]+\)|[a-z][\.\)]\s)/i
+  const SECTION_RESET_RE = /^(?:\*{1,2})?\d+(?:\.\d+)*[\.\)]\s/
+  const SUB_SPLIT_RE     = /(?=\((?:[a-z]|[ivxlcdm]{1,6})\)\s)/gi
+  const SUB_MARKER_RE    = /^\(([a-z]|[ivxlcdm]{1,6})\)\s/i
+  const ROMAN_ONLY_RE    = /^[ivxlcdm]+$/i
   const ALLCAPS_HDR_RE = /^(?:\*{1,2})?[A-Z][A-Z ;]{9,}(?:\*{1,2})?$/
   // Tightened to known party/role words only — avoids bolding arbitrary short
   // all-caps text like "AND", "OR", "WHEREAS" from poorly-converted table cells.
@@ -480,7 +485,7 @@ async function buildUpdatedContract(docText: string, risks: Risk[], filename: st
     return parts.length ? parts : [new TextRun({ text: normalized, bold: forceBold })]
   }
 
-  function textLine(raw: string): any {
+  function textLine(raw: string, indentOverride?: any): any {
     const t = raw.trimStart()
     if (t.startsWith('### ')) return new Paragraph({ text: t.slice(4), heading: HeadingLevel.HEADING_3, spacing: TIGHT })
     if (t.startsWith('## '))  return new Paragraph({ text: t.slice(3),  heading: HeadingLevel.HEADING_2, spacing: TIGHT })
@@ -511,6 +516,7 @@ async function buildUpdatedContract(docText: string, risks: Risk[], filename: st
       return new Paragraph({ children: buildRuns(t, !t.includes('**')), spacing: BODY })
     }
     if (SUBCLAUSE_RE.test(t)) {
+      const indent = indentOverride ?? INDENT
       // Detect sub-clause mini-header: "(a) Title Phrase. Body text" → bold label+title, normal body
       const plain = t.replace(/\*{1,2}/g, '')
       const sm = /^((?:\([a-z]+\)|[a-z][\.\)])\s+[A-Z][^\n.]{2,50}?\.\s+)(\S.*)$/i.exec(plain)
@@ -521,9 +527,9 @@ async function buildUpdatedContract(docText: string, risks: Risk[], filename: st
         while (si < t.length && t[si] === '*') si++
         let bodySlice = t.slice(si)
         if ((bodySlice.match(/\*\*/g) || []).length % 2 !== 0) bodySlice = bodySlice.replace(/\*\*(?=[^*]*$)/, '')
-        return new Paragraph({ children: [new TextRun({ text: plain.slice(0, tl).trimEnd(), bold: true }), new TextRun({ text: ' ' }), ...buildRuns(bodySlice, false)], indent: INDENT, spacing: BODY })
+        return new Paragraph({ children: [new TextRun({ text: plain.slice(0, tl).trimEnd(), bold: true }), new TextRun({ text: ' ' }), ...buildRuns(bodySlice, false)], indent, spacing: BODY })
       }
-      return new Paragraph({ children: buildRuns(raw), indent: INDENT, spacing: BODY })
+      return new Paragraph({ children: buildRuns(raw), indent, spacing: BODY })
     }
     if (/:\s*$/.test(t) && t.length < 60)
       return new Paragraph({ children: [new TextRun({ text: t, bold: true })], spacing: BODY })
@@ -531,13 +537,41 @@ async function buildUpdatedContract(docText: string, risks: Risk[], filename: st
   }
 
   const children: any[] = []
+  // Letter-sequence cursor — resets at every top-level numeric section so a section
+  // running (a)(b)…(h)(i)(j) stays single-level, but nested (i)(ii)(iii) under a
+  // letter sub-clause go to second-level indent.
+  let expectedLetter = 'a'
+  const nextChar = (c: string) => String.fromCharCode(c.charCodeAt(0) + 1)
+  // Lines that are only whitespace, zero-width format chars, or stray markdown
+  // markers should not become real empty paragraphs in the rendered docx.
+  const isVisuallyBlank = (s: string) =>
+    !s.replace(/[\s\u200B-\u200D\uFEFF\u00A0 *_]+/g, '').length
   for (const line of updated.split('\n')) {
-    if (!line.trim()) continue  // skip blank lines — BODY paragraph spacing provides separation
-    // Split mid-line sub-clause markers into separate lines so each (a)/(b)/(i)/(ii)/etc.
-    // gets its own indented paragraph regardless of whether the source had a line break there.
-    // Pattern covers single-letter (a)-(z) and roman-numeral sub-clauses (i)-(viii) etc.
-    for (const sub of line.split(/\s+(?=(?:\([a-z]\)|\([ivxlcdm]{1,6}\))\s)/i)) {
-      if (sub.trim()) children.push(textLine(sub))
+    if (isVisuallyBlank(line)) continue
+    for (const sub of line.split(SUB_SPLIT_RE)) {
+      const piece = sub.trim()
+      if (!piece) continue
+      if (SECTION_RESET_RE.test(piece)) {
+        expectedLetter = 'a'
+        children.push(textLine(piece))
+        continue
+      }
+      const mm = SUB_MARKER_RE.exec(piece)
+      if (!mm) { children.push(textLine(piece)); continue }
+      const tok = mm[1].toLowerCase()
+      let isRoman: boolean
+      if (tok.length >= 2 && ROMAN_ONLY_RE.test(tok)) {
+        isRoman = true                                  // (ii)(iii)(iv)(vi)+ → always roman
+      } else if (tok === expectedLetter) {
+        isRoman = false                                 // in-sequence letter (incl. (i) after (h))
+        expectedLetter = nextChar(expectedLetter)
+      } else if (tok === 'i' || tok === 'v' || tok === 'x') {
+        isRoman = true                                  // single-char roman out of sequence → nested
+      } else {
+        isRoman = false                                 // single letter out of sequence — still letter level
+        expectedLetter = nextChar(tok)
+      }
+      children.push(textLine(piece, isRoman ? INDENT2 : undefined))
     }
   }
 

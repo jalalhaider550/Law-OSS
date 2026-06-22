@@ -236,8 +236,13 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
   const TIGHT  = { before: 0, after: 0   }
   const BODY   = { before: 0, after: 120 }  // 6pt after each paragraph (blank-line paragraphs removed)
   const INDENT = { left: 720 }
+  const INDENT2 = { left: 1440 }
   const SECTION_HDR_RE_D = /^(\d+(?:\.\d+)*[\.\)]\s)(.+)/
   const SUBCLAUSE_RE_D   = /^(\([a-z]\)|\([ivxlc]+\)|[a-z][\.\)]\s)/i
+  const SECTION_RESET_RE_D = /^(?:\*{1,2})?\d+(?:\.\d+)*[\.\)]\s/
+  const SUB_SPLIT_RE_D     = /(?=\((?:[a-z]|[ivxlcdm]{1,6})\)\s)/gi
+  const SUB_MARKER_RE_D    = /^\(([a-z]|[ivxlcdm]{1,6})\)\s/i
+  const ROMAN_ONLY_RE_D    = /^[ivxlcdm]+$/i
   const ALLCAPS_HDR_RE_D = /^[A-Z][A-Z ]{9,}$/
   const TABLE_HDR_RE_D   = /^(SELLER|BUYER|PARTY|PARTIES|DATE|NAME|SIGNATURE|WITNESS|GRANTOR|GRANTEE|VENDOR|PURCHASER|LESSOR|LESSEE|LICENSOR|LICENSEE|BORROWER|LENDER)$/
   function buildRunsD(raw: string, forceBold = false): any[] {
@@ -249,7 +254,7 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
     if (last < raw.length) parts.push(new TextRun({ text: raw.slice(last), bold: forceBold }))
     return parts.length ? parts : [new TextRun({ text: raw, bold: forceBold })]
   }
-  function textLine(raw: string): any {
+  function textLine(raw: string, indentOverride?: any): any {
     const t = raw.trimStart()
     if (t.startsWith('### ')) return new Paragraph({ text: t.slice(4), heading: HeadingLevel.HEADING_3, spacing: TIGHT })
     if (t.startsWith('## '))  return new Paragraph({ text: t.slice(3),  heading: HeadingLevel.HEADING_2, spacing: TIGHT })
@@ -273,6 +278,7 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
       return new Paragraph({ children: buildRunsD(t, !t.includes('**')), spacing: BODY })
     }
     if (SUBCLAUSE_RE_D.test(t)) {
+      const indent = indentOverride ?? INDENT
       const plain = t.replace(/\*{1,2}/g, '')
       const sm = /^((?:\([a-z]+\)|[a-z][\.\)])\s+[A-Z][^\n.]{2,50}?\.\s+)(\S.*)$/i.exec(plain)
       if (sm) {
@@ -282,18 +288,46 @@ async function downloadUpdatedContract(docText: string, risks: Risk[], filename:
         while (si < t.length && t[si] === '*') si++
         let bodySlice = t.slice(si)
         if ((bodySlice.match(/\*\*/g) || []).length % 2 !== 0) bodySlice = bodySlice.replace(/\*\*(?=[^*]*$)/, '')
-        return new Paragraph({ children: [new TextRun({ text: plain.slice(0, tl).trimEnd(), bold: true }), new TextRun({ text: ' ' }), ...buildRunsD(bodySlice, false)], indent: INDENT, spacing: BODY })
+        return new Paragraph({ children: [new TextRun({ text: plain.slice(0, tl).trimEnd(), bold: true }), new TextRun({ text: ' ' }), ...buildRunsD(bodySlice, false)], indent, spacing: BODY })
       }
-      return new Paragraph({ children: buildRunsD(raw), indent: INDENT, spacing: BODY })
+      return new Paragraph({ children: buildRunsD(raw), indent, spacing: BODY })
     }
     if (/:\s*$/.test(t) && t.length < 60)
       return new Paragraph({ children: [new TextRun({ text: t, bold: true })], spacing: BODY })
     return new Paragraph({ children: buildRunsD(raw), spacing: BODY })
   }
   const children: any[] = []
+  let expectedLetterD = 'a'
+  const nextCharD = (c: string) => String.fromCharCode(c.charCodeAt(0) + 1)
+  const isVisuallyBlankD = (s: string) =>
+    !s.replace(/[\s\u200B-\u200D\uFEFF\u00A0 *_]+/g, '').length
   for (const line of updated.split('\n')) {
-    if (!line.trim()) { children.push(new Paragraph({ text: '', spacing: BODY })); continue }
-    children.push(textLine(line))
+    if (isVisuallyBlankD(line)) continue
+    for (const sub of line.split(SUB_SPLIT_RE_D)) {
+      const piece = sub.trim()
+      if (!piece) continue
+      if (SECTION_RESET_RE_D.test(piece)) {
+        expectedLetterD = 'a'
+        children.push(textLine(piece))
+        continue
+      }
+      const mm = SUB_MARKER_RE_D.exec(piece)
+      if (!mm) { children.push(textLine(piece)); continue }
+      const tok = mm[1].toLowerCase()
+      let isRoman: boolean
+      if (tok.length >= 2 && ROMAN_ONLY_RE_D.test(tok)) {
+        isRoman = true
+      } else if (tok === expectedLetterD) {
+        isRoman = false
+        expectedLetterD = nextCharD(expectedLetterD)
+      } else if (tok === 'i' || tok === 'v' || tok === 'x') {
+        isRoman = true
+      } else {
+        isRoman = false
+        expectedLetterD = nextCharD(tok)
+      }
+      children.push(textLine(piece, isRoman ? INDENT2 : undefined))
+    }
   }
   const doc = new Document({ sections: [{ properties: {}, children }] })
   const blob = await Packer.toBlob(doc)
@@ -624,11 +658,16 @@ async function extractTextFromFile(file: File): Promise<string> {
 
 async function downloadAsWord(content: string, filename = 'document.docx') {
   const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx')
-  const lines = content.split('\n')
+  const lines = content.replace(/\n{2,}/g, '\n\n').split('\n')
   const children: any[] = []
+  let lastBlank = false
   for (const line of lines) {
     const trimmed = line.trim()
-    if (!trimmed) { children.push(new Paragraph({ text: '' })); continue }
+    if (!trimmed) {
+      if (!lastBlank) { children.push(new Paragraph({ text: '' })); lastBlank = true }
+      continue
+    }
+    lastBlank = false
     if (trimmed.startsWith('### ')) {
       children.push(new Paragraph({ text: trimmed.slice(4), heading: HeadingLevel.HEADING_3 }))
     } else if (trimmed.startsWith('## ')) {
