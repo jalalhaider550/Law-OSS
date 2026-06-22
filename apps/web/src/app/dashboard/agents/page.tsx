@@ -1098,8 +1098,17 @@ export default function AgentsPage() {
                           )}
                           <div style={{ display: 'flex', gap: 6 }}>
                             <CopyButton content={m.content} />
-                            {agentLastBlob
-                              ? <SaveDocToMatterAgent blob={agentLastBlob} docFilename={agentLastBlobFilename} uid={_uid} token={authToken ?? ''} supabase={supabase} />
+                            {agentDocText && acceptedCount > 0
+                              ? <SaveDocToMatterAgent
+                                  blob={agentLastBlob}
+                                  docFilename={agentLastBlobFilename || (agentDocName ? agentDocName.replace(/\.[^.]+$/, '') + '-updated.docx' : 'contract-updated.docx')}
+                                  docText={agentDocText}
+                                  docRisks={risks}
+                                  docName={agentDocName || 'contract.docx'}
+                                  uid={_uid}
+                                  token={authToken ?? ''}
+                                  supabase={supabase}
+                                />
                               : <SaveToMatter messages={messages.slice(0, i + 1)} agentId={agentId} agentName={activeAgent.name} token={authToken ?? ''} />
                             }
                           </div>
