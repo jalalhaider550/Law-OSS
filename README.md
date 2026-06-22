@@ -80,7 +80,7 @@ Get a key: console.anthropic.com (Claude) or aistudio.google.com (Gemini). Typic
 
 ## License
 
-Certain Law OSS software is made available under open-source licences. Your use of that software is governed by the applicable open-source licence terms.
+Law OSS software is made available under open-source licences. Your use of that software is governed by the applicable open-source licence terms.
 
 Commercial licensing available on request.
 
