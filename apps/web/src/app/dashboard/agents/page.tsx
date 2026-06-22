@@ -458,8 +458,12 @@ function SaveToMatter({ messages, agentId, agentName, token }: { messages: Msg[]
 
 // Uploads the built .docx Blob to private Supabase Storage and persists the
 // path in the matter's savedDocFile — same pattern as contracts/page.tsx.
-function SaveDocToMatterAgent({ blob, docFilename, uid, token, supabase }: {
-  blob: Blob; docFilename: string; uid: string; token: string
+// blob may be pre-built (user already downloaded) or built on-demand from
+// docText + docRisks + docName when the user saves without downloading first.
+function SaveDocToMatterAgent({ blob, docFilename, docText, docRisks, docName, uid, token, supabase }: {
+  blob: Blob | null; docFilename: string
+  docText?: string; docRisks?: any[]; docName?: string
+  uid: string; token: string
   supabase: ReturnType<typeof import('@supabase/auth-helpers-nextjs').createClientComponentClient>
 }) {
   const [open, setOpen] = useState(false)
@@ -473,17 +477,26 @@ function SaveDocToMatterAgent({ blob, docFilename, uid, token, supabase }: {
   async function saveToMatter(matterId: string) {
     setSaving(true); setErr('')
     try {
-      const path = `${uid}/${matterId}/${Date.now()}-${docFilename}`
-      const { error: upErr } = await supabase.storage.from('matter-documents').upload(path, blob, {
+      // Build blob on-demand if not already available (user skipped the download step)
+      let finalBlob = blob
+      let finalFilename = docFilename
+      if (!finalBlob && docText && docRisks) {
+        const r = await downloadUpdatedContract(docText, docRisks, docName || 'contract.docx')
+        finalBlob = r.blob
+        finalFilename = r.updatedFilename
+      }
+      if (!finalBlob) throw new Error('No document to save')
+      const path = `${uid}/${matterId}/${Date.now()}-${finalFilename}`
+      const { error: upErr } = await supabase.storage.from('matter-documents').upload(path, finalBlob, {
         contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         upsert: false,
       })
       if (upErr) throw new Error(upErr.message)
-      const savedDocFile: SavedDocFile = { name: docFilename, path, size: blob.size, savedAt: new Date().toISOString() }
+      const savedDocFile: SavedDocFile = { name: finalFilename, path, size: finalBlob.size, savedAt: new Date().toISOString() }
       const chat: SavedChat = {
         id: Date.now().toString(), agentId: 'contracts', agentName: 'Contract Review',
-        title: `Updated contract: ${docFilename}`,
-        messages: [{ role: 'assistant', content: `✅ Updated contract saved.\n\n**File:** ${docFilename}` }],
+        title: `Updated contract: ${finalFilename}`,
+        messages: [{ role: 'assistant', content: `✅ Updated contract saved.\n\n**File:** ${finalFilename}` }],
         savedAt: new Date().toISOString(), savedDocFile,
       }
       const all = getMatters()
@@ -589,8 +602,7 @@ async function extractTextFromFile(file: File): Promise<string> {
   if (name.endsWith('.pdf') || file.type === 'application/pdf') {
     const pdfjsLib = await import('pdfjs-dist')
     // Derive worker URL from the actual bundled version to prevent API/Worker mismatch
-    const pdfjsVersion = pdfjsLib.version ?? '4.10.38'
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsVersion}/pdf.worker.min.mjs`
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs`
     const ab = await file.arrayBuffer()
     const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(ab) }).promise
     let text = ''

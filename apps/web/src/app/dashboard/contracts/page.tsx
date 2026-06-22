@@ -591,8 +591,7 @@ async function extractText(file: File): Promise<string> {
   if (name.endsWith('.pdf') || file.type === 'application/pdf') {
     const pdfjsLib = await import('pdfjs-dist')
     // Derive worker URL from the actual bundled version to prevent API/Worker mismatch
-    const pdfjsVersion = pdfjsLib.version ?? '4.10.38'
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsVersion}/pdf.worker.min.mjs`
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs`
     const ab = await file.arrayBuffer()
     const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(ab) }).promise
     let text = ''
