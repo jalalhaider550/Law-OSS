@@ -82,13 +82,19 @@ export default function SettingsPage() {
   const supabase = createClientComponentClient()
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession()
       if (!session) { router.replace('/login'); return }
       setAuthToken(session.access_token)
       setUserEmail(session.user.email || '')
       // Namespace all localStorage keys by user ID so accounts never share data
       setUid(session.user.id)
-      const meta = session.user.user_metadata || {}
+      // Fetch fresh user metadata from Supabase server.
+      // session.user.user_metadata comes from the JWT, which is NOT refreshed
+      // by supabase.auth.updateUser() — so a save followed by a refresh would
+      // read stale metadata from the old JWT and overwrite the new key.
+      const { data: { user: freshUser } } = await supabase.auth.getUser()
+      const meta = freshUser?.user_metadata || session.user.user_metadata || {}
       setFullName(meta.full_name || meta.name || '')
       setLawFirmName(meta.law_firm || '')
       setRole(meta.role || '')
@@ -116,7 +122,7 @@ export default function SettingsPage() {
         const verified = data?.totp?.find(f => f.status === 'verified')
         if (verified) { setMfaEnrolled(true); setMfaFactorId(verified.id) }
       }).catch(() => {})
-    })
+    })()
   }, [])
 
   async function saveProfile() {
@@ -146,8 +152,17 @@ export default function SettingsPage() {
     // Save to localStorage (current device)
     localStorage.setItem(userKey('law_oss_api_key'), key)
     localStorage.setItem(userKey('law_oss_provider'), newProvider)
-    // Save to account metadata (all devices)
-    await supabase.auth.updateUser({ data: { law_oss_api_key: key, law_oss_provider: newProvider } }).catch(() => {})
+    // Save to account metadata (all devices). Surface failures: if this is silently
+    // swallowed, the next page load reads stale metadata and overwrites the new key
+    // in localStorage with the old one.
+    const { error: updateErr } = await supabase.auth.updateUser({
+      data: { law_oss_api_key: key, law_oss_provider: newProvider },
+    })
+    if (updateErr) {
+      setKeyErr(`Saved on this device but failed to sync to your account: ${updateErr.message}`)
+      setSavingKey(false)
+      return
+    }
     setHasKey(true); setProvider(newProvider)
     setKeyPreview(key.slice(0, 8) + '...' + key.slice(-4))
     setNewKey(''); setKeySaved('API key saved — synced to your account.')
