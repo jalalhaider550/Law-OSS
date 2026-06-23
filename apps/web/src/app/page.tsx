@@ -66,6 +66,7 @@ const TICKER = ['Any Jurisdiction', 'Powered by Claude', 'Powered by Gemini', 'Y
 export default function LandingPage() {
   const [isMobile, setIsMobile] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [verified, setVerified] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', message: '' })
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
 
@@ -75,6 +76,15 @@ export default function LandingPage() {
   useEffect(() => {
     const fn = () => setIsMobile(window.innerWidth < 768)
     fn(); window.addEventListener('resize', fn); return () => window.removeEventListener('resize', fn)
+  }, [])
+
+  // Detect arrival from Supabase email verification link.
+  // Supabase puts tokens in the URL hash (implicit flow) or query string.
+  useEffect(() => {
+    const q = window.location.search + '&' + window.location.hash.replace(/^#/, '')
+    if (/(^|[?&#])(type=signup|access_token=|token_hash=)/.test(q)) {
+      setVerified(true)
+    }
   }, [])
 
   const submit = useCallback(async (e: React.FormEvent) => {
@@ -90,6 +100,34 @@ export default function LandingPage() {
 
   return (
     <div style={{ fontFamily: 'Inter,-apple-system,BlinkMacSystemFont,sans-serif', background: '#fff', color: '#0f0f0f', overflowX: 'hidden' }}>
+
+      {/* Email-verified banner (shown only when arriving from Supabase verify link) */}
+      {verified && (
+        <div
+          role="status"
+          style={{
+            position: 'sticky', top: 0, zIndex: 101,
+            background: '#e8f7ee', color: '#0a5d2a',
+            borderBottom: '1px solid #b7e2c5',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            gap: 16, padding: isMobile ? '10px 16px' : '12px 24px',
+            fontSize: isMobile ? 14 : 15, fontWeight: 500,
+            flexWrap: 'wrap', textAlign: 'center',
+          }}
+        >
+          <span>✓ Account created and email confirmed. Continue to sign in.</span>
+          <Link
+            href="/login"
+            style={{
+              background: '#0a5d2a', color: '#fff',
+              padding: '6px 14px', borderRadius: 6,
+              textDecoration: 'none', fontWeight: 600, fontSize: 14,
+            }}
+          >
+            Sign in
+          </Link>
+        </div>
+      )}
 
       <style>{`
         @keyframes tk { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
