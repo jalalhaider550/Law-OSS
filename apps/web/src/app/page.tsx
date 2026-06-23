@@ -82,7 +82,7 @@ export default function LandingPage() {
   // Supabase puts tokens in the URL hash (implicit flow) or query string.
   useEffect(() => {
     const q = window.location.search + '&' + window.location.hash.replace(/^#/, '')
-    if (/(^|[?&#])(type=signup|access_token=|token_hash=)/.test(q)) {
+    if (/(^|[?&#])(type=signup|access_token=|token_hash=|code=)/.test(q)) {
       setVerified(true)
     }
   }, [])
