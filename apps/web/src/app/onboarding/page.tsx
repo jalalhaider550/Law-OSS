@@ -7,6 +7,7 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
 export default function OnboardingPage() {
   const [token, setToken] = useState<string | null>(null)
+  const [uid, setUid] = useState<string | null>(null)
   const [provider, setProvider] = useState<'anthropic' | 'gemini'>('anthropic')
   const [apiKey, setApiKey] = useState('')
   const [showKey, setShowKey] = useState(false)
@@ -20,13 +21,14 @@ export default function OnboardingPage() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) { router.replace('/login'); return }
       setToken(session.access_token)
+      setUid(session.user.id)
       setChecking(false)
     })
   }, [])
 
   async function handleSave() {
     const key = apiKey.trim()
-    if (!key || !token) return
+    if (!key || !uid) return
     const p = provider === 'anthropic' ? 'claude' : provider
     if (p === 'claude' && !key.startsWith('sk-ant-')) {
       setError('Invalid Claude key — must start with sk-ant-'); return
@@ -36,13 +38,11 @@ export default function OnboardingPage() {
     }
     setLoading(true); setError('')
     try {
-      const res = await fetch(`${API}/api/api-keys`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ provider: p, apiKey: key }),
-      })
-      const data = await res.json()
-      if (!res.ok) { setError(data.error || 'Failed to save key'); return }
+      // Mirror Settings page logic exactly: per-user localStorage + Supabase user metadata.
+      localStorage.setItem('law_oss_uid', uid)
+      localStorage.setItem(`law_oss_api_key_${uid}`, key)
+      localStorage.setItem(`law_oss_provider_${uid}`, p)
+      await supabase.auth.updateUser({ data: { law_oss_api_key: key, law_oss_provider: p } }).catch(() => {})
       router.push('/dashboard')
     } catch { setError('Network error — could not save key.') }
     finally { setLoading(false) }
